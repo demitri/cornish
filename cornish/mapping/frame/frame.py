@@ -1,9 +1,11 @@
 #/usr/bin/env python
+from __future__ import (absolute_import, division, print_function, unicode_literals)
 
 from astropy.units import u
 from ..ast_object import ASTObject
+from ..mapping import ASTMapping
 
-class Frame(ASTObject):
+class ASTFrame(ASTMapping):
 	'''
 	A Frame is a representation of a coordinate system, e.g. Cartesian, RA/dec.
 	It contains information about the labels which appear on the axes, the axis units,
@@ -19,7 +21,7 @@ class Frame(ASTObject):
 	def number_axes(self):
 		pass
 		
-class CompoundFrame(ASTObject):
+class ASTCompoundFrame(ASTObject):
 	'''
 	A compound frame is the merging of two existing `Frame`s.
 	For example, a `CompoundFrame` could have celestial coordinates on two axes
@@ -30,7 +32,7 @@ class CompoundFrame(ASTObject):
 	def __init__(self):
 		pass
 	
-class FrameSet(ASTObject):
+class ASTFrameSet(ASTObject):
 	'''
 	A sets of inter-related coordinate systems made up of existing `Mapping`s and `Frame`s.
 	A FrameSet may be extended by adding a new Frame and associated Mapping.
