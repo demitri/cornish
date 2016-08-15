@@ -2,7 +2,7 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
 from astropy.units import u
-from ..ast_object import ASTObject
+from ... import ASTObject
 from ..mapping import ASTMapping
 
 class ASTFrame(ASTMapping):
@@ -47,6 +47,15 @@ class ASTFrameSet(ASTObject):
 	
 	
 	'''
-	def __init__(self):
+	def __init__(self, base_frame=None):
+		self.astFrameSet = starlink.Ast.FrameSet(frame=base_frame, options=None)
+		
 		self.base_frame = None
 		self.current_frame = None
+	
+	def frame(self, name=None):
+		'''
+		Extract a frame from the frame set with the given name.
+		'''
+		self.
+		

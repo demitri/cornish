@@ -3,7 +3,7 @@ from __future__ import (absolute_import, division, print_function, unicode_liter
 
 from ..ast_object import ASTObject
 
-class Mapping(ASTObject):
+class ASTMapping(ASTObject):
 	
 	def __init__(self):
 		pass
