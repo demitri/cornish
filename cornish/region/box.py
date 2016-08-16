@@ -3,7 +3,9 @@ from __future__ import (absolute_import, division, print_function, unicode_liter
 import starlink.Ast as Ast
 
 from .region import ASTRegion
-from ..mapping.mapping import ASTMapping
+#from ..mapping.mapping import ASTMapping
+from ..mapping import ASTMapping
+from ..mapping import ASTFrame
 
 __all__ = ["ASTBox"]
 
@@ -17,7 +19,9 @@ class ASTBox(ASTRegion):
 	b = ASTBox(frame, cornerPoint, centerPoint)
 	
 	Points can be any two element container, e.g. (1,2), [1,2], np.array([1,2])
-
+	
+	The 'frame' parameter may either be an ASTFrame object or a starlink.Ast.frame object.
+	
 	A Box is similar to an Interval, the only real difference being that the Interval
 	class allows some axis limits to be unspecified. Note, a Box will only look like a box
 	if the Frame geometry is approximately flat. For instance, a Box centered close to a pole
@@ -25,9 +29,9 @@ class ASTBox(ASTRegion):
 	create a box-like region close to a pole).
 	'''
 	def __init__(self, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None):
-		self.frame = frame
+		#self.astFrame = frame
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
-		self._ast_box = None
+		#self._ast_box = None
 		
 		# input forms:
 		#    0: box specified by center point and any corner point
@@ -38,6 +42,11 @@ class ASTBox(ASTRegion):
 		# -------------------------------------
 		if frame is None:
 			raise Exception("A frame must be specified when creating an ASTBox.")
+		else:
+			if isinstance(frame, ASTFrame):
+				self.frame = frame
+			elif isinstance(frame, starlink.Ast.frame):
+				self.frame = ASTFrame(frame=frame)
 
 		if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]):
 			if centerPoint is not None:
@@ -55,7 +64,7 @@ class ASTBox(ASTRegion):
 			p1 = [cornerPoint[0], cornerPoint[1]]
 			p2 = [cornerPoint2[0], cornerPoint2[1]]
 
-		self._ast_box = Ast.Box( frame, input_form, p1, p2, unc )
+		self.astBox = Ast.Box( frame, input_form, p1, p2, self.uncertainty )
 
 		@property
 		def uncertainty(self):
@@ -72,6 +81,7 @@ class ASTBox(ASTRegion):
 			
 		@uncertainty.setter
 		def uncertainty(self, unc):
+			raise Exception("Setting the uncertainty currently doesn't do anything.")
 			self._uncertainty = unc
 		
 		def mapRegionMesh(self, mapping=None, frame=None):

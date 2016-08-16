@@ -4,6 +4,7 @@ from __future__ import (absolute_import, division, print_function, unicode_liter
 import starlink.Ast as Ast
 
 from .channel import Channel
+from ..mapping.frame import ASTFrameSet
 
 _astropy_available = True
 _fitsio_available = True
@@ -21,22 +22,33 @@ class FITSChannel(Channel):
 	'''
 	A representation of a FITS header. Use the property "fitsChan" for AST functions.
 	'''
-	def __init__(self, hdu=None):
-		
+	def __init__(self, hdu=None, header=None):
+		'''
+		Initialize object with either an HDU or header from fitsio or astropy.io.fits.
+		TODO: accept some form of text string.
+		'''
 		# internal AST object
 		self.fitsChan = None
-				
-		if hdu is not None:
+		
+		if all([hdu, header]):
+			raise Exception("Only specify an HDU or header to create a FITSChannel object.")
+		
+		if hdu and _astropy_available and isinstance(hdu, astropy.io.fits.hdu.base.ExtensionHDU):
+			header = hdu.header        # type: astropy.io.fits.header.Header
+		elif hdu and _fitsio_available and isinstance(hdu, fitsio.fitslib.HDUBase):
+			header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
+		
+		if header is not None:
 			# try to read the header from an Astropy header object
-			if _astropy_available and isinstance(hdu, astropy.io.fits.header.Header):
+			if _astropy_available and isinstance(header, astropy.io.fits.header.Header):
 				#self.fitsChan = Ast.FitsChan(source="".join([c.image for x in hdu.header.cards]))
+				self.fitsChan = Ast.FitsChan()
 				for card in hdu.header.cards:
 					self.addHeader(card=card)
 		
 			# try to read the header from an fitsio header object
-			elif _fitsio_available and isinstance(hdu, fitsio.fitslib.HDUBase):
+			elif _fitsio_available and isinstance(header, fitsio.fitslib.FITSHDR):
 				all_cards = list()
-				header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
 				[all_cards.append(record["card_string"]) for record in header.records()]
 				#print(all_cards)
 				#self.fitsChan = Ast.FitsChan(source=all_cards) # don't know why this doesn't work
@@ -44,9 +56,12 @@ class FITSChannel(Channel):
 				for card in all_cards:
 					#self.fitsChan[record["name"]] = record["value"]
 					self.addHeader(card=card)
+			
+			else:
+				raise Exception("Could not work with the type of HDU provided ('{0}').".format(type(hdu)))
 
 		if self.fitsChan is None:
-			self.fitsChan = Ast.FitsChan(source=all_cards)
+			self.fitsChan = Ast.FitsChan() # make an empty FITSChannel
 		
 	def cardForKeyword(self, keyword=None):
 		'''
@@ -142,11 +157,18 @@ class FITSChannel(Channel):
 		'''
 		self.fitsChan.purgewcs()
 		
-	@property
 	def frameSet(self):
 		'''
-		Reads the FITS header and converts it into an AST frame set.
+		Reads the FITS header and convert it into an AST frame set.
 		'''
-		return self.fitsChan.read()
+		return ASTFrameSet(ast_frame_set=self.fitsChan.read())
+	
+	@property
+	def dimensions(self):
+		''' Returns a list of dimensions. '''
+		dims = list()
+		for i in range(self.valueForKeyword("NAXIS")):
+			dims.append(self.valueForKeyword("NAXIS{0}".format(i+1)))
+		return dims
 	
 		
