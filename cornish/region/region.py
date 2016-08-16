@@ -36,10 +36,25 @@ class ASTRegion(ASTFrame):
 	Represents a region within a coordinate system.
 	
 	'''
-	def __init__(self, frame=None):
-		# this might not make sense?
+	def __init__(self, ast_frame=None):
+		'''
+		
+		'''
+		self.astFrame = super(ASTRegion, self).__init__(ast_frame=ast_frame)
+		
+		
+	def regionWithMapping(self, map=None, frame=None):
+		'''
+		Returns a new ASTRegion with the coordinate system from the supplied frame.
+		
+		@param frame A frame containing the coordinate system for the new region.
+		@param map A mapping that can convert coordinates from the system of the current region to that of the supplied frame.
+		@returns New ASTRegion with a new coordinate system
+		'''
 		if frame is None:
-			raise Exception("ASTRegion requires a frame object to be specified.")
-		self.frame = frame
-
-
+			raise Exception("A frame must be specified.")
+		if map is None:
+			map = frame # attempt to use the frame as a mapper (an ASTFrame is a subclass of ASTMapper)
+			
+		new_ast_region = self.astFrame.mapregion(map, frame)
+		return ASTRegion(ast_frame=new_ast_region)
