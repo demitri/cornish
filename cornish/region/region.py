@@ -72,16 +72,81 @@ class ASTRegion(ASTFrame):
 		elif isinstance(map, ASTMapping):
 			ast_map = map.astObject
 		else:
-			raise Exception("Expected 'map' to be one of these two types: (starlink.Ast.Mapping, ASTMap).")
+			raise Exception("Expected 'map' to be one of these two types: starlink.Ast.Mapping, ASTMap.")
 
 		if isinstance(frame, starlink.Ast.Frame):
 			ast_frame = frame
 		elif isinstance(map, ASTFrame):
 			ast_frame = frame.astObject
 		else:
-			raise Exception("Expected 'frame' to be one of these two types: (starlink.Ast.Frame, ASTFrame).")
+			raise Exception("Expected 'frame' to be one of these two types: starlink.Ast.Frame, ASTFrame.")
 		
 		new_ast_region = self.astObject.mapregion(ast_map, ast_frame)
 
-		return ASTFrame(ast_frame=new_ast_region)
-	
+		return ASTRegion(ast_frame=new_ast_region)
+		
+	def boundaryPointMesh(self, npoints=None):
+		'''
+		Returns an array of points that cover the boundary of the region.
+		For example, if the region is a box, it will generate a list of points that trace the edges of the box.
+		
+		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
+		
+		@param npoints The number of points to generate in the mesh.
+		@returns List of points.
+		'''
+		# The starlink.AST object uses the attribute "MeshSize" to determine the number of points to
+		# use. This should be specified when building the mesh - the attribute doesn't seem to be used
+		# anywhere else. This method shouldn't change the value in case that's not true, but we'll make
+		# this one step here.
+		
+		if npoints is not None and not isinstance(npoints, int):
+			raise Exception("The parameter 'npoints' must be an integer ('{1}' provided).".format(npoints))
+		
+		if npoints is None:
+			pass # use default value
+		else:
+			# use provided value
+			old_mesh_size = self.astObject.get("MeshSize")
+			self.astObject.set("MeshSize={0}".format(npoints))
+		
+		return self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
+		
+		if npoints is not None:
+			# restore original value
+			self.astObject.set("MeshSize={0}".format(old_mesh_size))
+		
+		
+	def interiorPointMesh(self, npoints=None):
+		'''
+		Returns an array of points that cover the surface of the region.
+		For example, if the region is a box, it will generate a list of points that fill the interior area of the box.
+		
+		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
+		
+		@param npoints The number of points to generate in the mesh.
+		@returns List of points.
+		'''
+		# See discussion of "MeshSize" in method "boundaryPointMesh".
+		
+		if npoints is not None and not isinstance(npoints, int):
+			raise Exception("The parameter 'npoints' must be an integer ('{1}' provided).".format(npoints))
+
+		if npoints is None:
+			pass # use default value
+		else:
+			# use provided value
+			old_mesh_size = self.astObject.get("MeshSize")
+			self.astObject.set("MeshSize={0}".format(npoints))
+
+		return self.astObject.getregionmesh(0) # surface=0, here "surface" means the boundary
+
+		if npoints is not None:
+			# restore original value
+			self.astObject.set("MeshSize={0}".format(old_mesh_size))
+
+
+	# Attributes to implement: Adaptive, Negated, Closed, FillFactor, Bounded
+	# See p. 811 of documentation
+
+
