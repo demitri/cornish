@@ -90,6 +90,24 @@ class ASTBox(ASTRegion):
 		raise Exception("Setting the uncertainty currently doesn't do anything.")
 		self._uncertainty = unc
 	
+	@property
+	def center(self):
+		'''
+		Returns the location of the Box's center as a coordinate pair (tuple).
+		
+		@returns A Numpy array of points (axis1, axis2).
+		'''
+		return self.astObject.getregionpoints()[0] # returns two points as a Numpy array: (center, a corner)
+	
+	@property
+	def corner(self):
+		'''
+		Returns the location of one of the Box's corners as a coordinate pair.
+		
+		@returns A Numpy array of points (axis1, axis2).
+		'''
+		return self.astObject.getregionpoints()[1] # returns two points as a Numpy array: (center, a corner)
+	
 	def mapRegionMesh(self, mapping=None, frame=None):
 		'''
 		Returns a new ASTRegion that is the same as this one but with the specified coordinate system.

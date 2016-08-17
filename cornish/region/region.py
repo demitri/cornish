@@ -87,12 +87,12 @@ class ASTRegion(ASTFrame):
 		
 	def boundaryPointMesh(self, npoints=None):
 		'''
-		Returns an array of points that cover the boundary of the region.
+		Returns an array of evenly distributed points that cover the boundary of the region.
 		For example, if the region is a box, it will generate a list of points that trace the edges of the box.
 		
 		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
 		
-		@param npoints The number of points to generate in the mesh.
+		@param npoints The approximate number of points to generate in the mesh.
 		@returns List of points.
 		'''
 		# The starlink.AST object uses the attribute "MeshSize" to determine the number of points to
@@ -119,12 +119,12 @@ class ASTRegion(ASTFrame):
 		
 	def interiorPointMesh(self, npoints=None):
 		'''
-		Returns an array of points that cover the surface of the region.
+		Returns an array of evenly distributed points that cover the surface of the region.
 		For example, if the region is a box, it will generate a list of points that fill the interior area of the box.
 		
 		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
 		
-		@param npoints The number of points to generate in the mesh.
+		@param npoints The approximate number of points to generate in the mesh.
 		@returns List of points.
 		'''
 		# See discussion of "MeshSize" in method "boundaryPointMesh".

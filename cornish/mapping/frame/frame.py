@@ -30,7 +30,7 @@ class ASTFrame(ASTMapping):
 			raise Exception("The number of axes (naxes) argument cannot be specified with a provided ast_frame.")
 		
 		if ast_frame is None:
-			self.astObject = Ast.Frame(naxes=naxes)
+			self.astObject = Ast.Frame(naxes)
 		else:
 			self.astObject = ast_frame
 		
@@ -54,7 +54,7 @@ class ASTFrame(ASTMapping):
 			raise Exception("An axis number must be specified.")
 		elif not isinstance(axis, int):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.astObject.naxes:
+		elif axis > self.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
 		return self.astObject.get("Label({0})".format(axis))
 
@@ -64,7 +64,7 @@ class ASTFrame(ASTMapping):
 			raise Exception("An axis number must be specified.")
 		elif not isinstance(axis, int):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.astObject.naxes:
+		elif axis > self.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
 		elif label is None:
 			raise Exception("A new label must be specified.")
@@ -76,21 +76,21 @@ class ASTFrame(ASTMapping):
 			raise Exception("An axis number must be specified.")
 		elif not isinstance(axis, int):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.astObject.naxes:
+		elif axis > self.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
 		self.astObject.get("Unit({0})".format(axis))
 
-	def setUnitForAxis(self, axis=None, newUnit=None):
+	def setUnitForAxis(self, axis=None, unit=None):
 		''' Set the unit as a string value for the specified axis. '''
 		if axis is None:
 			raise Exception("An axis number must be specified.")
 		elif not isinstance(axis, int):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.astObject.naxes:
+		elif axis > self.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
-		elif newUnit is None:
+		elif unit is None:
 			raise Exception("A new unit must be specified.")
-		self.astObject.set("Unit({0})={1}".format(axis, newUnit))
+		self.astObject.set("Unit({0})={1}".format(axis, unit))
 	
 	@property
 	def system(self):
