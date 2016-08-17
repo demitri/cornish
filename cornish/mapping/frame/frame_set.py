@@ -4,6 +4,7 @@ from __future__ import (absolute_import, division, print_function, unicode_liter
 import starlink.Ast as Ast
 
 from ... import ASTObject
+from .frame import ASTFrame
 
 class ASTFrameSet(ASTObject):
 	'''
@@ -47,7 +48,7 @@ class ASTFrameSet(ASTObject):
 	
 	def currentFrame(self):
 		''' Returns the current frame. '''
-		return ASTFrame(ast_frame=self.astFrameSet.getsrame(Ast.CURRENT))
+		return ASTFrame(ast_frame=self.astFrameSet.getframe(Ast.CURRENT))
 	
 	def removeCurrentFrame(self):
 		''' Remove the current frame from the frame set. '''

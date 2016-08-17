@@ -58,3 +58,4 @@ class ASTRegion(ASTFrame):
 			
 		new_ast_region = self.astFrame.mapregion(map, frame)
 		return ASTRegion(ast_frame=new_ast_region)
+	
