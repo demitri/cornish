@@ -26,6 +26,8 @@ class ASTFrameSet(ASTObject):
 		Create a new AST frame set.
 		Object can be created from an starlink.Ast.FrameSet "primitive"
 		(e.g. returned by another object).
+		
+		self.astObject is of type starlink.Ast.FrameSet
 		'''
 		if all([base_frame, ast_frame_set]):
 			raise Exception("Only 'base_frame' or 'ast_frame_set' may be used to initialize this object.")
@@ -33,9 +35,9 @@ class ASTFrameSet(ASTObject):
 			raise Exception("This object must be initialized with either a base frame or AST frame set object")
 			
 		if ast_frame_set:
-			self.astFrameSet = ast_frame_set
+			self.astObject = ast_frame_set
 		else:
-			self.astFrameSet = Ast.FrameSet(frame=base_frame, options=None)
+			self.astObject = Ast.FrameSet(frame=base_frame, options=None)
 		
 		#self.base_frame = None
 		#self.current_frame = None
@@ -44,11 +46,11 @@ class ASTFrameSet(ASTObject):
 		'''
 		Return the base frame.
 		'''
-		return ASTFrame(ast_frame=self.astFrameSet.getframe(Ast.BASE))
+		return ASTFrame(ast_frame=self.astObject.getframe(Ast.BASE))
 	
 	def currentFrame(self):
 		''' Returns the current frame. '''
-		return ASTFrame(ast_frame=self.astFrameSet.getframe(Ast.CURRENT))
+		return ASTFrame(ast_frame=self.astObject.getframe(Ast.CURRENT))
 	
 	def removeCurrentFrame(self):
 		''' Remove the current frame from the frame set. '''
@@ -56,7 +58,7 @@ class ASTFrameSet(ASTObject):
 		# Note: The "removeframe" documenation is a little unclear on how to remove
 		#       a frame that is not current.
 		# Better to make this "removeFrame(frame=...) or by frame name, or add a new method.
-		self.astFrameSet.removeframe(iframe=Ast.CURRENT)
+		self.astObject.removeframe(iframe=Ast.CURRENT)
 	
 	def centerCoordinates(self):
 		''' Returns the coordinates at the center of the frame. '''

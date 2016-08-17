@@ -20,7 +20,8 @@ except ImportError:
 
 class FITSChannel(Channel):
 	'''
-	A representation of a FITS header. Use the property "fitsChan" for AST functions.
+	A representation of a FITS header. Use the property "astObject" for AST functions.
+	self.astObject is of type starlink.Ast.FitsChan.
 	'''
 	def __init__(self, hdu=None, header=None):
 		'''
@@ -28,7 +29,7 @@ class FITSChannel(Channel):
 		TODO: accept some form of text string.
 		'''
 		# internal AST object
-		self.fitsChan = None
+		#self.fitsChan = None
 		
 		if all([hdu, header]):
 			raise Exception("Only specify an HDU or header to create a FITSChannel object.")
@@ -42,7 +43,7 @@ class FITSChannel(Channel):
 			# try to read the header from an Astropy header object
 			if _astropy_available and isinstance(header, astropy.io.fits.header.Header):
 				#self.fitsChan = Ast.FitsChan(source="".join([c.image for x in hdu.header.cards]))
-				self.fitsChan = Ast.FitsChan()
+				self.astObject = Ast.FitsChan()
 				for card in hdu.header.cards:
 					self.addHeader(card=card)
 		
@@ -52,7 +53,7 @@ class FITSChannel(Channel):
 				[all_cards.append(record["card_string"]) for record in header.records()]
 				#print(all_cards)
 				#self.fitsChan = Ast.FitsChan(source=all_cards) # don't know why this doesn't work
-				self.fitsChan = Ast.FitsChan()
+				self.astObject = Ast.FitsChan()
 				for card in all_cards:
 					#self.fitsChan[record["name"]] = record["value"]
 					self.addHeader(card=card)
@@ -60,20 +61,20 @@ class FITSChannel(Channel):
 			else:
 				raise Exception("Could not work with the type of HDU provided ('{0}').".format(type(hdu)))
 
-		if self.fitsChan is None:
-			self.fitsChan = Ast.FitsChan() # make an empty FITSChannel
+		if self.astObject is None:
+			self.astObject = Ast.FitsChan() # make an empty FITSChannel
 		
 	def cardForKeyword(self, keyword=None):
 		'''
 		Get FITS card for given keyword.
 		'''
-		return self.fitsChan.findfits(keyword, inc=False)
+		return self.astObject.findfits(keyword, inc=False)
 	
 	def clearAllCards(self):
 		'''
 		Delete all cards.
 		'''
-		self.fitsChan.emptyfits()
+		self.astObject.emptyfits()
 	
 	def addHeader(self, card=None, keyword=None, value=None, comment=None):
 		'''
@@ -96,15 +97,15 @@ class FITSChannel(Channel):
 				
 		if card:
 			if _fitsio_available and isinstance(card, fitsio.fitslib.FITSRecord):
-				self.fitsChan.putfits(card["card_string"])
+				self.astObject.putfits(card["card_string"])
 				return
 			
 			elif _astropy_available and isinstance(card, astropy.io.fits.card.Card):
-				self.fitsChan.putfits(card.image)
+				self.astObject.putfits(card.image)
 				return
 			
 			elif isinstance(card, str) and len(card) <= 80:
-				self.fitsChan.putfits(card)
+				self.astObject.putfits(card)
 				return
 			
 			else:
@@ -133,7 +134,7 @@ class FITSChannel(Channel):
 		
 		assert len(card) <= 80, "The FITS card is incorrectly formatted (or a bad value has been given)."
 		
-		self.fitsChan.putfits(card=card, overwrite=True)
+		self.astObject.putfits(card=card, overwrite=True)
 		
 	def valueForKeyword(self, keyword=None):
 		'''
@@ -142,26 +143,26 @@ class FITSChannel(Channel):
 		if keyword is None:
 			raise Exception("A keyword must be specified.")
 		
-		return self.fitsChan[keyword]
+		return self.astObject[keyword]
 	
 	#@property
 	#def allCards(self):
 	#	'''
 	#	Return all cards for this FITS header.
 	#	'''
-	#	return self.fitsChan.writefits() # nope, it doesn't work this way
+	#	return self.astObject.writefits() # nope, it doesn't work this way
 	
 	def purgeWCS(self):
 		'''
 		Remove all keywords that describe WCS information.
 		'''
-		self.fitsChan.purgewcs()
+		self.astObject.purgewcs()
 		
 	def frameSet(self):
 		'''
 		Reads the FITS header and convert it into an AST frame set.
 		'''
-		return ASTFrameSet(ast_frame_set=self.fitsChan.read())
+		return ASTFrameSet(ast_frame_set=self.astObject.read())
 	
 	@property
 	def dimensions(self):

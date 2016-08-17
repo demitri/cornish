@@ -3,7 +3,6 @@ from __future__ import (absolute_import, division, print_function, unicode_liter
 import starlink.Ast as Ast
 
 from .region import ASTRegion
-#from ..mapping.mapping import ASTMapping
 from ..mapping import ASTMapping
 from ..mapping import ASTFrame
 
@@ -30,6 +29,8 @@ class ASTBox(ASTRegion):
 	if the Frame geometry is approximately flat. For instance, a Box centered close to a pole
 	in a SkyFrame will look more like a fan than a box (the Polygon class can be used to
 	create a box-like region close to a pole).
+	
+	self.astObject is of type starlink.Ast.Box.
 	'''
 	def __init__(self, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None):
 		#self.astFrame = frame
@@ -69,7 +70,7 @@ class ASTBox(ASTRegion):
 		
 		# Box args: :frame,form,point1,point2,unc=None,options=None  <-- note which are keyword args & which not
 		# AstBox( starlink.Ast.Frame(2), [0,1], 
-		self.astBox = Ast.Box( self.frame.astFrame, input_form, p1, p2, unc=self.uncertainty )
+		self.astObject = Ast.Box( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty )
 
 	@property
 	def uncertainty(self):
@@ -120,7 +121,7 @@ class ASTBox(ASTRegion):
 		if not isinstance(frame, ASTFrame):
 			raise Exception("The object passed to 'frame' needs to be an ASTFrame object.")
 		
-		self._ast_box.mapregionmesh( mapping, frame )
+		self.astObject.mapregionmesh( mapping, frame )
 
 			
 			

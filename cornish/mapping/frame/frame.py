@@ -17,6 +17,8 @@ class ASTFrame(ASTMapping):
 	Ref:
 	http://www.starlink.rl.ac.uk/docs/sun95.htx/sun95se27.html
 	http://www.strw.leidenuniv.nl/docs/starlink/sun210.htx/node71.html
+	
+	self.astObject is of type starlink.Ast.Frame.
 	'''
 	def __init__(self, naxes=None, ast_frame=None):
 		#self.title = None
@@ -28,23 +30,23 @@ class ASTFrame(ASTMapping):
 			raise Exception("The number of axes (naxes) argument cannot be specified with a provided ast_frame.")
 		
 		if ast_frame is None:
-			self.astFrame = Ast.Frame(naxes=naxes)
+			self.astObject = Ast.Frame(naxes=naxes)
 		else:
-			self.astFrame = ast_frame
+			self.astObject = ast_frame
 		
 	@property
 	def naxes(self):
 		''' Returns the number of axes for the frame. '''
-		return int(self.astFrame.get("Naxes"))
+		return int(self.astObject.get("Naxes"))
 		
 	@property
 	def title(self):
 		''' Returns the frame title, a string describing the coordinate system which the frame represents. '''
-		return self.astFrame.get("Title")
+		return self.astObject.get("Title")
 	
 	@title.setter
 	def title(self, newTitle):
-		self.astFrame.set("Title={0}".format(newTitle))
+		self.astObject.set("Title={0}".format(newTitle))
 	
 	def label(self, axis=None):
 		''' Return the label for the specified axis. '''
@@ -52,9 +54,9 @@ class ASTFrame(ASTMapping):
 			raise Exception("An axis number must be specified.")
 		elif not isinstance(axis, int):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.astFrame.naxes:
+		elif axis > self.astObject.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
-		return self.astFrame.get("Label({0})".format(axis))
+		return self.astObject.get("Label({0})".format(axis))
 
 	def setLabelForAxis(axis=None, label=None):
 		''' Set the label for the specified axis. '''
@@ -62,11 +64,11 @@ class ASTFrame(ASTMapping):
 			raise Exception("An axis number must be specified.")
 		elif not isinstance(axis, int):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.astFrame.naxes:
+		elif axis > self.astObject.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
 		elif label is None:
 			raise Exception("A new label must be specified.")
-		self.astFrame.set("Label({0}={1}".format(axis, newLabel))
+		self.astObject.set("Label({0}={1}".format(axis, newLabel))
 		
 	def unit(self, axis=None):
 		''' Return the unit for the specified axis. '''
@@ -74,9 +76,9 @@ class ASTFrame(ASTMapping):
 			raise Exception("An axis number must be specified.")
 		elif not isinstance(axis, int):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.astFrame.naxes:
+		elif axis > self.astObject.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
-		self.astFrame.get("Unit({0})".format(axis))
+		self.astObject.get("Unit({0})".format(axis))
 
 	def setUnitForAxis(self, axis=None, newUnit=None):
 		''' Set the unit as a string value for the specified axis. '''
@@ -84,11 +86,11 @@ class ASTFrame(ASTMapping):
 			raise Exception("An axis number must be specified.")
 		elif not isinstance(axis, int):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.astFrame.naxes:
+		elif axis > self.astObject.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
 		elif newUnit is None:
 			raise Exception("A new unit must be specified.")
-		self.astFrame.set("Unit({0})={1}".format(axis, newUnit))
+		self.astObject.set("Unit({0})={1}".format(axis, newUnit))
 	
 	@property
 	def system(self):
@@ -97,7 +99,7 @@ class ASTFrame(ASTMapping):
 		The system is "Cartesian" by default, but can have other values for subclasses of Frame,
 		e.g. "FK4", "Galactic".
 		'''
-		return self.astFrame.get("System")
+		return self.astObject.get("System")
 	
 	@system.setter
 	def system(self, system=None):
@@ -106,7 +108,7 @@ class ASTFrame(ASTMapping):
 			raise Exception("A 'system' parameter must be specified.")
 		elif not isinstance(system, str):
 			raise Exception("A string value was expected for 'system' (got '{0}').".format(type(system)))
-		self.astFrame.set("System={0}".format(system))
+		self.astObject.set("System={0}".format(system))
 		
 	@property
 	def domain(self):
@@ -120,13 +122,13 @@ class ASTFrame(ASTMapping):
 		Frames created by the user (for instance, using WCSADD) can have any Domain value, but the standard
 		domain names should be avoided unless the standard meanings are appropriate for the Frame being created.
 		'''
-		return self.astFrame.get("Domain")
+		return self.astObject.get("Domain")
 		
 	@domain.setter
 	def domain(self, newDomain=None):
 		if newDomain is None or isinstance(newDomain, str) == False:
 			raise Exception("The domain value must be set to a string.")
-		self.astFrame.set("Domain={0}".format(newDomain))
+		self.astObject.set("Domain={0}".format(newDomain))
 	
 class ASTCompoundFrame(ASTObject):
 	'''
