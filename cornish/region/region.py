@@ -2,9 +2,10 @@ from __future__ import (absolute_import, division, print_function, unicode_liter
 
 import starlink
 import starlink.Ast as Ast
+import astropy.units as u
 
 from ..ast_object import ASTObject
-from ..mapping import ASTFrame, ASTMapping
+from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
 
 '''
 Copied from documentation, to be implemented.
@@ -34,6 +35,7 @@ Region-specific methods:
   * astShowMesh: Display a mesh of points on the surface of a Region
 
 '''
+		
 class ASTRegion(ASTFrame):
 	'''
 	Represents a region within a coordinate system.
@@ -69,14 +71,14 @@ class ASTRegion(ASTFrame):
 		
 		if isinstance(map, starlink.Ast.Mapping):
 			ast_map = map
-		elif isinstance(map, ASTMapping):
+		elif isinstance(map, (ASTMapping, ASTFrameSet)):
 			ast_map = map.astObject
 		else:
 			raise Exception("Expected 'map' to be one of these two types: starlink.Ast.Mapping, ASTMap.")
 
 		if isinstance(frame, starlink.Ast.Frame):
 			ast_frame = frame
-		elif isinstance(map, ASTFrame):
+		elif isinstance(map, (ASTFrame, ASTFrameSet)):
 			ast_frame = frame.astObject
 		else:
 			raise Exception("Expected 'frame' to be one of these two types: starlink.Ast.Frame, ASTFrame.")
@@ -84,7 +86,8 @@ class ASTRegion(ASTFrame):
 		new_ast_region = self.astObject.mapregion(ast_map, ast_frame)
 
 		return ASTRegion(ast_frame=new_ast_region)
-		
+	
+	
 	def boundaryPointMesh(self, npoints=None):
 		'''
 		Returns an array of evenly distributed points that cover the boundary of the region.
@@ -110,12 +113,13 @@ class ASTRegion(ASTFrame):
 			old_mesh_size = self.astObject.get("MeshSize")
 			self.astObject.set("MeshSize={0}".format(npoints))
 		
-		return self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
+		mesh = self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
 		
 		if npoints is not None:
 			# restore original value
 			self.astObject.set("MeshSize={0}".format(old_mesh_size))
 		
+		return mesh.T # returns as a list of pairs of points, not two parallel arrays
 		
 	def interiorPointMesh(self, npoints=None):
 		'''
@@ -139,13 +143,27 @@ class ASTRegion(ASTFrame):
 			old_mesh_size = self.astObject.get("MeshSize")
 			self.astObject.set("MeshSize={0}".format(npoints))
 
-		return self.astObject.getregionmesh(0) # surface=0, here "surface" means the boundary
+		mesh = self.astObject.getregionmesh(0) # surface=0, here "surface" means the boundary
 
 		if npoints is not None:
 			# restore original value
 			self.astObject.set("MeshSize={0}".format(old_mesh_size))
 
+		return mesh.T
 
+	@property
+	def points(self):
+		'''
+		The array of points that define the region.
+		
+		@returns Numpy array of coordinate points.
+		'''
+		
+		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]]
+		# transpose the points before returning
+		return self.astObject.getregionpoints().T
+	
+	
 	# Attributes to implement: Adaptive, Negated, Closed, FillFactor, Bounded
 	# See p. 811 of documentation
 

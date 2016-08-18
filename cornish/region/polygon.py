@@ -1,6 +1,10 @@
+
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import starlink
 import starlink.Ast as Ast
+import astropy.units as u
+import numpy as np
 
 from .region import ASTRegion
 from ..mapping import ASTMapping
@@ -27,7 +31,7 @@ class ASTPolygon(ASTRegion):
 		@param Returns a new ASTPolygon object.
 		'''
 		
-		if polygon is not None and isinstance(polygon, stalink.Ast.Polygon):
+		if polygon is not None and isinstance(polygon, starlink.Ast.Polygon):
 			self.astObject = polygon
 			return
 		
@@ -56,42 +60,46 @@ class ASTPolygon(ASTRegion):
 		if parallel_arrays:
 			self.astObject = Ast.Polygon(ast_frame, points)
 		else:
-			# Reshape into parallel array form - don't assume that provided points are Numpy arrays.
-			dim1 = np.zeros(len(points))
-			dim2 = np.zeros(len(points))
-			for idx, (x, y) in points:
-				dim1[idx] = x
-				dim2[idx] = y
-			
-			self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2])
+			if isinstance(points, np.ndarray):
+				self.astObject = Ast.Polygon(ast_frame, points.T)
+			else:
+				# Could be a list or lists or tuples - reshape into parallel array form
+				dim1 = np.zeros(len(points))
+				dim2 = np.zeros(len(points))
+				for idx, (x, y) in points:
+					dim1[idx] = x
+					dim2[idx] = y
+				
+				self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2]))
 		
-		def downsize(self, maxerr=None, maxvert=None):
-			'''
-			Returns a new ASTPolygon that contains a subset of the vertices of this polygon.
-			
-			The subset is chosen so that the returned polygon is a good approximation of this polygon,
-			within the limits specified. The density of points in the new polygon is greater
-			where the curvature of the boundary is greater.
-			
-			The 'maxerr' parameter set the maximum allowed discrepancy between the original and
-			new polygons as a geodesic distance within the polygon’s coordinate frame. Setting this to zero
-			returns a new polygon with the number of vertices set in "maxvert".
-			
-			The 'maxvert' parameter set the maximum number of vertices the new polygon can have. If this is
-			less than 3, the number of vertices in the returned polygon will be the minimum needed
-			to achieve the maximum discrepancy specified by "maxerr".
-			
-			@param maxerr Maximum allowed discrepancy between the original and new polygons as a geodesic distance within the polygon’s coordinate frame.
-			@param maxvert Maximum allowed number of vertices in the returned Polygon.
-			@returns A new ASTPolygon.
-			'''
-			
-			# should find some reasonable default values
-			if not any([maxerr, maxvert]):
-				raise Exception("ASTPolygon.downsize: Both 'maxerr' and 'maxvert' must be specified.")
-			
-			ast_polygon = self.astObject.downsize()
-			return ASTPolygon(polygon=ast_polygon)
+	def downsize(self, maxerr=None, maxvert=0):
+		'''
+		Returns a new ASTPolygon that contains a subset of the vertices of this polygon.
+		
+		The subset is chosen so that the returned polygon is a good approximation of this polygon,
+		within the limits specified. The density of points in the new polygon is greater
+		where the curvature of the boundary is greater.
+		
+		The 'maxerr' parameter set the maximum allowed discrepancy between the original and
+		new polygons as a geodesic distance within the polygon's coordinate frame. Setting this to zero
+		returns a new polygon with the number of vertices set in "maxvert".
+		
+		The 'maxvert' parameter set the maximum number of vertices the new polygon can have. If this is
+		less than 3, the number of vertices in the returned polygon will be the minimum needed
+		to achieve the maximum discrepancy specified by "maxerr". The unardoned value is in radians,
+		but accepts Astropy unit objects.
+		
+		@param maxerr Maximum allowed discrepancy in radians between the original and new polygons as a geodesic distance within the polygon's coordinate frame.
+		@param maxvert Maximum allowed number of vertices in the returned Polygon.
+		@returns A new ASTPolygon.
+		'''
+		
+		# should find some reasonable default values
+		if None in [maxerr, maxvert]:
+			raise Exception("ASTPolygon.downsize: Both 'maxerr' and 'maxvert' must be specified.")
+		
+		ast_polygon = self.astObject.downsize(maxerr, maxvert)
+		return ASTPolygon(polygon=ast_polygon)
 
 
 
