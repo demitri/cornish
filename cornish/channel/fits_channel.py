@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import numpy as np
 import starlink.Ast as Ast
 
-from .channel import ASTChannel
+from .ast_channel import ASTChannel
 from ..mapping.frame import ASTFrameSet
+from ..region import ASTBox
 
 _astropy_available = True
 _fitsio_available = True
@@ -18,7 +20,7 @@ try:
 except ImportError:
 	_fitsio_available = False
 
-class FITSChannel(ASTChannel):
+class ASTFITSChannel(ASTChannel):
 	'''
 	A representation of a FITS header. Use the property "astObject" for AST functions.
 	self.astObject is of type starlink.Ast.FitsChan.
@@ -30,45 +32,65 @@ class FITSChannel(ASTChannel):
 		TODO: accept some form of text string.
 		'''
 		# defines internal AST object
-		super(FITSChannel, self).__init__()
+		super(ASTFITSChannel, self).__init__()
 		# super().__init__() # Python 3
 		
+		self._frameSet = None
+		
+		# ----------
+		# Validation
+		# ----------
 		if all([hdu, header]):
-			raise Exception("Only specify an HDU or header to create a FITSChannel object.")
+			raise Exception("Only specify an HDU or header to create a ASTFITSChannel object.")
 		
 		if hdu and _astropy_available and isinstance(hdu, astropy.io.fits.hdu.base.ExtensionHDU):
 			header = hdu.header        # type: astropy.io.fits.header.Header
 		elif hdu and _fitsio_available and isinstance(hdu, fitsio.fitslib.HDUBase):
 			header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
+		# ----------
+		
+		self._dimensions = None
+		self.astObject = Ast.FitsChan()
 		
 		if header is not None:
-			# try to read the header from an Astropy header object
-			if _astropy_available and isinstance(header, astropy.io.fits.header.Header):
-				#self.fitsChan = Ast.FitsChan(source="".join([c.image for x in hdu.header.cards]))
-				self.astObject = Ast.FitsChan()
-				for card in hdu.header.cards:
-					self.addHeader(card=card)
-		
-			# try to read the header from an fitsio header object
-			elif _fitsio_available and isinstance(header, fitsio.fitslib.FITSHDR):
-				all_cards = list()
-				[all_cards.append(record["card_string"]) for record in header.records()]
-				#print(all_cards)
-				#self.fitsChan = Ast.FitsChan(source=all_cards) # don't know why this doesn't work
-				self.astObject = Ast.FitsChan()
-				for card in all_cards:
-					#self.fitsChan[record["name"]] = record["value"]
-					self.addHeader(card=card)
-			
-			elif isinstance(header, list) and isinstance(header[0], str):
-				for card in header:
-					self.addHeader(card=card)
+			# Note that the starlink.Ast.Chanel.read() operation is destructive.
+			# Save the header so it can be restored/reused.
+			self.header = header
+			if isinstance(header, (astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR)) or \
+			   (isinstance(header, list) and isinstance(header[0], str)):
+			   self._readHeader()
 			else:
 				raise Exception("Could not work with the type of header provided ('{0}').".format(type(header)))
+		else:
+			pass # work with an empty Ast.FitsChan()
+	
+	def _readHeader(self):
+		'''
+		Internal method to read a FITS header.
+		Accepts astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, or a list of strings.
+		'''
+		print("ASTFitsChannel._reading header.")
 
-		if self.astObject is None:
-			self.astObject = Ast.FitsChan() # make an empty FITSChannel
+		assert self.header is not None, "Attempting to read a header before it has been set."
 		
+		# try to read the header from an Astropy header object
+		if _astropy_available and isinstance(self.header, astropy.io.fits.header.Header):
+			#self.fitsChan = Ast.FitsChan(source="".join([c.image for x in hdu.header.cards]))
+			for card in self.header.cards:
+				self.addHeader(card=card)
+	
+		# try to read the header from an fitsio header object
+		elif _fitsio_available and isinstance(self.header, fitsio.fitslib.FITSHDR):
+			all_cards = list()
+			[all_cards.append(record["card_string"]) for record in header.records()]
+			#self.fitsChan = Ast.FitsChan(source=all_cards) # don't know why this doesn't work
+			for card in all_cards:
+				self.addHeader(card=card)
+		
+		elif isinstance(self.header, list) and isinstance(self.header[0], str):
+			for card in self.header:
+				self.addHeader(card=card)
+	
 	def cardForKeyword(self, keyword=None):
 		'''
 		Get FITS card for given keyword.
@@ -167,14 +189,97 @@ class FITSChannel(ASTChannel):
 		'''
 		Reads the FITS header and convert it into an AST frame set.
 		'''
-		return ASTFrameSet(ast_frame_set=self.astObject.read())
+		# NOTE! read() is a destructive operation! This logic will have to be changed
+		#       if is needs to be used again anywhere else in this class (whic is why the header is being saved).
+		if self._frameSet is None:
+			ast_frame_set = self.astObject.read() # deletes all WCS cards from the starlink.Ast.FitsChan object
+			#self._readHeader()					  # reread for future use
+			#raise Exception()
+			self._frameSet =  ASTFrameSet(ast_frame_set=ast_frame_set)
+		return self._frameSet
 	
 	@property
 	def dimensions(self):
-		''' Returns a list of dimensions. '''
-		dims = list()
-		for i in range(self.valueForKeyword("NAXIS")):
-			dims.append(self.valueForKeyword("NAXIS{0}".format(i+1)))
-		return dims
+		''' Returns a list of dimensions as a NumPy array. '''
+		if self._dimensions is None:
+			dims = list()
+			try:
+				naxis = self.valueForKeyword("NAXIS")
+			except TypeError as e:
+				# TypeError: 'int' object is not subscriptable
+				if "'int' object is not subscriptable" in str(e):
+					raise Exception()
+			for i in range(naxis):
+				dims.append(self.valueForKeyword("NAXIS{0}".format(i+1)))
+			self._dimensions = np.array(dims)
+		return self._dimensions
 	
+	def boundingPolygon(self):
+		'''
+		Returns an ASTPolygon that bounds the field described by the FITS header. (Must be a 2D image with WCS present.)
 		
+		'''
+		
+		# The code below is adapted from code originally provided by David Berry.
+		
+		print("A")
+		
+		# create an ASTFrameSet that contains two frames (pixel grid, WCS) and the mapping between them
+		wcsFrameSet = self.frameSet()
+		
+		# Create a Box describing the extent of the image in pixel coordinates.
+		#
+		# From David Berry:
+		#       "Because of the FITS-WCS standard, the base Frame in a FrameSet read
+		#       from a FITS header will always represent FITS pixel coordinates, which
+		#       are defined by the FITS-WCS standard so that the bottom left (i.e.
+		#       first) pixel in a 2D array is centred at (1,1). That means that
+		#       (0.5,0.5) is the bottom left corner of the bottom left pixel, and
+		#       (dim1+0.5,dim2+0.5) is the top right corner of the top right pixel.
+		#       This results in the Box covering the whole image area."
+		#
+		dims = self.dimensions
+		pixelbox = ASTBox(frame=wcsFrameSet.baseFrame(),
+						  cornerPoint=[0.5,0.5], # center of lower left pixel
+						  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
+		
+		print("B")
+
+		#  Map this box into (RA,Dec)
+		#
+		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTRegion
+		
+		print("C")
+
+		#  Get the (RA,Dec) at a large number of points evenly distributed around
+		#  the polygon. The number of points created is controlled by the
+		#  MeshSize attribute of the polygon.
+		#
+		mesh = skybox.boundaryPointMesh() # np.array of points
+
+		print("D")
+
+		#  Create a polygon using the vertices in the mesh. This polygon is
+		#  defined in a basic Frame (flat geometry) - not a SkyFrame (spherical
+		#  geometry). If we used a SkyFrame, then all the mesh points along each
+		#  edge of the box would fall exactly on a geodesic (i.e. a great circle),
+		#  and so the subsequent call to the downsize function would remove them all
+		#  (except the corners). Using a basic Frame means that the downsize function
+		#  will use geodesics that are Cartesian straight lines. So points that
+		#  deviate by more than the required error form a Cartesian straight line
+		#  will be retained by the downsize function.
+		#
+		degFlatFrame = ASTFrame(naxes=2)
+		degFlatFrame.setUnitForAxis(axis=1, unit="deg")
+		degFlatFrame.setUnitForAxis(axis=2, unit="deg")
+
+		flatpoly = ASTPolygon(frame=degFlatFrame, points=mesh)
+
+		print("E")
+
+		#  Remove mesh points where the polygon is close to a Cartesian straight
+		#  line, and retain them where it deviates from a stright line, in order
+		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
+		#
+		return flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon 
+

@@ -1,6 +1,7 @@
 #/usr/bin/env python
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import starlink
 import starlink.Ast as Ast
 
 from ... import ASTObject
@@ -29,18 +30,23 @@ class ASTFrameSet(ASTObject):
 		
 		self.astObject is of type starlink.Ast.FrameSet
 		'''
+		super(ASTFrameSet, self).__init__()
+		
 		if all([base_frame, ast_frame_set]):
 			raise Exception("Only 'base_frame' or 'ast_frame_set' may be used to initialize this object.")
 		elif not any([base_frame, ast_frame_set]):
 			raise Exception("This object must be initialized with either a base frame or AST frame set object")
-			
-		if ast_frame_set:
-			self.astObject = ast_frame_set
-		else:
-			self.astObject = Ast.FrameSet(frame=base_frame, options=None)
 		
-		#self.base_frame = None
-		#self.current_frame = None
+		if ast_frame_set is not None:
+			if isinstance(ast_frame_set, starlink.Ast.FrameSet):
+				self.astObject = ast_frame_set
+			else:
+				Exception("ASTFrameSet: Unhandled ast_frame_set type ('{0}')".format(ast_frame_set))
+		else:
+			if isinstance(base_frame, starlink.Ast.Frame):
+				self.astObject = Ast.FrameSet(frame=base_frame, options=None)
+			else:
+				Exception("ASTFrameSet: Unhandled base_frame type ('{0}')".format(base_frame))
 	
 	def baseFrame(self):
 		'''

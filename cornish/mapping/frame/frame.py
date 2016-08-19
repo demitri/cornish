@@ -21,8 +21,8 @@ class ASTFrame(ASTMapping):
 	self.astObject is of type starlink.Ast.Frame.
 	'''
 	def __init__(self, naxes=None, ast_frame=None):
-		#self.title = None
-		#self._number_of_axes = 0
+		super(ASTFrame, self).__init__()
+		
 		#self.axis_labels = list() # a list of labels indexed by axis number, first=0
 		#self.axis_units = list() # a list of axis units indexed by axis number, first=0
 		

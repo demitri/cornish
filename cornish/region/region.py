@@ -113,6 +113,8 @@ class ASTRegion(ASTFrame):
 			old_mesh_size = self.astObject.get("MeshSize")
 			self.astObject.set("MeshSize={0}".format(npoints))
 		
+		raise Exception()
+
 		mesh = self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
 		
 		if npoints is not None:
