@@ -71,7 +71,7 @@ class ASTRegion(ASTFrame):
 		
 		if isinstance(map, starlink.Ast.Mapping):
 			ast_map = map
-		elif isinstance(map, (ASTMapping, ASTFrameSet)):
+		elif isinstance(map, (ASTMapping, ASTFrameSet)): # frame sets contain mappings
 			ast_map = map.astObject
 		else:
 			raise Exception("Expected 'map' to be one of these two types: starlink.Ast.Mapping, ASTMap.")
