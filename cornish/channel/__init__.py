@@ -1,2 +1,2 @@
-from .channel import Channel
+from .channel import ASTChannel
 from .fits_channel import FITSChannel

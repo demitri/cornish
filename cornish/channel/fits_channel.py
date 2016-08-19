@@ -3,7 +3,7 @@ from __future__ import (absolute_import, division, print_function, unicode_liter
 
 import starlink.Ast as Ast
 
-from .channel import Channel
+from .channel import ASTChannel
 from ..mapping.frame import ASTFrameSet
 
 _astropy_available = True
@@ -18,7 +18,7 @@ try:
 except ImportError:
 	_fitsio_available = False
 
-class FITSChannel(Channel):
+class FITSChannel(ASTChannel):
 	'''
 	A representation of a FITS header. Use the property "astObject" for AST functions.
 	self.astObject is of type starlink.Ast.FitsChan.
@@ -26,10 +26,12 @@ class FITSChannel(Channel):
 	def __init__(self, hdu=None, header=None):
 		'''
 		Initialize object with either an HDU or header from fitsio or astropy.io.fits.
+		@param header FITS header as an array of strings or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR
 		TODO: accept some form of text string.
 		'''
-		# internal AST object
-		#self.fitsChan = None
+		# defines internal AST object
+		super(FITSChannel, self).__init__()
+		# super().__init__() # Python 3
 		
 		if all([hdu, header]):
 			raise Exception("Only specify an HDU or header to create a FITSChannel object.")
@@ -58,8 +60,11 @@ class FITSChannel(Channel):
 					#self.fitsChan[record["name"]] = record["value"]
 					self.addHeader(card=card)
 			
+			elif isinstance(header, list) and isinstance(header[0], str):
+				for card in header:
+					self.addHeader(card=card)
 			else:
-				raise Exception("Could not work with the type of HDU provided ('{0}').".format(type(hdu)))
+				raise Exception("Could not work with the type of header provided ('{0}').".format(type(header)))
 
 		if self.astObject is None:
 			self.astObject = Ast.FitsChan() # make an empty FITSChannel
