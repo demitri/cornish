@@ -64,6 +64,86 @@ class ASTRegion(ASTFrame):
 		# transpose the points before returning
 		return self.astObject.getregionpoints().T
 
+	@property
+	def isAdaptive(self):
+		''' Boolean attribute that indicates whether the area adapt to changes in the coordinate system. '''
+		return self.astObject.get("Adaptive")
+	
+	@adaptive.setter
+	def isAdaptive(self, newValue):
+		if newValue in [True, 1]:
+			self.astObject.set("Adaptive=1")
+		elif newValue in [False, 0]:
+			self.astObject.set("Adaptive=0")
+		else
+			raise Exception("ASTRegion.adaptive property must be one of [True, False, 1, 0].")
+	
+	@property
+	def isNegated(self, newValue):
+		''' Boolean attribute that indicates whether the original region has been negated. '''
+		return self.astObject.get("Negated")
+	
+	@adaptive.setter
+	def isNegated(self, newValue):
+		if newValue in [True, 1]:
+			self.astObject.set("Negated=1")
+		elif newValue in [False, 0]:
+			self.astObject.set("Negated=0")
+		else
+			raise Exception("ASTRegion.isNegated property must be one of [True, False, 1, 0].")
+	
+	@property
+	def isClosed(self):
+		''' Boolean attribute that indicates whether the boundary be considered to be inside the region. '''
+		return self.astObject.get("Closed")
+
+	@isClosed.setter
+	def isClosed(self, newValue):
+		if newValue in [True, 1]:
+			self.astObject.set("Closed=1")
+		elif newValue in [False, 0]:
+			self.astObject.set("Closed=0")
+		else
+			raise Exception("ASTRegion.isClosed property must be one of [True, False, 1, 0].")
+	
+	@property
+	def isBounded(self):
+		''' Boolean attribute that indicates whether the region is bounded. '''
+		return self.astObject.get("Bounded")
+
+	@isBounded.setter
+	def isBounded(self, newValue):
+		if newValue in [True, 1]:
+			self.astObject.set("Bounded=1")
+		elif newValue in [False, 0]:
+			self.astObject.set("Bounded=0")
+		else
+			raise Exception("ASTRegion.isBounded property must be one of [True, False, 1, 0].")
+		
+	@property
+	def meshSize(self):
+		''' Number of points used to create a mesh covering the region. '''
+		return self.astObject.get("MeshSize")
+	
+	@meshSize.setter
+	def meshSize(self, newValue):
+		if isinstance(newValue, int):
+			if newValue < 5:
+				newValue = 5
+			self.astObject.set("MeshSize={0}".format(newValue))
+		else:
+			raise Exception("ASTRegion.meshSize: an integer value of at least 5 is required.")
+	
+
+	@property
+	def fillFactor(self):
+		''' <Fraction of the Region which is of interest> '''
+		# TODO: properly document, see p. 812 of documentation
+		return self.astObject.get("FillFactor")
+	
+	@fillFactor.setter(self, newValue):
+		raise Exception("TODO: document and implement")
+
 	def regionWithMapping(self, map=None, frame=None):
 		'''
 		Returns a new ASTRegion with the coordinate system from the supplied frame.
@@ -128,11 +208,13 @@ class ASTRegion(ASTFrame):
 			raise Exception("The parameter 'npoints' must be an integer ('{1}' provided).".format(npoints))
 		
 		if npoints is None:
-			pass # use default value
+			pass # use default meshSize value
 		else:
 			# use provided value
-			old_mesh_size = self.astObject.get("MeshSize")
-			self.astObject.set("MeshSize={0}".format(npoints))
+			#old_mesh_size = self.astObject.get("MeshSize")
+			#self.astObject.set("MeshSize={0}".format(npoints))
+			old_mesh_size = self.meshSize
+			self.meshSize = npoints
 		
 		#raise Exception()
 		
@@ -144,7 +226,7 @@ class ASTRegion(ASTFrame):
 		
 		if npoints is not None:
 			# restore original value
-			self.astObject.set("MeshSize={0}".format(old_mesh_size))
+			self.astObject.meshSize = old_mesh_size #self.astObject.set("MeshSize={0}".format(old_mesh_size))
 		
 		return mesh.T # returns as a list of pairs of points, not two parallel arrays
 		
