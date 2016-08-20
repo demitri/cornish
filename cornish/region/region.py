@@ -75,7 +75,7 @@ class ASTRegion(ASTFrame):
 			self.astObject.set("Adaptive=1")
 		elif newValue in [False, 0]:
 			self.astObject.set("Adaptive=0")
-		else
+		else:
 			raise Exception("ASTRegion.adaptive property must be one of [True, False, 1, 0].")
 	
 	@property
@@ -89,7 +89,7 @@ class ASTRegion(ASTFrame):
 			self.astObject.set("Negated=1")
 		elif newValue in [False, 0]:
 			self.astObject.set("Negated=0")
-		else
+		else:
 			raise Exception("ASTRegion.isNegated property must be one of [True, False, 1, 0].")
 	
 	@property
@@ -103,7 +103,7 @@ class ASTRegion(ASTFrame):
 			self.astObject.set("Closed=1")
 		elif newValue in [False, 0]:
 			self.astObject.set("Closed=0")
-		else
+		else:
 			raise Exception("ASTRegion.isClosed property must be one of [True, False, 1, 0].")
 	
 	@property
@@ -117,7 +117,7 @@ class ASTRegion(ASTFrame):
 			self.astObject.set("Bounded=1")
 		elif newValue in [False, 0]:
 			self.astObject.set("Bounded=0")
-		else
+		else:
 			raise Exception("ASTRegion.isBounded property must be one of [True, False, 1, 0].")
 		
 	@property
@@ -215,9 +215,7 @@ class ASTRegion(ASTFrame):
 			#self.astObject.set("MeshSize={0}".format(npoints))
 			old_mesh_size = self.meshSize
 			self.meshSize = npoints
-		
-		#raise Exception()
-		
+				
 		try:
 			mesh = self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
 		except Ast.MBBNF as e:
