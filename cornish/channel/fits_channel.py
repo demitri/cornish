@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import ast
 import numpy as np
 import starlink.Ast as Ast
 
 from .ast_channel import ASTChannel
-from ..mapping.frame import ASTFrameSet
-from ..region import ASTBox
+from ..mapping.frame import ASTFrame, ASTFrameSet
+from ..region import ASTBox, ASTPolygon
 
 _astropy_available = True
 _fitsio_available = True
@@ -57,6 +58,7 @@ class ASTFITSChannel(ASTChannel):
 			# Save the header so it can be restored/reused.
 			self.header = header
 			if isinstance(header, (astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR)) or \
+			   isinstance(header, dict) or \
 			   (isinstance(header, list) and isinstance(header[0], str)):
 			   self._readHeader()
 			else:
@@ -67,7 +69,7 @@ class ASTFITSChannel(ASTChannel):
 	def _readHeader(self):
 		'''
 		Internal method to read a FITS header.
-		Accepts astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, or a list of strings.
+		Accepts astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, a dictionary (keyword,value), or a list of strings.
 		'''
 		print("ASTFitsChannel._reading header.")
 
@@ -82,10 +84,14 @@ class ASTFITSChannel(ASTChannel):
 		# try to read the header from an fitsio header object
 		elif _fitsio_available and isinstance(self.header, fitsio.fitslib.FITSHDR):
 			all_cards = list()
-			[all_cards.append(record["card_string"]) for record in header.records()]
+			[all_cards.append(record["card_string"]) for record in self.header.records()]
 			#self.fitsChan = Ast.FitsChan(source=all_cards) # don't know why this doesn't work
 			for card in all_cards:
 				self.addHeader(card=card)
+		
+		elif isinstance(self.header, dict):
+			for keyword in self.header.keys():
+				self.astObject[keyword] = self.header[keyword]
 		
 		elif isinstance(self.header, list) and isinstance(self.header[0], str):
 			for card in self.header:
@@ -108,6 +114,7 @@ class ASTFITSChannel(ASTChannel):
 		Add a card to this header.
 		
 		Currently values are overwritten if they exist in the header.
+		@param card Can be of type: fitsio.fitslib.FITSRecord, astropy.io.fits.card.Card, or a text string
 		'''
 		
 		#raise Exception("putfits doesn't work")
@@ -132,7 +139,27 @@ class ASTFITSChannel(ASTChannel):
 				return
 			
 			elif isinstance(card, str) and len(card) <= 80:
-				self.astObject.putfits(card)
+				# parse individual strings
+				if "=" in card:
+					keyword, string_value = card.split("=")
+					keyword = keyword.strip()
+					string_value = string_value.strip()
+					try:
+						# handles (float, int), converted to the correct type
+						value = ast.literal_eval(string_value)
+					except ValueError:
+						# string value
+						if s == "T":
+							value = True
+						elif s == "F":
+							value = False
+						else:
+							# a regular string - remove leading and trailing quotes if present
+							if s[0] == "'" and s[-1] == "'":
+								value = s[1:-1]
+							else:
+								value = s
+					self.astObject[keyword] = value
 				return
 			
 			else:
@@ -140,8 +167,8 @@ class ASTFITSChannel(ASTChannel):
 		
 		else:
 			#
-			if keyword in ["KEYWORD", "HISTORY", "COMMENT"]:
-				raise Exception("The keywords 'KEYWORD', 'HISTORY', 'COMMENT' are not yet implemented.")
+			if keyword in ["HISTORY", "COMMENT", ""]:
+				raise Exception("The keywords 'HISTORY', 'COMMENT', or blank ('') are not yet implemented.")
 		
 			# reconstruct from keyword, value, comment
 			if type(value, str):
@@ -226,7 +253,7 @@ class ASTFITSChannel(ASTChannel):
 		
 		# create an ASTFrameSet that contains two frames (pixel grid, WCS) and the mapping between them
 		wcsFrameSet = self.frameSet()
-		
+				
 		# Create a Box describing the extent of the image in pixel coordinates.
 		#
 		# From David Berry:
@@ -248,7 +275,7 @@ class ASTFITSChannel(ASTChannel):
 		#  Map this box into (RA,Dec)
 		#
 		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTRegion
-		
+		raise Exception()
 		print("C")
 
 		#  Get the (RA,Dec) at a large number of points evenly distributed around

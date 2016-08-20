@@ -6,6 +6,8 @@ import astropy.units as u
 
 from ..ast_object import ASTObject
 from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
+from .polygon import ASTPolygon
+from .box import ASTBox
 
 '''
 Copied from documentation, to be implemented.
@@ -50,7 +52,18 @@ class ASTRegion(ASTFrame):
 	#	'''
 	#	self.astObject = super(ASTRegion, self).__init__(ast_frame=ast_frame)
 		
+	@property
+	def points(self):
+		'''
+		The array of points that define the region.
 		
+		@returns Numpy array of coordinate points.
+		'''
+		
+		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]]
+		# transpose the points before returning
+		return self.astObject.getregionpoints().T
+
 	def regionWithMapping(self, map=None, frame=None):
 		'''
 		Returns a new ASTRegion with the coordinate system from the supplied frame.
@@ -84,8 +97,16 @@ class ASTRegion(ASTFrame):
 			raise Exception("Expected 'frame' to be one of these two types: starlink.Ast.Frame, ASTFrame.")
 		
 		new_ast_region = self.astObject.mapregion(ast_map, ast_frame)
-
-		return ASTRegion(ast_frame=new_ast_region)
+		
+		# This is temporary and probably fragile. Find a replacement for this ASAP.
+		# get the returned region type to create the correct wrapper
+		ast_type = skybox.astObject.__repr__().split("\n")[0].split()[2] # e.g. '< Begin Polygon'
+		if ast_type == "Polygon":
+			return ASTPolygon(polygon=new_ast_region)
+		elif ast_type= "Box":
+			return ASTBox()
+			
+		#return ASTRegion(ast_frame=new_ast_region)
 	
 	
 	def boundaryPointMesh(self, npoints=None):
@@ -113,9 +134,13 @@ class ASTRegion(ASTFrame):
 			old_mesh_size = self.astObject.get("MeshSize")
 			self.astObject.set("MeshSize={0}".format(npoints))
 		
-		raise Exception()
-
-		mesh = self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
+		#raise Exception()
+		
+		try:
+			mesh = self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
+		except Ast.MBBNF as e:
+			print("AST error: Mapping bounding box not found. ({0})".format(e))
+			raise e
 		
 		if npoints is not None:
 			# restore original value
@@ -145,25 +170,13 @@ class ASTRegion(ASTFrame):
 			old_mesh_size = self.astObject.get("MeshSize")
 			self.astObject.set("MeshSize={0}".format(npoints))
 
-		mesh = self.astObject.getregionmesh(0) # surface=0, here "surface" means the boundary
+		mesh = self.astObject.getregionmesh(0) # surface=0, here "surface" means the interior
 
 		if npoints is not None:
 			# restore original value
 			self.astObject.set("MeshSize={0}".format(old_mesh_size))
 
 		return mesh.T
-
-	@property
-	def points(self):
-		'''
-		The array of points that define the region.
-		
-		@returns Numpy array of coordinate points.
-		'''
-		
-		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]]
-		# transpose the points before returning
-		return self.astObject.getregionpoints().T
 	
 	
 	# Attributes to implement: Adaptive, Negated, Closed, FillFactor, Bounded

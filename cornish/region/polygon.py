@@ -31,9 +31,15 @@ class ASTPolygon(ASTRegion):
 		@param Returns a new ASTPolygon object.
 		'''
 		
-		if polygon is not None and isinstance(polygon, starlink.Ast.Polygon):
-			self.astObject = polygon
-			return
+		if polygon is not None:
+			if isinstance(ast_box, starlink.Ast.Polygon):
+				if not any([frame, points]):
+					self.astObject = polygon
+					return
+				else:
+					raise Exception("ASTPolygon: cannot specify both an ast_box and any other parameter.")
+			else:
+				raise Exception("ASTPolygon: The ast_box provided was not of type starlink.Ast.Polygon.")
 		
 		if isinstance(frame, starlink.Ast.Frame):
 			ast_frame = frame

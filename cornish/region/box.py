@@ -31,11 +31,23 @@ class ASTBox(ASTRegion):
 	create a box-like region close to a pole).
 	
 	self.astObject is of type starlink.Ast.Box.
+	
+	@param ast_box An existing object of type starlink.Ast.Box.
 	'''
-	def __init__(self, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None):
+	def __init__(self, ast_box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None):
 		#self.astFrame = frame
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		#self._ast_box = None
+		
+		if ast_box is not None:
+			if isinstance(ast_box, starlink.Ast.Box):
+				if not any([cornerPoint, cornerPoint2, centerPoint]):
+					self.astObject = ast_box
+					return
+				else:
+					raise Exception("ASTBox: cannot specify both an ast_box and any other parameter.")
+			else:
+				raise Exception("ASTBox: The ast_box provided was not of type starlink.Ast.Box.")
 		
 		# input forms:
 		#    0: box specified by center point and any corner point
