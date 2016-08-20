@@ -4,10 +4,9 @@ import starlink
 import starlink.Ast as Ast
 import astropy.units as u
 
+import cornish.region # to avoid circular imports below - better way?
 from ..ast_object import ASTObject
 from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
-from .polygon import ASTPolygon
-from .box import ASTBox
 
 '''
 Copied from documentation, to be implemented.
@@ -46,6 +45,9 @@ class ASTRegion(ASTFrame):
 	
 	self.astObject is of type starlink.Ast.Region.
 	'''
+	
+	# Note: Not (yet) formally declaring this an asbtract class for Py2/3 compatibility.
+	
 	#def __init__(self, ast_frame=None):
 	#	'''
 	#	
@@ -69,7 +71,7 @@ class ASTRegion(ASTFrame):
 		''' Boolean attribute that indicates whether the area adapt to changes in the coordinate system. '''
 		return self.astObject.get("Adaptive")
 	
-	@adaptive.setter
+	@isAdaptive.setter
 	def isAdaptive(self, newValue):
 		if newValue in [True, 1]:
 			self.astObject.set("Adaptive=1")
@@ -83,7 +85,7 @@ class ASTRegion(ASTFrame):
 		''' Boolean attribute that indicates whether the original region has been negated. '''
 		return self.astObject.get("Negated")
 	
-	@adaptive.setter
+	@isNegated.setter
 	def isNegated(self, newValue):
 		if newValue in [True, 1]:
 			self.astObject.set("Negated=1")
@@ -141,7 +143,8 @@ class ASTRegion(ASTFrame):
 		# TODO: properly document, see p. 812 of documentation
 		return self.astObject.get("FillFactor")
 	
-	@fillFactor.setter(self, newValue):
+	@fillFactor.setter
+	def fillFactor(self, newValue):
 		raise Exception("TODO: document and implement")
 
 	def regionWithMapping(self, map=None, frame=None):
@@ -180,11 +183,11 @@ class ASTRegion(ASTFrame):
 		
 		# This is temporary and probably fragile. Find a replacement for this ASAP.
 		# get the returned region type to create the correct wrapper
-		ast_type = skybox.astObject.__repr__().split("\n")[0].split()[2] # e.g. '< Begin Polygon'
+		ast_type = new_ast_region.__repr__().split("\n")[0].split()[2] # e.g. '< Begin Polygon'
 		if ast_type == "Polygon":
-			return ASTPolygon(polygon=new_ast_region)
-		elif ast_type= "Box":
-			return ASTBox()
+			return cornish.region.ASTPolygon(ast_polygon=new_ast_region)
+		elif ast_type == "Box":
+			return cornish.region.ASTBox(ast_box=new_ast_region)
 			
 		#return ASTRegion(ast_frame=new_ast_region)
 	

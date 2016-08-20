@@ -14,7 +14,7 @@ __all__ = ["ASTCircle"]
 
 class ASTPolygon(ASTRegion):
 	
-	def __init__(self, points=None, frame=None, polygon=None):
+	def __init__(self, points=None, frame=None, ast_polygon=None):
 		'''
 		ASTPolygon is an ASTRegion that represents a polygon, a collection of vertices on a sphere in a 2D plane.
 
@@ -27,19 +27,19 @@ class ASTPolygon(ASTRegion):
 		
 		@param points Points that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points.
 		@param frame The frame the provided points lie in, accepts either ASTFrame or starlink.Ast.frame objects.
-		@param polygon Create a new ASTPolygon from an existing (or more likely returned) starlink.Ast.Polygon object.
+		@param ast_polygon Create a new ASTPolygon from an existing (or more likely returned) starlink.Ast.Polygon object.
 		@param Returns a new ASTPolygon object.
 		'''
 		
-		if polygon is not None:
-			if isinstance(ast_box, starlink.Ast.Polygon):
+		if ast_polygon is not None:
+			if isinstance(ast_polygon, starlink.Ast.Polygon):
 				if not any([frame, points]):
-					self.astObject = polygon
+					self.astObject = ast_polygon
 					return
 				else:
-					raise Exception("ASTPolygon: cannot specify both an ast_box and any other parameter.")
+					raise Exception("ASTPolygon: cannot specify both an ast_polygon and any other parameter.")
 			else:
-				raise Exception("ASTPolygon: The ast_box provided was not of type starlink.Ast.Polygon.")
+				raise Exception("ASTPolygon: The ast_polygon provided was not of type starlink.Ast.Polygon.")
 		
 		if isinstance(frame, starlink.Ast.Frame):
 			ast_frame = frame
@@ -105,7 +105,7 @@ class ASTPolygon(ASTRegion):
 			raise Exception("ASTPolygon.downsize: Both 'maxerr' and 'maxvert' must be specified.")
 		
 		ast_polygon = self.astObject.downsize(maxerr, maxvert)
-		return ASTPolygon(polygon=ast_polygon)
+		return ASTPolygon(ast_polygon=ast_polygon)
 
 
 

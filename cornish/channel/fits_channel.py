@@ -57,8 +57,7 @@ class ASTFITSChannel(ASTChannel):
 			# Note that the starlink.Ast.Chanel.read() operation is destructive.
 			# Save the header so it can be restored/reused.
 			self.header = header
-			if isinstance(header, (astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR)) or \
-			   isinstance(header, dict) or \
+			if isinstance(header, (dict, astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR)) or \
 			   (isinstance(header, list) and isinstance(header[0], str)):
 			   self._readHeader()
 			else:
@@ -139,7 +138,10 @@ class ASTFITSChannel(ASTChannel):
 				return
 			
 			elif isinstance(card, str) and len(card) <= 80:
-				# parse individual strings
+				self.astObject.putfits(card)
+				return
+				
+				# parse individual strings and convert to the appropriate value
 				if "=" in card:
 					keyword, string_value = card.split("=")
 					keyword = keyword.strip()
@@ -275,7 +277,7 @@ class ASTFITSChannel(ASTChannel):
 		#  Map this box into (RA,Dec)
 		#
 		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTRegion
-		raise Exception()
+		#raise Exception()
 		print("C")
 
 		#  Get the (RA,Dec) at a large number of points evenly distributed around
