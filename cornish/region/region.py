@@ -183,14 +183,12 @@ class ASTRegion(ASTFrame):
 		
 		# This is temporary and probably fragile. Find a replacement for this ASAP.
 		# get the returned region type to create the correct wrapper
-		ast_type = new_ast_region.__repr__().split("\n")[0].split()[2] # e.g. '< Begin Polygon'
-		if ast_type == "Polygon":
+		if new_ast_region.Class == 'Polygon' or isinstance(new_ast_region, starlink.Ast.Polygon):
 			return cornish.region.ASTPolygon(ast_polygon=new_ast_region)
-		elif ast_type == "Box":
+		elif new_ast_region.Class == 'Box' or isinstance(new_ast_region, starlink.Ast.Box):
 			return cornish.region.ASTBox(ast_box=new_ast_region)
-			
-		#return ASTRegion(ast_frame=new_ast_region)
-	
+		else:
+			raise Exception("ASTRegion.regionWithMapping: unhandled region type (easy fix).")
 	
 	def boundaryPointMesh(self, npoints=None):
 		'''
