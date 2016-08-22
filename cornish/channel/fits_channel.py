@@ -251,8 +251,6 @@ class ASTFITSChannel(ASTChannel):
 		
 		# The code below is adapted from code originally provided by David Berry.
 		
-		print("A")
-		
 		# create an ASTFrameSet that contains two frames (pixel grid, WCS) and the mapping between them
 		wcsFrameSet = self.frameSet()
 				
@@ -272,21 +270,15 @@ class ASTFITSChannel(ASTChannel):
 						  cornerPoint=[0.5,0.5], # center of lower left pixel
 						  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
 		
-		print("B")
-
 		#  Map this box into (RA,Dec)
 		#
 		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTRegion
-		#raise Exception()
-		print("C")
 
 		#  Get the (RA,Dec) at a large number of points evenly distributed around
 		#  the polygon. The number of points created is controlled by the
 		#  MeshSize attribute of the polygon.
 		#
 		mesh = skybox.boundaryPointMesh() # np.array of points
-
-		print("D")
 
 		#  Create a polygon using the vertices in the mesh. This polygon is
 		#  defined in a basic Frame (flat geometry) - not a SkyFrame (spherical
@@ -303,8 +295,6 @@ class ASTFITSChannel(ASTChannel):
 		degFlatFrame.setUnitForAxis(axis=2, unit="deg")
 
 		flatpoly = ASTPolygon(frame=degFlatFrame, points=mesh)
-
-		print("E")
 
 		#  Remove mesh points where the polygon is close to a Cartesian straight
 		#  line, and retain them where it deviates from a stright line, in order
