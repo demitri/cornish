@@ -129,6 +129,24 @@ class ASTFrame(ASTMapping):
 		if newDomain is None or isinstance(newDomain, str) == False:
 			raise Exception("The domain value must be set to a string.")
 		self.astObject.set("Domain={0}".format(newDomain))
+		
+	def distance(self, point1, point2):
+		'''
+		Distance between two points in this frame.
+		
+		Parameters
+		----------
+		point1 : list
+			A two element list/tuple/Numpy array of the first point coordinates.
+		point2 : list
+			A two element list/tuple/Numpy array of the second point coordinates.
+		
+		Returns
+		-------
+		float, distance between two provided points
+		'''
+		return self.astObject.distance(point1, point2)
+		
 	
 class ASTCompoundFrame(ASTObject):
 	'''

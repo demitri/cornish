@@ -10,7 +10,6 @@ class ASTMapping(ASTObject):
 	self.astObject is of type starlink.Ast.Mapping.
 	'''
 	def __init__(self):
-		raise Exception("ASTMapping not yet implemented.")
 		pass
 	
 	@property
