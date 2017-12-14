@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import logging
+
 import ast
 import numpy as np
 import starlink.Ast as Ast
@@ -8,6 +10,8 @@ import starlink.Ast as Ast
 from .ast_channel import ASTChannel
 from ..mapping.frame import ASTFrame, ASTFrameSet
 from ..region import ASTBox, ASTPolygon
+
+logger = logging.getLogger("cornish") # cornish logger
 
 _astropy_available = True
 _fitsio_available = True
@@ -70,7 +74,7 @@ class ASTFITSChannel(ASTChannel):
 		Internal method to read a FITS header.
 		Accepts astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, a dictionary (keyword,value), or a list of strings.
 		'''
-		print("ASTFitsChannel._reading header.")
+		logger.debug("ASTFitsChannel._readHeader.")
 
 		assert self.header is not None, "Attempting to read a header before it has been set."
 		

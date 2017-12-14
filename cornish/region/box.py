@@ -1,5 +1,8 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import math
+import logging
+
 import starlink.Ast as Ast
 
 from .region import ASTRegion
@@ -11,16 +14,20 @@ __all__ = ["ASTBox"]
 CENTER_CORNER = 0
 CORNER_CORNER = 1
 
+logger = logging.getLogger("cornish")
+
 class ASTBox(ASTRegion):
 	'''
 	ASTBox is an ASTRegion that represents a box with sides parallel to the axes of an ASTFrame.
 	
-	There are two accepted signatures for creating an ASTBox:
+	There are three accepted signatures for creating an ASTBox:
 	
 	b = ASTBox(frame, cornerPoint, cornerPoint2)
 	b = ASTBox(frame, cornerPoint, centerPoint)
+	b = ASTBox(frame, dimensions)
 	
-	Points can be any two element container, e.g. (1,2), [1,2], np.array([1,2])
+	Points and dimensions can be any two element container, e.g. (1,2), [1,2], np.array([1,2])
+	If "dimensions" is specified, a box enclosing the entire area will be defined.
 	
 	The 'frame' parameter may either be an ASTFrame object or a starlink.Ast.frame object.
 	
@@ -34,14 +41,17 @@ class ASTBox(ASTRegion):
 	
 	@param ast_box An existing object of type starlink.Ast.Box.
 	'''
-	def __init__(self, ast_box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None):
+	def __init__(self, ast_box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None, dimensions=None):
 		#self.astFrame = frame
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		#self._ast_box = None
 		
+		# I am assuming the box is immutable...
+		self.dimensions = None
+		
 		if ast_box is not None:
 			if isinstance(ast_box, starlink.Ast.Box):
-				if not any([cornerPoint, cornerPoint2, centerPoint]):
+				if not any([cornerPoint, cornerPoint2, centerPoint, dimensions]):
 					self.astObject = ast_box
 					return
 				else:
@@ -57,28 +67,43 @@ class ASTBox(ASTRegion):
 		# check valid combination of parameters
 		# -------------------------------------
 		if frame is None:
-			raise Exception("A frame must be specified when creating an ASTBox.")
+			raise Exception("ASTBox: A frame must be specified when creating an ASTBox.")
 		else:
 			if isinstance(frame, ASTFrame):
 				self.frame = frame
 			elif isinstance(frame, starlink.Ast.frame):
 				self.frame = ASTFrame(frame=frame)
 
-		if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]):
-			if centerPoint is None:
+		if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2] or dimensions):
+			if dimensions:
 				input_form = CORNER_CORNER
+				p1 = [0.5,0.5] # use 0.5 to specify the center of each pixel
+				p2 = [dimensions[0]+0.5, dimensions[1]+0.5]
+			elif centerPoint is None:
+				input_form = CORNER_CORNER
+				p1 = [cornerPoint[0], cornerPoint[1]]
+				p2 = [cornerPoint2[0], cornerPoint2[1]]
+				dimensions = [math.fabs(cornerPoint[0] - cornerPoint[0]),
+							  math.fabs(cornerPoint[1] - cornerPoint[1])]
 			else:
 				input_form = CENTER_CORNER
+				p1 = [centerPoint[0], centerPoint[1]]
+				p2 = [cornerPoint[0], cornerPoint[1]]
+				dimensions = [2.0 * math.fabs(cornerPoint[0] - cornerPoint[0]),
+							  2.0 * math.fabs(cornerPoint[1] - cornerPoint[1])]
+
+			self.dimensions = [dimensions[0], dimensions[1]]
+
 		else:
-			raise Exception("Either 'cornerPoint' and 'centerPoint' or 'cornerPoint' " + \
-							"and 'cornerPoint2' must be specified when creating an ASTBox.")
+			raise Exception("ASTBox: Either 'cornerPoint' and 'centerPoint' OR 'cornerPoint' " + \
+							"and 'cornerPoint2' OR 'dimensions' must be specified when creating an ASTBox.")
 		
-		if input_form == CENTER_CORNER:
-			p1 = [centerPoint[0], centerPoint[1]]
-			p2 = [cornerPoint[0], cornerPoint[1]]
-		else:
-			p1 = [cornerPoint[0], cornerPoint[1]]
-			p2 = [cornerPoint2[0], cornerPoint2[1]]
+# 		if input_form == CENTER_CORNER:
+# 			p1 = [centerPoint[0], centerPoint[1]]
+# 			p2 = [cornerPoint[0], cornerPoint[1]]
+# 		else:
+# 			p1 = [cornerPoint[0], cornerPoint[1]]
+# 			p2 = [cornerPoint2[0], cornerPoint2[1]]
 		
 		# Box args: :frame,form,point1,point2,unc=None,options=None  <-- note which are keyword args & which not
 		# AstBox( starlink.Ast.Frame(2), [0,1], 
@@ -119,6 +144,29 @@ class ASTBox(ASTRegion):
 		@returns A Numpy array of points (axis1, axis2).
 		'''
 		return self.astObject.getregionpoints()[1] # returns two points as a Numpy array: (center, a corner)
+	
+	def corners(self, mapping=None):
+		'''
+		Returns a list of all four corners of box.
+		
+		@returns A list of points: [(p1,p2), (p3, p4), (p5, p6), (p7m p8)]
+		'''
+		
+		#n_points = 4			# number of positions to be transformed
+		#n_in     = 2 * n_points # number of inputs for the mapping ??
+		#n_in = self.astObject.get("Nin") # Nin attribute
+		
+		# create a 2D array of shape points to transform
+		
+		d1, d2 = self.dimensions[0], self.dimensions[1]
+		p = [[0.5    , 0.5],    # center of lower left pixel
+			 [0.5    , d2+1.0], # center of upper left pixel
+			 [d1+1.0 , d2+1.0], # center of upper right pixel
+			 [d1+1.0 , 0.5]]    # center of lower right pixel
+		
+		out = Ast.astTranN(p, forward=True, out=None)
+		
+		logger.debug("out={0}".format(out))
 	
 	def mapRegionMesh(self, mapping=None, frame=None):
 		'''
