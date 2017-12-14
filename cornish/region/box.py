@@ -1,6 +1,7 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
 import math
+import numpy as np
 import logging
 
 import starlink.Ast as Ast
@@ -74,8 +75,8 @@ class ASTBox(ASTRegion):
 			elif isinstance(frame, starlink.Ast.frame):
 				self.frame = ASTFrame(frame=frame)
 
-		if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2] or dimensions):
-			if dimensions:
+		if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]) or dimensions is not None:
+			if dimensions is not None:
 				input_form = CORNER_CORNER
 				p1 = [0.5,0.5] # use 0.5 to specify the center of each pixel
 				p2 = [dimensions[0]+0.5, dimensions[1]+0.5]
@@ -83,16 +84,17 @@ class ASTBox(ASTRegion):
 				input_form = CORNER_CORNER
 				p1 = [cornerPoint[0], cornerPoint[1]]
 				p2 = [cornerPoint2[0], cornerPoint2[1]]
-				dimensions = [math.fabs(cornerPoint[0] - cornerPoint[0]),
-							  math.fabs(cornerPoint[1] - cornerPoint[1])]
+				dimensions = [math.fabs(cornerPoint[0] - cornerPoint2[0]),
+							  math.fabs(cornerPoint[1] - cornerPoint2[1])]
 			else:
 				input_form = CENTER_CORNER
 				p1 = [centerPoint[0], centerPoint[1]]
 				p2 = [cornerPoint[0], cornerPoint[1]]
-				dimensions = [2.0 * math.fabs(cornerPoint[0] - cornerPoint[0]),
-							  2.0 * math.fabs(cornerPoint[1] - cornerPoint[1])]
+				dimensions = [2.0 * math.fabs(centerPoint[0] - cornerPoint[0]),
+							  2.0 * math.fabs(centerPoint[1] - cornerPoint[1])]
 
 			self.dimensions = [dimensions[0], dimensions[1]]
+			#logger.debug("Setting dims: {0}".format(self.dimensions))
 
 		else:
 			raise Exception("ASTBox: Either 'cornerPoint' and 'centerPoint' OR 'cornerPoint' " + \
@@ -143,30 +145,65 @@ class ASTBox(ASTRegion):
 		
 		@returns A Numpy array of points (axis1, axis2).
 		'''
+		
+		# !! Is this off by 1 or 0.5  (or neither) due to lower left being [0.5,0.5] ?
+		
 		return self.astObject.getregionpoints()[1] # returns two points as a Numpy array: (center, a corner)
 	
 	def corners(self, mapping=None):
 		'''
 		Returns a list of all four corners of box.
 		
-		@returns A list of points: [(p1,p2), (p3, p4), (p5, p6), (p7m p8)]
+		Parameters
+		----------
+		mapping : `ASTMapping`
+			A mapping object.
+		
+		Returns
+		-------
+		list
+			A list of points: [(p1,p2), (p3, p4), (p5, p6), (p7m p8)] in degrees
 		'''
 		
-		#n_points = 4			# number of positions to be transformed
-		#n_in     = 2 * n_points # number of inputs for the mapping ??
-		#n_in = self.astObject.get("Nin") # Nin attribute
+		if mapping is None:
+			raise Exception("ASTBox: A mapping must be provided to return a list of corner points.")
 		
 		# create a 2D array of shape points to transform
 		
 		d1, d2 = self.dimensions[0], self.dimensions[1]
-		p = [[0.5    , 0.5],    # center of lower left pixel
-			 [0.5    , d2+1.0], # center of upper left pixel
-			 [d1+1.0 , d2+1.0], # center of upper right pixel
-			 [d1+1.0 , 0.5]]    # center of lower right pixel
+		points = [[0.5    , 0.5],   	# center of lower left pixel
+				  [0.5    , d2+1.0], 	# center of upper left pixel
+				  [d1+1.0 , d2+1.0], 	# center of upper right pixel
+				  [d1+1.0 , 0.5]]    	# center of lower right pixel
 		
-		out = Ast.astTranN(p, forward=True, out=None)
+		# Need to refactor (transpose) points for format that AST expects:
+		#     [[x1, x2, x3, x4], [y1, y2, y3, y4]]
+		points = np.array(points).T
 		
-		logger.debug("out={0}".format(out))
+		#x_pos = [p[0] for p in points]
+		#y_pos = [p[1] for p in points]
+		
+		forward = True # True = forward transformation, False = inverse
+		corner_points = mapping.astObject.tran(points, forward)
+				
+		#logger.debug("Back from tran: {0}".format(corner_points))
+		
+		# Transpose back to get a list of points: [[x1, y1], [x2, y2], ...]
+		corner_points = corner_points.T
+		
+		# AST returns values in radians, convert to degrees
+		corner_points = np.rad2deg(corner_points)
+		
+		# normalize RA positions on [0,360)
+		for point in corner_points:
+			while point[0] < 0.0:
+				point[0] += 360
+			while point[0] >= 360.0:
+				point[0] -= 360.0
+		
+		#logger.debug("corner_points={0}".format(corner_points))
+		
+		return corner_points
 	
 	def mapRegionMesh(self, mapping=None, frame=None):
 		'''
