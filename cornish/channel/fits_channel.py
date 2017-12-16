@@ -33,7 +33,12 @@ class ASTFITSChannel(ASTChannel):
 	def __init__(self, hdu=None, header=None):
 		'''
 		Initialize object with either an HDU or header from fitsio or astropy.io.fits.
-		@param header FITS header as an array of strings or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR
+		
+		Parameters
+		----------
+		header : astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, or dictionary (keyword, value)
+		
+		@param header FITS header as a dictionary of strings (keyword,value) or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR
 		TODO: accept some form of text string.
 		'''
 		# defines internal AST object

@@ -1,5 +1,7 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import numpy as np
+import starlink
 import starlink.Ast as Ast
 
 from .region import ASTRegion
@@ -18,15 +20,24 @@ class ASTCircle(ASTRegion):
 	There are two accepted signatures for creating an ASTCircle:
 	
 	c = ASTCircle(frame, center, edge)
-	c = ASTCircle(frame, center, radius)
-	
-		
+	c = ASTCircle(frame, center, radius)		
 	'''
 	def __init__(self, ast_circle=None, frame=None, centerPoint=None, edgePoint=None, radius=None):
-		
+		'''
+		Parameters
+		----------
+		centerPoint : numpy.ndarray, list, tuple
+			Two elements that describe the center point of the circle in the provided frame
+	
+		edgePoint : numpy.ndarray, list, tuple
+			Two elements that describe a point on the circumference of the circle in the provided frame
+	
+		radius : float
+			The radius of the circle to be created.
+		'''
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		
-		if ast_box is not None:
+		if ast_circle is not None:
 			if isinstance(ast_circle, starlink.Ast.Circle):
 				if not any([centerPoint, frame, radius, edgePoint]):
 					self.astObject = ast_circle
@@ -44,12 +55,20 @@ class ASTCircle(ASTRegion):
 		# check valid combination of parameters
 		# -------------------------------------
 		if frame is None:
-			raise Exception("ASTCircle: A frame must be specified when creating an ASTBox.")
+			raise Exception("ASTCircle: A frame must be specified when creating an ASTCircle.")
 		else:
 			if isinstance(frame, ASTFrame):
 				self.frame = frame
-			elif isinstance(frame, starlink.Ast.frame):
+			elif isinstance(frame, Ast.Frame):
 				self.frame = ASTFrame(frame=frame)
+			else:
+				raise Exception("ASTCircle: unexpected frame type specified ('{0}').".format(type(frame)))
+		
+		# convert np.array types to lists so that the value can be used in 'any' and 'all' comparisons.
+		if isinstance(centerPoint, np.ndarray):
+			centerPoint = centerPoint.tolist()
+		if isinstance(edgePoint, np.ndarray):
+			edgePoint = edgePoint.tolist()
 		
 		if all([centerPoint, edgePoint]) or all([centerPoint, radius]):
 			if edgePoint:
@@ -70,6 +89,24 @@ class ASTCircle(ASTRegion):
 		self.astObject = Ast.Circle( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty)
 			
 	@property
+	def uncertainty(self):
+		'''
+		Uncertainties associated with the boundary of the Box.
+					
+		The uncertainty in any point on the boundary of the Box is found by
+		shifting the supplied "uncertainty" Region so that it is centered at
+		the boundary point being considered.  The area covered by the shifted
+		uncertainty Region then represents the uncertainty in the boundary
+		position.  The uncertainty is assumed to be the same for all points.
+		'''
+		return self._uncertainty
+			
+	@uncertainty.setter
+	def uncertainty(self, unc):
+		raise Exception("Setting the uncertainty currently doesn't do anything.")
+		self._uncertainty = unc
+
+	@property
 	def radius(self):
 		'''
 		The radius of this circle region.
@@ -78,7 +115,10 @@ class ASTCircle(ASTRegion):
 		'''
 		center = None
 		radius = None
-		starlink.Ast.CirclePars(self.astObject, center, radius, None)
+		
+		( center, radius, some_point_on_circumference ) = self.astObject.circlepars()
+		
+		return radius
 		
 		# TODO: possibly cache this
 		
@@ -93,7 +133,8 @@ class ASTCircle(ASTRegion):
 		'''
 		center = None
 		radius = None
-		starlink.Ast.CirclePars(self.astObject, center, radius, None)
+		
+		( center, radius, some_point_on_circumference ) = self.astObject.circlepars()
 		
 		# TODO: possibly cache this
 		

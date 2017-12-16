@@ -48,10 +48,11 @@ class ASTBox(ASTRegion):
 		#self._ast_box = None
 		
 		# I am assuming the box is immutable...
+		# dimenstions = pixel dimensions
 		self.dimensions = None
 		
 		if ast_box is not None:
-			if isinstance(ast_box, starlink.Ast.Box):
+			if isinstance(ast_box, Ast.Box):
 				if not any([cornerPoint, cornerPoint2, centerPoint, dimensions]):
 					self.astObject = ast_box
 					return
@@ -72,8 +73,10 @@ class ASTBox(ASTRegion):
 		else:
 			if isinstance(frame, ASTFrame):
 				self.frame = frame
-			elif isinstance(frame, starlink.Ast.frame):
+			elif isinstance(frame, starlink.Ast.Frame):
 				self.frame = ASTFrame(frame=frame)
+			else:
+				raise Exception("ASTBox: unexpected frame type specified ('{0}').".format(type(frame)))
 
 		if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]) or dimensions is not None:
 			if dimensions is not None:
@@ -168,7 +171,7 @@ class ASTBox(ASTRegion):
 		if mapping is None:
 			raise Exception("ASTBox: A mapping must be provided to return a list of corner points.")
 		
-		# create a 2D array of shape points to transform
+		# create a 2D array of shape points in pixel frame to transform
 		
 		d1, d2 = self.dimensions[0], self.dimensions[1]
 		points = [[0.5    , 0.5],   	# center of lower left pixel
@@ -184,7 +187,7 @@ class ASTBox(ASTRegion):
 		#y_pos = [p[1] for p in points]
 		
 		forward = True # True = forward transformation, False = inverse
-		corner_points = mapping.astObject.tran(points, forward)
+		corner_points = mapping.astObject.tran(points, forward) # transform points from one frame (pix) to another (WCS)
 				
 		#logger.debug("Back from tran: {0}".format(corner_points))
 		
