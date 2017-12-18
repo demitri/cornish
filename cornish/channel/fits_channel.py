@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import pdb
 import logging
 
 import ast
@@ -9,7 +10,7 @@ import starlink.Ast as Ast
 
 from .ast_channel import ASTChannel
 from ..mapping.frame import ASTFrame, ASTFrameSet
-from ..region import ASTBox, ASTPolygon
+from ..region import ASTBox, ASTPolygon, ASTCircle
 
 logger = logging.getLogger("cornish") # cornish logger
 
@@ -36,7 +37,8 @@ class ASTFITSChannel(ASTChannel):
 		
 		Parameters
 		----------
-		header : astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, or dictionary (keyword, value)
+		hdu : astropy.io.fits.hdu.base.ExtensionHDU or 
+		header : astropy.io.fits.header.Header or fitsio.fitslib.FITSHDR or list of tuples/arrays (keyword,value)
 		
 		@param header FITS header as a dictionary of strings (keyword,value) or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR
 		TODO: accept some form of text string.
@@ -52,27 +54,35 @@ class ASTFITSChannel(ASTChannel):
 		# ----------
 		if all([hdu, header]):
 			raise Exception("Only specify an HDU or header to create a ASTFITSChannel object.")
-		
-		if hdu and _astropy_available and isinstance(hdu, astropy.io.fits.hdu.base.ExtensionHDU):
-			header = hdu.header        # type: astropy.io.fits.header.Header
-		elif hdu and _fitsio_available and isinstance(hdu, fitsio.fitslib.HDUBase):
-			header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
+		if hdu:
+			if hdu and _astropy_available and isinstance(hdu, astropy.io.fits.hdu.base.ExtensionHDU):
+				header = hdu.header        # type: astropy.io.fits.header.Header
+			elif hdu and _fitsio_available and isinstance(hdu, fitsio.fitslib.HDUBase):
+				header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
+			else:
+				raise Exception("ASTFITSChannel: unknown HDU type specified ('{0}').".format(type(hdu)))
 		# ----------
 		
 		self._dimensions = None
-		self.astObject = Ast.FitsChan()
+		self.astObject = Ast.FitsChan() # sink=self
 		
 		if header is not None:
-			# Note that the starlink.Ast.Chanel.read() operation is destructive.
+			# Note that the starlink.Ast.Channel.read() operation is destructive.
 			# Save the header so it can be restored/reused.
 			self.header = header
-			if isinstance(header, (dict, astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR)) or \
+			if isinstance(header, (astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR)) or \
 			   (isinstance(header, list) and isinstance(header[0], str)):
 			   self._readHeader()
+			elif isinstance(header, list):
+				self._readHeader()
 			else:
 				raise Exception("Could not work with the type of header provided ('{0}').".format(type(header)))
 		else:
 			pass # work with an empty Ast.FitsChan()
+			logger.warning("ASTFITSChannel: no data found: working with an empty FITSChannel.")
+	
+#	def astsink(self, header):
+#		logger.debug("ASTFITSChan._sink: header = {0}".format(header))
 	
 	def _readHeader(self):
 		'''
@@ -80,7 +90,7 @@ class ASTFITSChannel(ASTChannel):
 		Accepts astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, a dictionary (keyword,value), or a list of strings.
 		'''
 		logger.debug("ASTFitsChannel._readHeader.")
-
+		
 		assert self.header is not None, "Attempting to read a header before it has been set."
 		
 		# try to read the header from an Astropy header object
@@ -97,13 +107,25 @@ class ASTFITSChannel(ASTChannel):
 			for card in all_cards:
 				self.addHeader(card=card)
 		
-		elif isinstance(self.header, dict):
-			for keyword in self.header.keys():
-				self.astObject[keyword] = self.header[keyword]
+		#elif isinstance(self.header, dict):
+		#	for keyword in self.header.keys():
+		#		self.astObject[keyword] = self.header[keyword]
 		
-		elif isinstance(self.header, list) and isinstance(self.header[0], str):
-			for card in self.header:
-				self.addHeader(card=card)
+		elif isinstance(self.header, list) and len(self.header) > 0:
+			#
+			# read header from provided list of strings or keyword/value pairs
+			#
+			logger.debug("ASTFITSChannel: Reading header cards from list.")
+			first_item = self.header[0]
+			if isinstance(first_item, str):
+				for card in self.header:
+					self.addHeader(card=card)
+			elif isinstance(first_item, (list,tuple)) and len(first_item) == 2:
+				for keyword,value in self.header:
+					self.addHeader(keyword=keyword, value=value)
+			
+		else:
+			raise Exception("ASTFITSChannel: unable to parse header.")
 	
 	def cardForKeyword(self, keyword=None):
 		'''
@@ -117,17 +139,19 @@ class ASTFITSChannel(ASTChannel):
 		'''
 		self.astObject.emptyfits()
 	
-	def addHeader(self, card=None, keyword=None, value=None, comment=None):
+	def addHeader(self, card=None, keyword=None, value=None, comment=None, overwrite=False):
 		'''
 		Add a card to this header.
 		
-		Currently values are overwritten if they exist in the header.
-		@param card Can be of type: fitsio.fitslib.FITSRecord, astropy.io.fits.card.Card, or a text string
+		Parameters
+		----------
+		card : fitsio.fitslib.FITSRecord or astropy.io.fits.card.Card or str
+			A single FITS header.
+		
+		overwrite : boolean, optional
+			If 'True', the provided card overwrites any existing one with the same keyword.
 		'''
-		
-		#raise Exception("putfits doesn't work")
-		
-		overwrite = True # can implement option later
+				
 		# NOTE: putfits(card, overwrite=<anything>) results in
 		#       TypeError: putfits() takes no keyword arguments
 		#       which is not what the documentation says.
@@ -137,69 +161,99 @@ class ASTFITSChannel(ASTChannel):
 		if not any([card, keyword, value, comment]):
 			raise Exception("Specify either a 'card' value or else 'keyword', 'value', or 'comment'.")
 				
+		fits_header_card = None
+		
+		# This next block parses the input and defines 'fits_header_card', the value to be
+		# passed to 'putfits()'.
+		
 		if card:
+			#
+			# Parse provided FITS header
+			#
 			if _fitsio_available and isinstance(card, fitsio.fitslib.FITSRecord):
-				self.astObject.putfits(card["card_string"])
-				return
+				#self.astObject.putfits(card["card_string"])
+				fits_header_card = card["card_string"]
+				#return
 			
 			elif _astropy_available and isinstance(card, astropy.io.fits.card.Card):
-				self.astObject.putfits(card.image)
-				return
+				#self.astObject.putfits(card.image)
+				fits_header_card = card.image
+				#return
 			
 			elif isinstance(card, str) and len(card) <= 80:
-				self.astObject.putfits(card)
-				return
+				#self.astObject.putfits(card)
+				fits_header_card = card
+				#return
+				
+				# ** I don't think this code is needed / was used. **
 				
 				# parse individual strings and convert to the appropriate value
-				if "=" in card:
-					keyword, string_value = card.split("=")
-					keyword = keyword.strip()
-					string_value = string_value.strip()
-					try:
-						# handles (float, int), converted to the correct type
-						value = ast.literal_eval(string_value)
-					except ValueError:
-						# string value
-						if s == "T":
-							value = True
-						elif s == "F":
-							value = False
-						else:
-							# a regular string - remove leading and trailing quotes if present
-							if s[0] == "'" and s[-1] == "'":
-								value = s[1:-1]
-							else:
-								value = s
-					self.astObject[keyword] = value
-				return
+# 				if "=" in card:
+# 					keyword, string_value = card.split("=")
+# 					keyword = keyword.strip()
+# 					string_value = string_value.strip()
+# 					try:
+# 						# handles (float, int), converted to the correct type
+# 						value = ast.literal_eval(string_value)
+# 					except ValueError:
+# 						# string value
+# 						if s == "T":
+# 							value = True
+# 						elif s == "F":
+# 							value = False
+# 						else:
+# 							# a regular string - remove leading and trailing quotes if present
+# 							if s[0] == "'" and s[-1] == "'":
+# 								value = s[1:-1]
+# 							else:
+# 								value = s
+# 					self.astObject[keyword] = value
+# 				return
 			
 			else:
 				raise Exception("Unknown card type: '{0}'.".format(type(card)))
 		
 		else:
 			#
+			# Parse keyword/value/comment
+			#
+			
+			# THE BLOCK BELOW DOES NOT WORK.
+			# At the very least, data types are not being handled correctly.
+			# The best plan is to extract the cards close to the source.
+			#
+			raise Exception("Don't use this section of code without rigorous testing - it's critical to get the data type correct.")
+			
 			if keyword in ["HISTORY", "COMMENT", ""]:
 				raise Exception("The keywords 'HISTORY', 'COMMENT', or blank ('') are not yet implemented.")
-		
-			# reconstruct from keyword, value, comment
-			if type(value, str):
-				if comment:
-					card = "{0:8}= '{1}' / {2}".format(keyword, value, comment)
-				else:
-					card = "{0:8}= '{1}'".format(keyword, value)
 			
-			elif type(value) in [int, float]:
+			if keyword.startswith('NAXIS'):
+				value = int(value)
+			elif keyword.startswith('CRVAL2'):
+				value = float(value)
+			elif keyword.startswith('CRPIX'):
+				value = float(value)
+			
+			# reconstruct from keyword, value, comment
+			if isinstance(value, str):
 				if comment:
-					card = "{0:8}= {1:-20} / {2}".format(keyword, value, comment)
+					fits_header_card = "{0:8}= '{1}' / {2}".format(keyword, value, comment)
 				else:
-					card = "{0:8}= {1:-20}".format(keyword, value)
+					fits_header_card = "{0:8}= '{1}'".format(keyword, value)
+			
+			elif isinstance(value, (int, float)):
+				if comment:
+					fits_header_card = "{0:8}= {1:-20} / {2}".format(keyword, value, comment)
+				else:
+					fits_header_card = "{0:8}= {1:-20}".format(keyword, value)
 			
 			else:
 				raise Exception("Not implemented: handle value of type '{0}'.".format(type(value)))
 		
-		assert len(card) <= 80, "The FITS card is incorrectly formatted (or a bad value has been given)."
+		assert len(fits_header_card) <= 80, "The FITS card is incorrectly formatted (>80 char) or a bad value has been given: '{0]'".format(fits_header_card)
 		
-		self.astObject.putfits(card=card, overwrite=True)
+		self.astObject.putfits(fits_header_card, overwrite)
+		self.astObject.retainfits()
 		
 	def valueForKeyword(self, keyword=None):
 		'''
@@ -228,7 +282,7 @@ class ASTFITSChannel(ASTChannel):
 		Reads the FITS header and convert it into an AST frame set.
 		'''
 		# NOTE! read() is a destructive operation! This logic will have to be changed
-		#       if is needs to be used again anywhere else in this class (whic is why the header is being saved).
+		#       if it needs to be used again anywhere else in this class (which is why the header is being saved).
 		if self._frameSet is None:
 			ast_frame_set = self.astObject.read() # deletes all WCS cards from the starlink.Ast.FitsChan object
 			#self._readHeader()					  # reread for future use
@@ -247,8 +301,10 @@ class ASTFITSChannel(ASTChannel):
 				# TypeError: 'int' object is not subscriptable
 				if "'int' object is not subscriptable" in str(e):
 					raise Exception()
+			if isinstance(naxis, str):
+				naxis = int(naxis)
 			for i in range(naxis):
-				dims.append(self.valueForKeyword("NAXIS{0}".format(i+1)))
+				dims.append(int(self.valueForKeyword("NAXIS{0}".format(i+1))))
 			self._dimensions = np.array(dims)
 		return self._dimensions
 	
@@ -310,4 +366,74 @@ class ASTFITSChannel(ASTChannel):
 		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
 		#
 		return flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon 
+
+	def boundingCircle(self):
+		'''
+		Returns the smallest circle that bounds the HDU represented by this FITS header.
+		
+		It is up to the called to know that this is a 2D image (only minimal checks are made).
+		'''
+		
+		# contains two frames (pixels grid, WCS) and mapping between them
+		#    - baseFrame()    - native coordinate system (pixels)
+		#    - currentFrame() - WCS (ra, dec)
+		wcsFrameSet = fitsChannel.frameSet()
+		baseFrame = wcsFrameSet.baseFrame()   # pixel coordinates frame
+		wcsFrame = wcsFrameSet.currentFrame() # (AST SkyFrame)
+		
+		#print(baseFrame.astObject)
+		#print(wcsFrame.astObject)
+		dims = fitsChannel.dimensions
+		
+		if len(dims) != 2:
+			raise Exception("ASTFITSChannel: Requesting bounding circle on an HDU that is not 2D.")
+	
+		#logger.debug("dimensions: {0}".format(dims))
+	
+		# pixelbox = ASTBox(frame=wcsFrameSet.baseFrame(),
+		# 				  cornerPoint=[0.5,0.5], # center of lower left pixel
+		# 				  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
+	
+		# the base frame (pixels) is used since we're using the pixel dimensions to define the area
+		pixelbox = ASTBox(frame=baseFrame, dimensions=dims)
+	
+		# Use frame set to map between pixels and WCS coords (SkyFrame).
+		# Result coordinates are degrees on sky.
+		#
+		corner_points = np.array(pixelbox.corners(mapping=wcsFrameSet)) # unit: deg
+	
+		logger.debug("corner points: {0}".format(corner_points))
+		logger.debug("corner points: {0}".format(np.deg2rad(corner_points)))
+	
+		# convert back to rad to use in AST functions
+		corner_points = np.deg2rad(corner_points)
+	
+		# calculate the distance between two corner points
+		c1 = corner_points[0]
+		c2 = corner_points[2]
+		diagonal_distance = wcsFrame.distance(c1, c2)
+	
+		ed = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2) # distance in Euclidean space
+		print("diagonal distance: ", diagonal_distance)
+		print("Euclidian value:   ", ed) # should not match the value above
+	
+		# find point halfway on diagonal line
+		center = wcsFrame.astObject.offset(c1, c2, diagonal_distance/2.0)
+	
+		print("center: ", center)
+		print("center: ", np.rad2deg(center))
+	
+		# Use this point as the circle center.
+		# Calculate the distance from the center to each corner.
+		distances = [wcsFrame.distance(center, p) for p in corner_points]
+	
+		radius = max(distances)
+	
+		print("radius: ", radius)
+		
+		return ASTCircle(frame=wcsFrame, centerPoint=center, radius=radius)
+
+
+
+
 
