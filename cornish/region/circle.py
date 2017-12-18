@@ -1,5 +1,7 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+from math import radians as deg2rad
+from math import degrees as rad2deg
 import numpy as np
 import starlink
 import starlink.Ast as Ast
@@ -49,7 +51,7 @@ class ASTCircle(ASTRegion):
 
 		# input forms:
 		#	CENTER_EDGE   (0) : circle specified by center point and any point on the circumference
-		#	CENTER_RADIUS (1) : circle specified by center point and radius
+		#	CENTER_RADIUS (1) : circle specified by  point and radius
 		input_form = None
 		
 		# check valid combination of parameters
@@ -111,25 +113,25 @@ class ASTCircle(ASTRegion):
 		'''
 		The radius of this circle region.
 		
-		@returns The radius as a geodesic distance in the associated coordinate system.
+		@returns The radius as a geodesic distance in the associated coordinate system in degrees.
 		'''
 		center = None
 		radius = None
 		
 		( center, radius, some_point_on_circumference ) = self.astObject.circlepars()
 		
-		return radius
+		return rad2deg(radius)
 		
 		# TODO: possibly cache this
-		
-		return radius
 
 	@property
 	def center(self):
 		'''
 		The center of this circle region.
 		
-		@returns A list of points [x,y] that describe the center of the circle.
+		Returns
+		-------
+		@returns A list of points [x,y] that describe the center of the circle in degrees.
 		'''
 		center = None
 		radius = None
@@ -138,7 +140,7 @@ class ASTCircle(ASTRegion):
 		
 		# TODO: possibly cache this
 		
-		return center
+		return np.rad2deg(center)
 			
 	def mapRegionMesh(self, mapping=None, frame=None):
 		'''
