@@ -89,7 +89,11 @@ class ASTCircle(ASTRegion):
 			p2 = [radius]
 		
 		self.astObject = Ast.Circle( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty)
-			
+	
+	def __repr__(self):
+		return "<{0}.{1} {2}: r={3}, center={4} deg>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
+														self.radius, self.center)
+	
 	@property
 	def uncertainty(self):
 		'''

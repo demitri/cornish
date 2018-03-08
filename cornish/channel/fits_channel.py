@@ -40,8 +40,7 @@ class ASTFITSChannel(ASTChannel):
 		hdu : astropy.io.fits.hdu.base.ExtensionHDU or 
 		header : astropy.io.fits.header.Header or fitsio.fitslib.FITSHDR or list of tuples/arrays (keyword,value)
 		
-		@param header FITS header as a dictionary of strings (keyword,value) or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR
-		TODO: accept some form of text string.
+		@param header FITS header as a dictionary of strings (keyword,value) or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, or a plain string divisible by 80 characters.
 		'''
 		# defines internal AST object
 		super(ASTFITSChannel, self).__init__()
@@ -75,6 +74,10 @@ class ASTFITSChannel(ASTChannel):
 			   self._readHeader()
 			elif isinstance(header, list):
 				self._readHeader()
+			elif isinstance(header, str) and (len(header) % 80 == 0):
+				# split into list, then process
+				self.header = [header[i:i+80] for i in range(0, len(header), 80)]
+				self._readHeader()
 			else:
 				raise Exception("Could not work with the type of header provided ('{0}').".format(type(header)))
 		else:
@@ -86,8 +89,9 @@ class ASTFITSChannel(ASTChannel):
 	
 	def _readHeader(self):
 		'''
-		Internal method to read a FITS header.
-		Accepts astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, a dictionary (keyword,value), or a list of strings.
+		Internal method to read a FITS header from 'self.header'.
+		Accepts astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, a dictionary (keyword,value), a list of strings,
+		or a plain string divisible by 80 characters (full header as a single string).
 		'''
 		logger.debug("ASTFitsChannel._readHeader.")
 		
@@ -383,27 +387,27 @@ class ASTFITSChannel(ASTChannel):
 		
 		#print(baseFrame.astObject)
 		#print(wcsFrame.astObject)
-		dims = self.dimensions
 		
-		if len(dims) != 2:
+		if len(self.dimensions) != 2:
 			raise Exception("ASTFITSChannel: Requesting bounding circle on an HDU that is not 2D.")
 	
 		#logger.debug("dimensions: {0}".format(dims))
 	
+		#dims = self.dimensions
 		# pixelbox = ASTBox(frame=wcsFrameSet.baseFrame(),
 		# 				  cornerPoint=[0.5,0.5], # center of lower left pixel
 		# 				  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
 	
 		# the base frame (pixels) is used since we're using the pixel dimensions to define the area
-		pixelbox = ASTBox(frame=baseFrame, dimensions=dims)
+		pixelbox = ASTBox(frame=baseFrame, dimensions=self.dimensions)
 	
 		# Use frame set to map between pixels and WCS coords (SkyFrame).
 		# Result coordinates are degrees on sky.
 		#
 		corner_points = np.array(pixelbox.corners(mapping=wcsFrameSet)) # -> unit: degrees
 	
-		logger.debug("corner points: {0}".format(corner_points))
-		logger.debug("corner points: {0}".format(np.deg2rad(corner_points)))
+		logger.debug("corner points (deg): {0}".format(corner_points))
+		logger.debug("corner points (rad): {0}".format(np.deg2rad(corner_points)))
 	
 		# convert back to rad to use in AST functions
 		corner_points = np.deg2rad(corner_points) # -> unit: radians
@@ -414,8 +418,8 @@ class ASTFITSChannel(ASTChannel):
 		diagonal_distance = wcsFrame.distance(c1, c2)
 	
 		ed = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2) # distance in Euclidean space
-		logger.debug("diagonal distance: {0}".format(diagonal_distance))
-		logger.debug("Euclidian value:   {0}".format(ed)) # should not match the value above
+		logger.debug("diagonal distance: {0} (rad)".format(diagonal_distance))
+		logger.debug("Euclidian value:   {0} ".format(ed)) # should not match the value above
 	
 		# find point halfway on diagonal line
 		center = wcsFrame.astObject.offset(c1, c2, diagonal_distance/2.0) # -> unit: radians
@@ -427,9 +431,12 @@ class ASTFITSChannel(ASTChannel):
 		# Calculate the distance from the center to each corner.
 		distances = [wcsFrame.distance(center, p) for p in corner_points]
 	
+		logger.debug("distances from center to each corner (rad): {}".format(distances))
+		logger.debug("distances from center to each corner (deg): {}".format(np.rad2deg(distances)))
+	
 		radius = max(distances) # -> unit: radians
 	
-		logger.debug("radius: {0}".format(radius))
+		logger.debug("radius: {0} (radians), {1} (deg)".format(radius, np.rad2deg(radius)))
 		
 		return ASTCircle(frame=wcsFrame, centerPoint=center, radius=radius)
 

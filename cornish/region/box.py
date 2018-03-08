@@ -197,6 +197,8 @@ class ASTBox(ASTRegion):
 		# AST returns values in radians, convert to degrees
 		corner_points = np.rad2deg(corner_points)
 		
+		#logger.debug("box.corners: corner points = {}".format(corner_points))
+		
 		# normalize RA positions on [0,360)
 		for point in corner_points:
 			while point[0] < 0.0:
