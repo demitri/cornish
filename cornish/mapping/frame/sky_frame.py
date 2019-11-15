@@ -9,7 +9,7 @@ class ASTSkyFrame(ASTFrame):
 	
 	self.astObject is of type starlink.Ast.SkyFrame.
 	'''
-	def __init__(self, ast_frame=None, equinox=None, system=None):
+	def __init__(self, ast_frame=None, equinox=None, system=None, epoch=None):
 
 		#if all([naxes, ast_frame]):
 		#	raise Exception("The number of axes (naxes) argument cannot be specified with a provided ast_frame.")
@@ -23,6 +23,8 @@ class ASTSkyFrame(ASTFrame):
 			self.system = system
 		if equinox:
 			self.equinox = equinox
+		if epoch:
+			self.epoch = epoch
 		
 	@property
 	def equinox(self):
