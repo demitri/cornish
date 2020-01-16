@@ -1,8 +1,12 @@
-from __future__ import (absolute_import, division, print_function, unicode_literals)
+#from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+from typing import Union
+
+import numpy as np
+import astropy
+import astropy.units as u
 import starlink
 import starlink.Ast as Ast
-import astropy.units as u
 
 import cornish.region # to avoid circular imports below - better way?
 from ..ast_object import ASTObject
@@ -55,16 +59,22 @@ class ASTRegion(ASTFrame):
 	#	self.astObject = super(ASTRegion, self).__init__(ast_frame=ast_frame)
 		
 	@property
-	def points(self):
+	def points(self, units:astropy.units.core.Unit=u.deg):
 		'''
 		The array of points that define the region.
 		
-		@returns Numpy array of coordinate points.
+		:param unit: the unit of the points requested (astroy.units.deg or astropy.units.rad)
+		:returns: Numpy array of coordinate points.
 		'''
 		
 		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]]
 		# transpose the points before returning
-		return self.astObject.getregionpoints().T
+		if units == u.deg:
+			return np.rad2deg(self.astObject.getregionpoints().T)
+		elif units == u.rad:
+			return self.astObject.getregionpoints().T
+		else:
+			raise ValueError("Requested units for points must be either astropy.units.deg or astropy.units.rad.")
 
 	@property
 	def isAdaptive(self):

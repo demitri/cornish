@@ -86,6 +86,7 @@ class ASTPolygon(ASTRegion):
 		
 		:param ra: list of RA points, must be in degrees (or :class:`astropy.units.Quantity` objects)
 		:param dec: list of declination points, must be in degrees (or :class:`astropy.units.Quantity` objects)
+		:returns: new ASTPolygon object
 		'''
 		# author: David Berry
 		#
