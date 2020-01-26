@@ -2,6 +2,9 @@
 
 from typing import Union
 
+from math import radians as deg2rad
+from math import degrees as rad2deg
+
 import numpy as np
 import astropy
 import astropy.units as u
@@ -52,11 +55,12 @@ class ASTRegion(ASTFrame):
 	
 	# Note: Not (yet) formally declaring this an asbtract class for Py2/3 compatibility.
 	
-	#def __init__(self, ast_frame=None):
-	#	'''
-	#	
-	#	'''
-	#	self.astObject = super(ASTRegion, self).__init__(ast_frame=ast_frame)
+	def __init__(self, ast_frame=None, uncertainty=None):
+	  '''
+	  
+	  '''
+	  #self.astObject = super(ASTRegion, self).__init__(ast_frame=ast_frame)
+	  self._uncertainty = None
 		
 	@property
 	def points(self, units:astropy.units.core.Unit=u.deg):
@@ -75,6 +79,24 @@ class ASTRegion(ASTFrame):
 			return self.astObject.getregionpoints().T
 		else:
 			raise ValueError("Requested units for points must be either astropy.units.deg or astropy.units.rad.")
+
+	@property
+	def uncertainty(self):
+		'''
+		Uncertainties associated with the boundary of the Box.
+					
+		The uncertainty in any point on the boundary of the Box is found by
+		shifting the supplied "uncertainty" Region so that it is centered at
+		the boundary point being considered.  The area covered by the shifted
+		uncertainty Region then represents the uncertainty in the boundary
+		position.  The uncertainty is assumed to be the same for all points.
+		'''
+		return self._uncertainty
+			
+	@uncertainty.setter
+	def uncertainty(self, unc):
+		raise Exception("Setting the uncertainty currently doesn't do anything.")
+		self._uncertainty = unc
 
 	@property
 	def isAdaptive(self):
@@ -157,6 +179,61 @@ class ASTRegion(ASTFrame):
 	def fillFactor(self, newValue):
 		raise Exception("TODO: document and implement")
 
+	def bounds(self):
+		'''
+		Return the upper and lower bounds of a box that contains this regions.
+		'''
+		
+		lower_bounds, upper_bounds = self.astObject.getregionbounds()
+		
+		# lower_bounds and upper_bounds are n-dimensional arrays
+		# e.g. for a 2D image,
+		# [-10,5], [10,20] <- ra, dec or pixel bounds
+		
+	def maskOnto(self, image=None, mapping=None, fits_coordinates:bool=True, lower_bounds=None, mask_inside=True, mask_value=float("NaN")):
+		'''
+		Apply this region as a mask on top of the provided image; note: the image values are overwritten!
+		
+		:param image: numpy.ndarray of pixel values (or other array of values)
+		:param mapping: mapping from this region to the pixel coordinates of the provided image
+		:param fits_coordinates: use the pixel coordinates of a FITS file (i.e. origin = [0.5, 0.5] for 2D)
+		:param lower_bounds: lower bounds of provided image, only specify if not using FITS coordinates
+		:param mask_inside: True: mask the inside of this region; False: mask outside of this region
+		:param mask_value: the value to set the masked image pixels to
+		:returns: number of pixels in image masked
+		'''
+		
+		# coded now for numpy arrays, but set ndim,shape for anything else
+		ndim = len(image.shape)
+		shape = image.shape
+		
+		# assert number of axes in image == # of outputs in the mapping
+		if ndim != mapping.number_of_output_coordinates:
+			raise Exception(f"The number of dimensions in the provided image ({ndim}) does not match the number of output dimensions of the provided mapping ({mapping.number_of_output_coordinates}).")
+		
+		if fits_coordinates:
+			# use the pixel coordinates for FITS files -> origin at [0.5, 0.5]
+			lower_bounds = [0.5 for x in range(ndim)]
+		else:
+			# must use provided lower bounds
+			if lower_bounds is None:
+				raise ValueError("'lower_bounds' must be provided (or specify 'fits_coordinates=True' to use FITS coordinates.")
+#		upper_bounds = list()
+#		for idx, n in enumerate(shape):
+#			upper_bounds.append(lower_bounds[idx] + n)
+
+		npix_masked = self.astObject.mask(mapping.astObject, mask_inside, lower_bounds, image, value)
+		return npix_masked
+		
+	def boundingBox(self):
+		'''
+		
+		'''
+		pass
+		# use the "bounds" method above to create a bounding box
+		
+	
+
 	def regionWithMapping(self, map=None, frame=None):
 		'''
 		Returns a new ASTRegion with the coordinate system from the supplied frame.
@@ -193,6 +270,9 @@ class ASTRegion(ASTFrame):
 		
 		# This is temporary and probably fragile. Find a replacement for this ASAP.
 		# get the returned region type to create the correct wrapper
+		#
+		# -> make a deep copy, replace obj.astObject with new one (check any properties)
+		#
 		if new_ast_region.Class == 'Polygon' or isinstance(new_ast_region, starlink.Ast.Polygon):
 			return cornish.region.ASTPolygon(ast_polygon=new_ast_region)
 		elif new_ast_region.Class == 'Box' or isinstance(new_ast_region, starlink.Ast.Box):
@@ -200,6 +280,39 @@ class ASTRegion(ASTFrame):
 		else:
 			raise Exception("ASTRegion.regionWithMapping: unhandled region type (easy fix).")
 	
+	def mapRegionMesh(self, mapping=None, frame=None):
+		'''
+		Returns a new ASTRegion that is the same as this one but with the specified coordinate system.
+		
+		Parameters
+		----------
+		mapping : `~cornish.mapping.ASTMapping` class
+			The mapping to transform positions from the current ASTRegion to those specified by the given frame.
+		frame : `~cornish.frame.ASTFrame` class
+			Coordinate system frame to convert the current ASTRegion to.
+			
+		Returns
+		-------
+		region : `ASTRegion`
+			A new region object covering the same area but in the frame specified in `frame`.
+			
+		Raises
+		------
+		Exception
+			An exception is raised for missing parameters.
+		'''
+		if mapping is None or frame is None:
+			raise Exception("A mapping and frame is required to be passed to 'mapRegion'.")
+
+		# check it's the correct type
+		if not isinstance(mapping, ASTMapping):
+			raise Exception("The object passed to 'mapping' needs to be an ASTMapping object.")
+		
+		if not isinstance(frame, ASTFrame):
+			raise Exception("The object passed to 'frame' needs to be an ASTFrame object.")
+		
+		self.astObject.mapregionmesh( mapping, frame )
+
 	def boundaryPointMesh(self, npoints=None):
 		'''
 		Returns an array of evenly distributed points that cover the boundary of the region.
@@ -246,8 +359,8 @@ class ASTRegion(ASTFrame):
 		
 		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
 		
-		@param npoints The approximate number of points to generate in the mesh.
-		@returns List of points.
+		:param npoints: The approximate number of points to generate in the mesh.
+		:returns: List of points.
 		'''
 		# See discussion of "MeshSize" in method "boundaryPointMesh".
 		
@@ -269,8 +382,14 @@ class ASTRegion(ASTFrame):
 
 		return mesh.T
 	
+	def boundingCircle(self):
+		'''
+		Returns the smallest circle (ASTCircle) that bounds this region.
+		
+		It is up to the caller to know that this is a 2D image (only minimal checks are made).
+		'''
+		from .circle import ASTCircle
+		centre, radius = self.astObject.getregiondisc() # returns radians
+		return ASTCircle(frame=self, center_point=np.rad2deg(centre), radius=np.rad2deg(radius))
 	
-	# Attributes to implement: Adaptive, Negated, Closed, FillFactor, Bounded
-	# See p. 811 of documentation
-
 

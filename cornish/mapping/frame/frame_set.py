@@ -1,5 +1,5 @@
 #/usr/bin/env python
-from __future__ import (absolute_import, division, print_function, unicode_literals)
+#from __future__ import (absolute_import, division, print_function, unicode_literals)
 
 import numpy as np
 
@@ -8,8 +8,10 @@ import starlink.Ast as Ast
 
 from ... import ASTObject
 from .frame import ASTFrame
+from ..mapping import ASTMapping
+#from ...channel import ASTFITSChannel
 
-class ASTFrameSet(ASTObject):
+class ASTFrameSet(ASTFrame):
 	'''
 	A sets of inter-related coordinate systems made up of existing `Mapping`s and `Frame`s.
 	A FrameSet may be extended by adding a new Frame and associated Mapping.
@@ -24,7 +26,7 @@ class ASTFrameSet(ASTObject):
 	
 	
 	'''
-	def __init__(self, base_frame=None, ast_frame_set=None):
+	def __init__(self, ast_object=None, base_frame=None, ast_frame_set=None, fits_header=None):
 		'''
 		Create a new AST frame set.
 		Object can be created from an starlink.Ast.FrameSet "primitive"
@@ -32,12 +34,25 @@ class ASTFrameSet(ASTObject):
 		
 		self.astObject is of type starlink.Ast.FrameSet
 		'''
-		super(ASTFrameSet, self).__init__()
+		# TODO: properly handle when ast_object is set
+		#super().__init__(ast_object=ast_object)
+		if ast_object:
+			assert all([x is None for x in [base_frame, ast_frame_set, fits_header]]), "too many parameters set" 
+			self.astObject = ast_object
+			return
 		
-		if all([base_frame, ast_frame_set]):
+		if all([base_frame, ast_frame_set, fits_header]):
 			raise Exception("Only 'base_frame' or 'ast_frame_set' may be used to initialize this object.")
-		elif not any([base_frame, ast_frame_set]):
+		elif not any([base_frame, ast_frame_set, fits_header]):
 			raise Exception("This object must be initialized with either a base frame or AST frame set object")
+		
+		# todo: fully test for invalid combinations of parameters
+		
+		if fits_header:
+			from cornish import ASTFITSChannel # TODO: reorg later
+			fits_channel = ASTFITSChannel(header=fits_header)
+			self.astObject = fits_channel.frameSet.astObject
+			return
 		
 		if ast_frame_set is not None:
 			if isinstance(ast_frame_set, starlink.Ast.FrameSet):
@@ -50,7 +65,9 @@ class ASTFrameSet(ASTObject):
 			else:
 				Exception("ASTFrameSet: Unhandled base_frame type ('{0}')".format(base_frame))
 	
-	def setFromFrames(frame1: ASTFrame, frame2: ASTFrame):
+		
+	
+	def setFromFrames(frame1:ASTFrame, frame2:ASTFrame):
 		'''
 		Static method to create a frame set from two existing frames.
 		'''
@@ -62,12 +79,14 @@ class ASTFrameSet(ASTObject):
 			return ASTFrameSet(ast_frame_set=frame_set)
 	setFromFrames = staticmethod(setFromFrames)
 	
+	@property
 	def baseFrame(self):
 		'''
 		Return the base frame.
 		'''
 		return ASTFrame(ast_frame=self.astObject.getframe(Ast.BASE))
 	
+	@property
 	def currentFrame(self):
 		''' Returns the current frame. '''
 		return ASTFrame(ast_frame=self.astObject.getframe(Ast.CURRENT))
@@ -99,6 +118,14 @@ class ASTFrameSet(ASTObject):
 		iframe = Ast.BASE # add to base frame
 		map = None
 		self.astObject.addframe(iframe, map, frame)
+	
+	@property
+	def mapping(self):
+		'''
+		Return an object that maps points from the base frame to the current frame of this frame set.
+		'''
+		return ASTMapping(ast_object=self.astObject.getmapping()) # default is from base to current
+		
 	
 	def convert(self, x_coordinates=None, y_coordinates=None):
 		'''

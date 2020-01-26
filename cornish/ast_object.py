@@ -8,9 +8,8 @@ class ASTObject(object):
 	Every object subclassed from this abstract superclass is a wrapper for a starlink.Ast object.
 	This object is stored in the property "astObject".
 	'''
-	def __init__(self):
-		self.astObject = None
-		pass
+	def __init__(self, ast_object=None):
+		self.astObject = ast_object
 	
 	def ast_description(self):
 		return "This is an AST object (override the 'ast_description' method for a more descriptive output)."
@@ -31,3 +30,5 @@ class ASTObject(object):
 		'''
 		return self.astObject.get("ID")
 		
+	def __repr__(self):
+		return str(self.astObject)

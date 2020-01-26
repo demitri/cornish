@@ -80,7 +80,7 @@ class ASTPolygon(ASTRegion):
 				self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2]))
 	
 	@staticmethod
-	def fromPoints(radec_pairs:np.ndarray=None, ra=None, dec=None, system:astropy.coordinates.BaseRADecFrame=None, skyframe:Ast.SkyFrame=None, expand_by=20*u.pix):
+	def fromPoints(radec_pairs:np.ndarray=None, ra=None, dec=None, system=None, skyframe:Ast.SkyFrame=None, expand_by=20*u.pix): # astropy.coordinates.BaseRADecFrame
 		'''
 		Create an ASTPolygon from an array of points.
 		

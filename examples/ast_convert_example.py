@@ -6,7 +6,7 @@ import cornish
 from cornish.mapping import ASTSkyFrame, ASTFrameSet
 import starlink.Ast as Ast
 
-j2000_frame = ASTSkyFrame()
+j2000_frame = ASTSkyFrame() # default frame: ICRS
 gaia_frame = ASTSkyFrame(system="ICRS")
 gaia_frame.epoch = 2015.5
 

@@ -78,6 +78,11 @@ class ASTFITSChannel(ASTChannel):
 				# split into list, then process
 				self.header = [header[i:i+80] for i in range(0, len(header), 80)]
 				self._readHeader()
+			elif isinstance(header, dict):
+				for keyword in header:
+					self.astObject[keyword] = header[keyword]
+					#self.addHeader(keyword=key, value=header[key])
+				#self._readHeader()
 			else:
 				raise Exception("Could not work with the type of header provided ('{0}').".format(type(header)))
 		else:
@@ -127,7 +132,7 @@ class ASTFITSChannel(ASTChannel):
 			elif isinstance(first_item, (list,tuple)) and len(first_item) == 2:
 				for keyword,value in self.header:
 					self.addHeader(keyword=keyword, value=value)
-			
+		
 		else:
 			raise Exception("ASTFITSChannel: unable to parse header.")
 	
@@ -174,12 +179,13 @@ class ASTFITSChannel(ASTChannel):
 			#
 			# Parse provided FITS header
 			#
-			if _fitsio_available and isinstance(card, fitsio.fitslib.FITSRecord):
-				#self.astObject.putfits(card["card_string"])
-				fits_header_card = card["card_string"]
-				#return
+			#fitsio.fitslib.FITSRecord doesn't exist anymore?
+			#if _fitsio_available and isinstance(card, fitsio.fitslib.FITSRecord):
+			#	#self.astObject.putfits(card["card_string"])
+			#	fits_header_card = card["card_string"]
+			#	#return
 			
-			elif _astropy_available and isinstance(card, astropy.io.fits.card.Card):
+			if _astropy_available and isinstance(card, astropy.io.fits.card.Card):
 				#self.astObject.putfits(card.image)
 				fits_header_card = card.image
 				#return
@@ -221,43 +227,49 @@ class ASTFITSChannel(ASTChannel):
 			#
 			# Parse keyword/value/comment
 			#
-			
+			# reconstruct from keyword, value, comment
+			self.astObject[keyword] = value
+			return
+						
 			# THE BLOCK BELOW DOES NOT WORK.
 			# At the very least, data types are not being handled correctly.
 			# The best plan is to extract the cards close to the source.
 			#
-			raise Exception("Don't use this section of code without rigorous testing - it's critical to get the data type correct.")
+			# not sure why types were introduced
 			
-			if keyword in ["HISTORY", "COMMENT", ""]:
-				raise Exception("The keywords 'HISTORY', 'COMMENT', or blank ('') are not yet implemented.")
-			
-			if keyword.startswith('NAXIS'):
-				value = int(value)
-			elif keyword.startswith('CRVAL2'):
-				value = float(value)
-			elif keyword.startswith('CRPIX'):
-				value = float(value)
-			
-			# reconstruct from keyword, value, comment
-			if isinstance(value, str):
-				if comment:
-					fits_header_card = "{0:8}= '{1}' / {2}".format(keyword, value, comment)
-				else:
-					fits_header_card = "{0:8}= '{1}'".format(keyword, value)
-			
-			elif isinstance(value, (int, float)):
-				if comment:
-					fits_header_card = "{0:8}= {1:-20} / {2}".format(keyword, value, comment)
-				else:
-					fits_header_card = "{0:8}= {1:-20}".format(keyword, value)
-			
-			else:
-				raise Exception("Not implemented: handle value of type '{0}'.".format(type(value)))
+#			if False:
+#				raise Exception("Don't use this section of code without rigorous testing - it's critical to get the data type correct.")
+#				
+#				if keyword in ["HISTORY", "COMMENT", ""]:
+#					raise Exception("The keywords 'HISTORY', 'COMMENT', or blank ('') are not yet implemented.")
+#				
+#				if keyword.startswith('NAXIS'):
+#					value = int(value)
+#				elif keyword.startswith('CRVAL2'):
+#					value = float(value)
+#				elif keyword.startswith('CRPIX'):
+#					value = float(value)
+#				
+#				# reconstruct from keyword, value, comment
+#				if isinstance(value, str):
+#					if comment:
+#						fits_header_card = "{0:8}= '{1}' / {2}".format(keyword, value, comment)
+#					else:
+#						fits_header_card = "{0:8}= '{1}'".format(keyword, value)
+#				
+#				elif isinstance(value, (int, float)):
+#					if comment:
+#						fits_header_card = "{0:8}= {1:-20} / {2}".format(keyword, value, comment)
+#					else:
+#						fits_header_card = "{0:8}= {1:-20}".format(keyword, value)
+#				
+#				else:
+#					raise Exception("Not implemented: handle value of type '{0}'.".format(type(value)))
 		
 		assert len(fits_header_card) <= 80, "The FITS card is incorrectly formatted (>80 char) or a bad value has been given: '{0]'".format(fits_header_card)
 		
 		self.astObject.putfits(fits_header_card, overwrite)
-		self.astObject.retainfits()
+		self.astObject.retainfits() # this a single flag -> turn into a top level property
 		
 	def valueForKeyword(self, keyword=None):
 		'''
@@ -280,7 +292,8 @@ class ASTFITSChannel(ASTChannel):
 		Remove all keywords that describe WCS information.
 		'''
 		self.astObject.purgewcs()
-		
+	
+	@property
 	def frameSet(self):
 		'''
 		Reads the FITS header and convert it into an AST frame set.
@@ -288,10 +301,16 @@ class ASTFITSChannel(ASTChannel):
 		# NOTE! read() is a destructive operation! This logic will have to be changed
 		#       if it needs to be used again anywhere else in this class (which is why the header is being saved).
 		if self._frameSet is None:
+			self.astObject.clear("card") # move pointer to start of fitschan to read from there
 			ast_frame_set = self.astObject.read() # deletes all WCS cards from the starlink.Ast.FitsChan object
 			#self._readHeader()					  # reread for future use
 			#raise Exception()
 			self._frameSet =  ASTFrameSet(ast_frame_set=ast_frame_set)
+			
+			# TODO: the result could be:
+			# 	* NULL : wasn't able to create any AST object from the headers
+			#	* some other AST object (other than frame set) -> very rare, but possible
+			#		- there is a scheme where arbitrary AST objects can be stored in a FITS header
 		return self._frameSet
 	
 	@property

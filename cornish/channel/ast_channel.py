@@ -15,4 +15,9 @@ class ASTChannel(ASTObject):
 		# defines internal AST object
 		super(ASTChannel, self).__init__()
 		# super().__init__() # Python 3
-
+	
+	#def __repr__(self):
+	#	'''
+	#	
+	#	'''
+		

@@ -1,5 +1,4 @@
 #/usr/bin/env python
-from __future__ import (absolute_import, division, print_function, unicode_literals)
 
 from astropy.units import u
 import starlink.Ast as Ast
@@ -20,8 +19,14 @@ class ASTFrame(ASTMapping):
 	
 	self.astObject is of type starlink.Ast.Frame.
 	'''
-	def __init__(self, naxes=None, ast_frame=None):
-		super(ASTFrame, self).__init__()
+	def __init__(self, ast_object=None, naxes=None, ast_frame=None):
+		super().__init__(ast_object=ast_object)
+		
+		# TODO: properly handle when ast_object is set
+		
+		if ast_object:
+			assert(all([x is None for x in [naxes, ast_frame]])), "too many parameters set"
+			return
 		
 		#self.axis_labels = list() # a list of labels indexed by axis number, first=0
 		#self.axis_units = list() # a list of axis units indexed by axis number, first=0
@@ -111,6 +116,13 @@ class ASTFrame(ASTMapping):
 		self.astObject.set("System={0}".format(system))
 		
 	@property
+	def isSkySystem(self):
+		'''
+		
+		'''
+		return False
+	
+	@property
 	def domain(self):
 		'''
 		The physical domain of the coordinate system (string value).
@@ -147,6 +159,16 @@ class ASTFrame(ASTMapping):
 		'''
 		return self.astObject.distance(point1, point2)
 		
+	def framesetWithMappingTo(self, template_frame=None): # maybe think of better name?!
+		'''
+		Searches 
+		:param template_frame:
+		:returns: ... , None if no mapping can be found
+		'''
+		from .frame_set import ASTFrameSet
+		if template_frame is None:
+			raise ValueError("A template frame must be provided.")
+		return ASTFrameSet(ast_object=self.astObject.findframe(template_frame.astObject))
 	
 class ASTCompoundFrame(ASTObject):
 	'''

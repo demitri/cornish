@@ -1,14 +1,15 @@
-from __future__ import (absolute_import, division, print_function, unicode_literals)
 
 import math
 import numpy as np
 import logging
 
+import starlink
 import starlink.Ast as Ast
 
 from .region import ASTRegion
 from ..mapping import ASTMapping
 from ..mapping import ASTFrame
+#from ..channel.fits_channel import ASTFITSChannel
 
 __all__ = ["ASTBox"]
 
@@ -26,6 +27,7 @@ class ASTBox(ASTRegion):
 	b = ASTBox(frame, cornerPoint, cornerPoint2)
 	b = ASTBox(frame, cornerPoint, centerPoint)
 	b = ASTBox(frame, dimensions)
+	b = ASTBox(fits_header) (must be an image HDU)
 	
 	Points and dimensions can be any two element container, e.g. (1,2), [1,2], np.array([1,2])
 	If "dimensions" is specified, a box enclosing the entire area will be defined.
@@ -42,22 +44,22 @@ class ASTBox(ASTRegion):
 	
 	@param ast_box An existing object of type starlink.Ast.Box.
 	'''
-	def __init__(self, ast_box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None, dimensions=None):
+	def __init__(self, ast_box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None, dimensions=None, fits_header=None):
 		#self.astFrame = frame
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		#self._ast_box = None
 		
 		# I am assuming the box is immutable...
-		# dimenstions = pixel dimensions
+		# dimensions = pixel dimensions
 		self.dimensions = None
 		
 		if ast_box is not None:
 			if isinstance(ast_box, Ast.Box):
-				if not any([cornerPoint, cornerPoint2, centerPoint, dimensions]):
+				if not any([cornerPoint, cornerPoint2, centerPoint, dimensions, fits_header]):
 					self.astObject = ast_box
 					return
 				else:
-					raise Exception("ASTBox: cannot specify both an ast_box and any other parameter.")
+					raise Exception("ASTBox: Cannot specify both an 'ast_box' and any other parameter.")
 			else:
 				raise Exception("ASTBox: The ast_box provided was not of type starlink.Ast.Box.")
 		
@@ -66,10 +68,35 @@ class ASTBox(ASTRegion):
 		#    1: box specified by a corner and its oppsite corner
 		input_form = None
 		
+		if fits_header:
+			from ..channel.fits_channel import ASTFITSChannel
+			# get frame from header
+			fits_channel = ASTFITSChannel(header=fits_header)
+			
+			# does this channel contain a frame set?
+			frame_set = fits_channel.frameSet
+			if frame_set is None:
+				raise ValueError("The provided FITS header does not describe a region (e.g. not an image, does not contain a WCS that AST can read).")
+			else:
+				frame = frame_set.baseFrame
+				
+				# support n-dimensional boxes
+				
+				# define needed parameters for box creation below
+				dimensions = fits_channel.dimensions
+				n_dim = len(dimensions)
+				cornerPoint = [0.5 for x in range(n_dim)]
+				cornerPoint2 = [dimensions[x] + 0.5 for x in range(n_dim)]
+				#cornerPoint=[0.5,0.5], # center of lower left pixel
+				#cornerPoint2=[dimensions[0]+0.5, dimensions[1]+0.5])
+		
+				if n_dim > 2:
+					raise NotImplementedError("the code below must be written to handle n-dim")
+				
 		# check valid combination of parameters
 		# -------------------------------------
 		if frame is None:
-			raise Exception("ASTBox: A frame must be specified when creating an ASTBox.")
+			raise Exception("ASTBox: A frame must be specified when creating an ASTBox.")			
 		else:
 			if isinstance(frame, ASTFrame):
 				self.frame = frame
@@ -78,41 +105,50 @@ class ASTBox(ASTRegion):
 			else:
 				raise Exception("ASTBox: unexpected frame type specified ('{0}').".format(type(frame)))
 
-		if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]) or dimensions is not None:
-			if dimensions is not None:
-				input_form = CORNER_CORNER
-				p1 = [0.5,0.5] # use 0.5 to specify the center of each pixel
-				p2 = [dimensions[0]+0.5, dimensions[1]+0.5]
-			elif centerPoint is None:
-				input_form = CORNER_CORNER
-				p1 = [cornerPoint[0], cornerPoint[1]]
-				p2 = [cornerPoint2[0], cornerPoint2[1]]
-				dimensions = [math.fabs(cornerPoint[0] - cornerPoint2[0]),
-							  math.fabs(cornerPoint[1] - cornerPoint2[1])]
+			if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]) or dimensions is not None:
+				if dimensions is not None:
+					input_form = CORNER_CORNER
+					p1 = [0.5,0.5] # use 0.5 to specify the center of each pixel
+					p2 = [dimensions[0]+0.5, dimensions[1]+0.5]
+				elif centerPoint is None:
+					input_form = CORNER_CORNER
+					p1 = [cornerPoint[0], cornerPoint[1]]
+					p2 = [cornerPoint2[0], cornerPoint2[1]]
+					dimensions = [math.fabs(cornerPoint[0] - cornerPoint2[0]),
+								  math.fabs(cornerPoint[1] - cornerPoint2[1])]
+				else:
+					input_form = CENTER_CORNER
+					p1 = [centerPoint[0], centerPoint[1]]
+					p2 = [cornerPoint[0], cornerPoint[1]]
+					dimensions = [2.0 * math.fabs(centerPoint[0] - cornerPoint[0]),
+								  2.0 * math.fabs(centerPoint[1] - cornerPoint[1])]
+	
+				self.dimensions = [dimensions[0], dimensions[1]]
+				#logger.debug("Setting dims: {0}".format(self.dimensions))
+	
 			else:
-				input_form = CENTER_CORNER
-				p1 = [centerPoint[0], centerPoint[1]]
-				p2 = [cornerPoint[0], cornerPoint[1]]
-				dimensions = [2.0 * math.fabs(centerPoint[0] - cornerPoint[0]),
-							  2.0 * math.fabs(centerPoint[1] - cornerPoint[1])]
-
-			self.dimensions = [dimensions[0], dimensions[1]]
-			#logger.debug("Setting dims: {0}".format(self.dimensions))
-
-		else:
-			raise Exception("ASTBox: Either 'cornerPoint' and 'centerPoint' OR 'cornerPoint' " + \
-							"and 'cornerPoint2' OR 'dimensions' must be specified when creating an ASTBox.")
+				raise Exception("ASTBox: Either 'cornerPoint' and 'centerPoint' OR 'cornerPoint' " + \
+								"and 'cornerPoint2' OR 'dimensions' must be specified when creating an ASTBox.")
 		
-# 		if input_form == CENTER_CORNER:
-# 			p1 = [centerPoint[0], centerPoint[1]]
-# 			p2 = [cornerPoint[0], cornerPoint[1]]
-# 		else:
-# 			p1 = [cornerPoint[0], cornerPoint[1]]
-# 			p2 = [cornerPoint2[0], cornerPoint2[1]]
-		
-		# Box args: :frame,form,point1,point2,unc=None,options=None  <-- note which are keyword args & which not
-		# AstBox( starlink.Ast.Frame(2), [0,1], 
-		self.astObject = Ast.Box( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty )
+	# 		if input_form == CENTER_CORNER:
+	# 			p1 = [centerPoint[0], centerPoint[1]]
+	# 			p2 = [cornerPoint[0], cornerPoint[1]]
+	# 		else:
+	# 			p1 = [cornerPoint[0], cornerPoint[1]]
+	# 			p2 = [cornerPoint2[0], cornerPoint2[1]]
+			
+			# Box args: :frame,form,point1,point2,unc=None,options=None  <-- note which are keyword args & which not
+			# AstBox( starlink.Ast.Frame(2), [0,1], 
+			self.astObject = Ast.Box( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty )
+			
+			if fits_header is not None:
+				# create the mapping from pixel to sky (or whatever is there) if available
+				mapping = frame_set.astObject.getmapping() # defaults are good
+				current_frame = frame_set.astObject.getframe(starlink.Ast.CURRENT)
+				
+				# create a new region with new mapping
+				self.astObject = self.astObject.mapregion(mapping, current_frame)
+
 
 	@property
 	def uncertainty(self):
@@ -210,38 +246,6 @@ class ASTBox(ASTRegion):
 		
 		return corner_points
 	
-	def mapRegionMesh(self, mapping=None, frame=None):
-		'''
-		Returns a new ASTRegion that is the same as this one but with the specified coordinate system.
-		
-		Parameters
-		----------
-		mapping : `~cornish.mapping.ASTMapping` class
-			The mapping to transform positions from the current ASTRegion to those specified by the given frame.
-		frame : `~cornish.frame.ASTFrame` class
-			Coordinate system frame to convert the current ASTRegion to.
-			
-		Returns
-		-------
-		region : `ASTRegion`
-			A new region object covering the same area but in the frame specified in `frame`.
-			
-		Raises
-		------
-		Exception
-			An exception is raised for missing parameters.
-		'''
-		if mapping is None or frame is None:
-			raise Exception("A mapping and frame is required to be passed to 'mapRegion'.")
-
-		# check it's the correct type
-		if not isinstance(mapping, ASTMapping):
-			raise Exception("The object passed to 'mapping' needs to be an ASTMapping object.")
-		
-		if not isinstance(frame, ASTFrame):
-			raise Exception("The object passed to 'frame' needs to be an ASTFrame object.")
-		
-		self.astObject.mapregionmesh( mapping, frame )
 
 			
 			

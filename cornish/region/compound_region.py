@@ -1,0 +1,6 @@
+
+
+
+class CompundRegion(ASTRegion):
+	
+	pass
