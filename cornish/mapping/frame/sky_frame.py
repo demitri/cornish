@@ -90,16 +90,6 @@ class ASTSkyFrame(ASTFrame):
 					raise ValueError("'epoch' much be a numeric value (or a string that can be converted to a numeric value")
 		self.astObject.set(f"Epoch={epoch}")
 
-	@property
-	def isSkyFrame(self):
-		'''
-		'''
-		system = self.system.lower()
-		for s in sky_systems:
-			if s.lower() == system: # case sensitive?
-				return True
-		return False
-
 class ASTICRSFrame(ASTSkyFrame):
 	
 	def __init__(self, ast_frame=None): # this should be --> ast_object=None):

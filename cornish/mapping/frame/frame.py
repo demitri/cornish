@@ -116,11 +116,11 @@ class ASTFrame(ASTMapping):
 		self.astObject.set("System={0}".format(system))
 		
 	@property
-	def isSkySystem(self):
+	def isSkyFrame(self):
 		'''
-		
+		Returns 'True' if this is a SkyFrame, 'False' otherwise.
 		'''
-		return False
+		return self.astObject.isaskyframe()
 	
 	@property
 	def domain(self):
