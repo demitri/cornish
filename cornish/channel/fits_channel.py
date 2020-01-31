@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-#from __future__ import (absolute_import, division, print_function, unicode_literals)
 
 import math
 import logging
+from typing import Union
 
 import ast
 import numpy as np
@@ -31,29 +31,39 @@ class ASTFITSChannel(ASTChannel):
 	'''
 	A representation of a FITS header. Use the property "astObject" for AST functions.
 	self.astObject is of type starlink.Ast.FitsChan.
+	
+	:param ast_object: an existing `starlink.Ast.FitsChan` object
+	:param hdu: a FITS HDU of type `astropy.io.fits.hdu.base.ExtensionHDU` or `fitsio.fitslib.HDUBase`
+	:param header: a FITS header, type `astropy.io.fits.header.Header` or `fitsio.fitslib.FITSHDR`, a list of tuples/arrays (keyword,value), or a single string
 	'''
-	def __init__(self, hdu=None, header=None):
+	def __init__(self, ast_object:Ast.FitsChan=None, hdu:Union[astropy.io.fits.hdu.base.ExtensionHDU,fitsio.hdu.base.HDUBase]=None, header=None):
 		'''
 		Initialize object with either an HDU or header from fitsio or astropy.io.fits.
 		
 		Parameters
 		----------
-		hdu : astropy.io.fits.hdu.base.ExtensionHDU or 
 		header : astropy.io.fits.header.Header or fitsio.fitslib.FITSHDR or list of tuples/arrays (keyword,value)
 		
 		@param header FITS header as a dictionary of strings (keyword,value) or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, or a plain string divisible by 80 characters.
 		'''
-		# defines internal AST object
-		super(ASTFITSChannel, self).__init__()
-		# super().__init__() # Python 3
-		
 		self._frameSet = None
+
+		if ast_object:
+			if any([hdu, header]):
+				raise ValueError("If 'ast_object' is provided, 'hdu' or 'header' should not be set.")
+			else:
+				if isinstance(ast_object, starlink.Ast.FitsChan):
+					super().__init__(ast_object=ast_object)
+				else:
+					raise ValueError
 		
 		# ----------
 		# Validation
 		# ----------
 		if all([hdu, header]):
 			raise Exception("Only specify an HDU or header to create a ASTFITSChannel object.")
+			
+		# get header from HDU
 		if hdu:
 			if hdu and _astropy_available and isinstance(hdu, astropy.io.fits.hdu.base.ExtensionHDU):
 				header = hdu.header        # type: astropy.io.fits.header.Header
