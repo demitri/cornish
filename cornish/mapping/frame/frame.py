@@ -25,6 +25,9 @@ class ASTFrame(ASTMapping):
 		# TODO: properly handle when ast_object is set
 		
 		if ast_object:
+			if ast_object.is
+		
+		if ast_object:
 			assert(all([x is None for x in [naxes, ast_frame]])), "too many parameters set"
 			return
 		

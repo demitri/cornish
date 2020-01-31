@@ -11,8 +11,6 @@ sky_systems = ["ICRS", "J2000", "AZEL", "ECLIPTIC", "FK4", "FK4-NO-E",
 			   "GALACTIC", "GAPPT", "GEOCENTRIC", "APPARENT",
 			   "HELIOECLIPTIC", "SUPERGALACTIC"]
 
-equinoxes
-
 class ASTSkyFrame(ASTFrame):
 	'''
 	
@@ -29,12 +27,16 @@ class ASTSkyFrame(ASTFrame):
 	:param system: coordinate system used to describe positions within the domain, see `AST System <http://starlink.eao.hawaii.edu/docs/sun211.htx/sun211ss424.html>`
 	:param epoch: epoch of the mean equinox as a string value, e.g. "J2000.0", "B1950.0"
 	'''
-	def __init__(self, ast_object:starlink.Ast.SkyFrame=None, equinox:str=None, system:str=None, epoch:str=None):
+	def __init__(self, ast_object:Ast.SkyFrame=None, equinox:str=None, system:str=None, epoch:str=None):
+
+		super().__init__(ast_object=ast_object)
 
 		#if all([naxes, ast_frame]):
 		#	raise Exception("The number of axes (naxes) argument cannot be specified with a provided ast_frame.")
 		
 		# TODO: if ast_frame provided, check it is a sky frame (see below)
+		
+		
 		
 		if ast_object is None:
 			self.astObject = Ast.SkyFrame()
