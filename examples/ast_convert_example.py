@@ -14,7 +14,7 @@ gaia_frame.epoch = 2015.5
 #frame_set.addToBaseFrame(gaia_frame)
 # from, to, domainlist (optional)
 #frame_set_converter = Ast.Frame.convert(j2000_frame.astObject, gaia_frame.astObject)
-frame_set_converter = ASTFrameSet.setFromFrames(gaia_frame, j2000_frame)
+frame_set_converter = ASTFrameSet.fromFrames(gaia_frame, j2000_frame)
 print(frame_set_converter.astObject)
 
 #print(frame_set_converter.convert([12.345], [-32.44]))

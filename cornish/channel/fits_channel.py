@@ -11,6 +11,7 @@ import starlink.Ast as Ast
 from .ast_channel import ASTChannel
 from ..mapping.frame import ASTFrame, ASTFrameSet
 from ..region import ASTBox, ASTPolygon, ASTCircle
+from ..exc import FrameNotFoundException
 
 logger = logging.getLogger("cornish") # cornish logger
 
@@ -296,7 +297,7 @@ class ASTFITSChannel(ASTChannel):
 	@property
 	def frameSet(self):
 		'''
-		Reads the FITS header and convert it into an AST frame set.
+		Read the FITS header and convert it into an AST frame set.
 		'''
 		# NOTE! read() is a destructive operation! This logic will have to be changed
 		#       if it needs to be used again anywhere else in this class (which is why the header is being saved).
@@ -305,9 +306,11 @@ class ASTFITSChannel(ASTChannel):
 			ast_frame_set = self.astObject.read() # deletes all WCS cards from the starlink.Ast.FitsChan object
 			#self._readHeader()					  # reread for future use
 			#raise Exception()
-			self._frameSet =  ASTFrameSet(ast_frame_set=ast_frame_set)
+			if ast_frame_set is None:
+				raise FrameNotFoundException("Could not create frame set from FITS header.")
+			self._frameSet =  ASTFrameSet(ast_object=ast_frame_set)
 			
-			# TODO: the result could be:
+			# .. todo:: the result could be:
 			# 	* NULL : wasn't able to create any AST object from the headers
 			#	* some other AST object (other than frame set) -> very rare, but possible
 			#		- there is a scheme where arbitrary AST objects can be stored in a FITS header
@@ -331,6 +334,7 @@ class ASTFITSChannel(ASTChannel):
 			self._dimensions = np.array(dims)
 		return self._dimensions
 	
+	# .. todo:: move to polygon class
 	def boundingPolygon(self):
 		'''
 		Returns an ASTPolygon that bounds the field described by the FITS header. (Must be a 2D image with WCS present.)
@@ -354,7 +358,7 @@ class ASTFITSChannel(ASTChannel):
 		#       This results in the Box covering the whole image area."
 		#
 		dims = self.dimensions
-		pixelbox = ASTBox(frame=wcsFrameSet.baseFrame(),
+		pixelbox = ASTBox(frame=wcsFrameSet.baseFrame,
 						  cornerPoint=[0.5,0.5], # center of lower left pixel
 						  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
 		
@@ -398,11 +402,11 @@ class ASTFITSChannel(ASTChannel):
 		'''
 		
 		# contains two frames (pixels grid, WCS) and mapping between them
-		#    - baseFrame()    - native coordinate system (pixels)
-		#    - currentFrame() - WCS (ra, dec)
-		wcsFrameSet = self.frameSet()
-		baseFrame = wcsFrameSet.baseFrame()   # pixel coordinates frame
-		wcsFrame = wcsFrameSet.currentFrame() # (AST SkyFrame)
+		#    - baseFrame    - native coordinate system (pixels)
+		#    - currentFrame - WCS (ra, dec)
+		wcsFrameSet = self.frameSet
+		baseFrame = wcsFrameSet.baseFrame   # pixel coordinates frame
+		wcsFrame = wcsFrameSet.currentFrame # (AST SkyFrame)
 		
 		#print(baseFrame.astObject)
 		#print(wcsFrame.astObject)
@@ -413,7 +417,7 @@ class ASTFITSChannel(ASTChannel):
 		#logger.debug("dimensions: {0}".format(dims))
 	
 		#dims = self.dimensions
-		# pixelbox = ASTBox(frame=wcsFrameSet.baseFrame(),
+		# pixelbox = ASTBox(frame=wcsFrameSet.baseFrame,
 		# 				  cornerPoint=[0.5,0.5], # center of lower left pixel
 		# 				  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
 	
@@ -457,7 +461,7 @@ class ASTFITSChannel(ASTChannel):
 	
 		logger.debug("radius: {0} (radians), {1} (deg)".format(radius, np.rad2deg(radius)))
 		
-		return ASTCircle(frame=wcsFrame, centerPoint=center, radius=radius)
+		return ASTCircle(frame=wcsFrame, center_point=center, radius=radius)
 
 
 

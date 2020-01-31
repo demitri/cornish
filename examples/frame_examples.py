@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 
 import astropy.units as u
 from cornish.channel import ASTFITSChannel
@@ -10,7 +11,7 @@ hdu1 = hdu_list[0]
 
 # create frameset that describes image array
 # contains pixel frame and WCS frame
-frameset = ASTFrameSet(fits_header=hdu1.header)
+frameset = ASTFrameSet.fromFITSHeader(hdu1.header)
 
 # need mapping between pixel coordinate to sky coords
 pix2sky_mapping = frameset.mapping #.astObject

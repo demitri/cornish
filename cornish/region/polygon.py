@@ -1,5 +1,6 @@
 
 import math
+from typing import Union
 
 import starlink
 import starlink.Ast as Ast
@@ -10,37 +11,53 @@ import numpy as np
 from .region import ASTRegion
 from ..mapping import ASTMapping
 from ..mapping import ASTFrame, ASTSkyFrame
+from ..exc import FrameNotFoundException
 
-__all__ = ["ASTCircle"]
+#__all__ = ["ASTCircle"]
 
 class ASTPolygon(ASTRegion):
 	
-	def __init__(self, points=None, frame=None, ast_polygon=None):
+	def __init__(self, ast_object:starlink.Ast.Polygon=None, frame:Union[ASTFrame, starlink.Ast.Frame]=None, points=None, fits_header=None):
 		'''
 		ASTPolygon is an ASTRegion that represents a polygon, a collection of vertices on a sphere in a 2D plane.
+
+		Accepted signatures for creating an ASTPolygon:
+		
+		p = ASTPolygon(frame, points)
+		p = ASTPolygon(fits_header, points)   # get the frame from the FITS header provided
+		p = ASTPolygon(ast_object)            # where ast_object is a starlink.Ast.Polygon object
 
 		Points may be provided as a list of coordinate points, e.g.
 			[(x1, y1), (x2, y2), ... , (xn, yn)]
 		or as two parallel arrays, e.g.
 			[[x1, x2, x3, ..., xn], [y1, y2, y3, ..., yn]]
 		
-		self.astObject is of type :class:`starlink.Ast.Polygon`.
-		
+		:param ast_object: Create a new ASTPolygon from an existing :class:`starlink.Ast.Polygon` object.
+		:param frame: The frame the provided points lie in, accepts either ASTFrame or starlink.Ast.Frame objects.
 		:param points: Points that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points.
-		:param frame: The frame the provided points lie in, accepts either ASTFrame or starlink.Ast.frame objects.
-		:param ast_polygon: Create a new ASTPolygon from an existing (or more likely returned) starlink.Ast.Polygon object.
 		:returns: Returns a new ASTPolygon object.
 		'''
 		
-		if ast_polygon is not None:
-			if isinstance(ast_polygon, starlink.Ast.Polygon):
-				if not any([frame, points]):
-					self.astObject = ast_polygon
-					return
-				else:
-					raise Exception("ASTPolygon: cannot specify both an ast_polygon and any other parameter.")
+		if ast_object:
+			if any([frame, points, fits_header]):
+				raise ValueError("ASTPolygon: Cannot specify 'ast_object' along with any other parameter.")
+			# test object
+			if isinstance(ast_object, starlink.Ast.Polygon):
+				super().__init__(ast_object=ast_object)
+				return
 			else:
-				raise Exception("ASTPolygon: The ast_polygon provided was not of type starlink.Ast.Polygon.")
+				raise Exception("ASTPolygon: The 'ast_object' provided was not of type starlink.Ast.Polygon.")
+
+		if points is None:
+			raise Exception("A list of points must be provided to create a polygon. This doesn't seem like an unreasonable request.")
+
+		# Get the frame from the FITS header
+		if fits_header:
+			if frame is not None:
+				raise ValueError("ASTPolygon: Provide the frame via the 'frame' parameter or the FITS header, but not both.")
+			
+			from ..channel import ASTFITSChannel
+			frame_set = ASTFrameSet.fromFITSHeader(fits_header=fits_header).baseFrame # raises FrameNotFoundException
 		
 		if isinstance(frame, starlink.Ast.Frame):
 			ast_frame = frame
@@ -48,9 +65,6 @@ class ASTPolygon(ASTRegion):
 			ast_frame = frame.astObject
 		else:
 			raise Exception("ASTPolygon: The supplied 'frame' object must either be a starlink.Ast.Frame or ASTFrame object.")
-		
-		if points is None:
-			raise Exception("A list of points must be provided to create a polygon. This doesn't seem like an unreasonable request.")
 		
 		# The problem with accepting both forms is that the case of two points is ambiguous:
 		# [[x1,x2], [y1, y2]]

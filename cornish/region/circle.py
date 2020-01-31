@@ -1,4 +1,6 @@
 
+from typing import Union
+
 import astropy
 import astropy.units as u
 from astropy.coordinates import SkyCoord
@@ -23,12 +25,13 @@ class ASTCircle(ASTRegion):
 	'''
 	ASTCircle is an ASTRegion that represents a circle.
 	
-	There are two accepted signatures for creating an ASTCircle:
+	Accepted signatures for creating an ASTPolygon:
 	
+	c = ASTCircle(ast_object)             # where ast_object is a starlink.Ast.Circle object
 	c = ASTCircle(frame, center, edge)
 	c = ASTCircle(frame, center, radius)		
 	'''
-	def __init__(self, ast_circle=None, frame=None, center_point=None, edge_point=None, radius=None):
+	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=None, center_point=None, edge_point=None, radius:[float, astropy.units.quantity.Quantity]=None):
 		'''
 		Parameters
 		----------
@@ -38,21 +41,21 @@ class ASTCircle(ASTRegion):
 		edgePoint : numpy.ndarray, list, tuple
 			Two elements that describe a point on the circumference of the circle in the provided frame in degrees
 	
-		radius : float
-			The radius in degrees of the circle to be created.
+		radius : float, astropy.units.quantity.Quantity
+			The radius in degrees (if float) of the circle to be created.
 		'''
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		
-		if ast_circle is not None:
-			if isinstance(ast_circle, starlink.Ast.Circle):
+		if ast_object:
+			if any([x is None for x in [frame, centerPoint, radius, edgePoint]]):
+				raise Exception("ASTCircle: cannot specify both 'ast_object' and any other parameter.")
+
+			if isinstance(ast_object, starlink.Ast.Circle):
 				# make sure no other parameters are set
-				if any([x is None for x in [frame, centerPoint, radius, edgePoint]]):
-					raise Exception("ASTCircle: cannot specify both an ast_circle and any other parameter.")
-				else:
-					self.astObject = ast_circle
-					return
+				self.astObject = ast_object
+				return
 			else:
-				raise Exception("ASTCircle: The ast_circle provided was not of type starlink.Ast.Circle.")
+				raise Exception("ASTCircle: The 'ast_object' provided was not of type starlink.Ast.Circle.")
 
 		# check valid combination of parameters
 		# -------------------------------------
@@ -63,7 +66,7 @@ class ASTCircle(ASTRegion):
 		else:
 			if isinstance(frame, ASTFrame):
 				self.frame = frame
-			elif isinstance(frame, Ast.Frame):
+			elif isinstance(frame, starlink.Ast.Frame):
 				self.frame = ASTFrame(frame=frame)
 			else:
 				raise Exception("ASTCircle: unexpected frame type specified ('{0}').".format(type(frame)))
@@ -123,7 +126,7 @@ class ASTCircle(ASTRegion):
 			else:
 				p2 = [deg2rad(radius)]
 		
-		self.astObject = Ast.Circle( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty)
+		self.astObject = Ast.Circle( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty )
 	
 	def __repr__(self):
 		return "<{0}.{1} {2}: r={3}, center={4} deg>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),

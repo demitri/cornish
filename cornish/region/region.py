@@ -1,5 +1,5 @@
-#from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+from abc import ABCMeta
 from typing import Union
 
 from math import radians as deg2rad
@@ -44,7 +44,7 @@ Region-specific methods:
 
 '''
 		
-class ASTRegion(ASTFrame):
+class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	'''
 	Represents a region within a coordinate system.
 	This is an abstract superclass - there is no means to create an ASTRegion object directly
@@ -53,13 +53,11 @@ class ASTRegion(ASTFrame):
 	self.astObject is of type starlink.Ast.Region.
 	'''
 	
-	# Note: Not (yet) formally declaring this an asbtract class for Py2/3 compatibility.
-	
-	def __init__(self, ast_frame=None, uncertainty=None):
+	def __init__(self, ast_object=None, uncertainty=None):
 	  '''
 	  
 	  '''
-	  #self.astObject = super(ASTRegion, self).__init__(ast_frame=ast_frame)
+	  super().__init__(ast_object=ast_object)
 	  self._uncertainty = None
 		
 	@property

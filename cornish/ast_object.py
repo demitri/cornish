@@ -1,7 +1,7 @@
-#!/usr/bin/env python
-from __future__ import (absolute_import, division, print_function, unicode_literals)
 
-class ASTObject(object):
+from abc import ABCMeta
+
+class ASTObject(metaclass=ABCMeta):
 	'''
 	This is the root class for all AST objects.
 	
@@ -31,4 +31,10 @@ class ASTObject(object):
 		return self.astObject.get("ID")
 		
 	def __repr__(self):
+		return self.astString #str(self.astObject)
+	
+	def astString(self):
+		'''
+		Return the AST serialization of this object.
+		'''
 		return str(self.astObject)

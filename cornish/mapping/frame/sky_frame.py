@@ -23,30 +23,30 @@ class ASTSkyFrame(ASTFrame):
 	    "HELIOECLIPTIC", "SUPERGALACTIC"
 	
 	:param ast_object:
-	:param equinox: 
-	:param system: coordinate system used to describe positions within the domain, see `AST System <http://starlink.eao.hawaii.edu/docs/sun211.htx/sun211ss424.html>`
-	:param epoch: epoch of the mean equinox as a string value, e.g. "J2000.0", "B1950.0"
+	:param equinox: frame equinox, default value "2000.0"
+	:param system: coordinate system used to describe positions within the domain, see `AST System <http://starlink.eao.hawaii.edu/docs/sun211.htx/sun211ss424.html>`, default value = "ICRS"
+	:param epoch: epoch of the mean equinox as a string value, e.g. "J2000.0", "B1950.0", default = "2000.0"
 	'''
 	def __init__(self, ast_object:Ast.SkyFrame=None, equinox:str=None, system:str=None, epoch:str=None):
-
-		super().__init__(ast_object=ast_object)
 
 		#if all([naxes, ast_frame]):
 		#	raise Exception("The number of axes (naxes) argument cannot be specified with a provided ast_frame.")
 		
 		# TODO: if ast_frame provided, check it is a sky frame (see below)
 		
+		if ast_object and any([equinox, system, epoch]):
+			raise ValueError(f"If 'ast_object' is provided, none of the other parameters ('equinox', 'system', 'epoch') can be specified.")
 		
-		
-		if ast_object is None:
-			self.astObject = Ast.SkyFrame()
-		else:
+		if ast_object:
 			if ast_object.isaskyframe():
-				self.astObject = ast_frame
+				super().__init__(ast_object=ast_object)
 			else:
 				raise ValueError(f"The provided 'ast_object' value is not an Ast.SkyFrame (got '{type(ast_object)}').")
+		else:
+			self.astObject = Ast.SkyFrame()
+			
 		if system:
-			if system in sky_systems:
+			if system.upper() in sky_systems:
 				self.system = system
 			else:
 				raise ValueError(f"The provided system must be one of: [{sky_systems}].")
@@ -92,12 +92,20 @@ class ASTSkyFrame(ASTFrame):
 					raise ValueError("'epoch' much be a numeric value (or a string that can be converted to a numeric value")
 		self.astObject.set(f"Epoch={epoch}")
 
+# .. todo:: make this a factory class
 class ASTICRSFrame(ASTSkyFrame):
-	
-	def __init__(self, ast_frame=None): # this should be --> ast_object=None):
-		#super().__init__(ast_object=ast_object)
-		super().__init__(ast_frame=ast_frame)
+	'''
+	Factory class that returns an ASTSkyFrame automatically set to System=ICRS, equinox=2000.0, epoch=2000.0.
+	'''	
+	def __init__(self, equinox:str="2000.0", epoch:str="2000.0") -> ASTSkyFrame:
+
+		ast_object = Ast.SkyFrame()
+		super().__init__(ast_object=ast_object)
+
 		self.system = "ICRS"
+		self.equinox = equinox
+		self.epoch = epoch
+
 
 
 

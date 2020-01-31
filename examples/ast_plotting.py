@@ -19,9 +19,8 @@ warnings.filterwarnings(action="ignore", message="The following header keyword i
 hdu_list = fits.open("frame-r-000094-5-0131.fits")
 box_region = ASTBox(fits_header=hdu_list[0].header)
 
-print(box_region.Class)
-
-sys.exit()
+print(f"box_region is of type '{box_region.astObject.Class}'");
+print(box_region.astObject.isabox()) # --> false, why?
 
 # check that box_region is a sky system before setting "system" to a sky system
 #
@@ -58,7 +57,7 @@ cards = {
 	"NAXES":2,
 }
 
-frameset = ASTFrameSet(fits_header=cards)
+frameset = ASTFrameSet.fromFITSHeader(fits_header=cards)
 
 # artificial pixel coordinates are square
 

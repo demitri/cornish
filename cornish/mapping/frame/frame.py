@@ -19,28 +19,29 @@ class ASTFrame(ASTMapping):
 	
 	self.astObject is of type starlink.Ast.Frame.
 	'''
-	def __init__(self, ast_object=None, naxes=None, ast_frame=None):
-		super().__init__(ast_object=ast_object)
+	def __init__(self, ast_object:Ast.Frame=None, naxes:int=None):
+
+		if all([ast_object, naxes]):
+			raise ValueError("Cannot initialize ASTFrame with both 'ast_object' and 'naxes' set.")
 		
-		# TODO: properly handle when ast_object is set
+		if all([x is None for x in [ast_object, naxes]]):
+			raise ValueError("Either 'ast_object' or 'naxes' must be specified to create an ASTFrame.")
 		
 		if ast_object:
-			if ast_object.is
-		
-		if ast_object:
-			assert(all([x is None for x in [naxes, ast_frame]])), "too many parameters set"
-			return
-		
+			if isinstance(ast_object, Ast.Frame):
+				super().__init__(ast_object=ast_object)
+			else:
+				raise ValueError(f"The provided 'ast_object' is not an Ast.Frame object (got class '{type(ast_object)}').")
+		else:
+			self.astObject = Ast.Frame(naxes)
+
 		#self.axis_labels = list() # a list of labels indexed by axis number, first=0
 		#self.axis_units = list() # a list of axis units indexed by axis number, first=0
-		
-		if all([naxes, ast_frame]):
-			raise Exception("The number of axes (naxes) argument cannot be specified with a provided ast_frame.")
-		
-		if ast_frame is None:
-			self.astObject = Ast.Frame(naxes)
-		else:
-			self.astObject = ast_frame
+# 		
+# 		if ast_frame is None:
+# 			self.astObject = Ast.Frame(naxes)
+# 		else:
+# 			self.astObject = ast_frame
 		
 	@property
 	def naxes(self):
@@ -172,7 +173,7 @@ class ASTFrame(ASTMapping):
 		if template_frame is None:
 			raise ValueError("A template frame must be provided.")
 		return ASTFrameSet(ast_object=self.astObject.findframe(template_frame.astObject))
-	
+		
 class ASTCompoundFrame(ASTObject):
 	'''
 	A compound frame is the merging of two existing `Frame`s.
@@ -181,6 +182,6 @@ class ASTCompoundFrame(ASTObject):
 	Knowledge of the relationships between the axes is preserved internally
 	by the process of constructing the `CompoundFrame` which represents them.
 	'''
-	def __init__(self):
-		pass
+	def __init__(self, ast_object=None):
+		raise NotImplementedError()
 	

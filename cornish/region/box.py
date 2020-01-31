@@ -28,6 +28,7 @@ class ASTBox(ASTRegion):
 	b = ASTBox(frame, cornerPoint, centerPoint)
 	b = ASTBox(frame, dimensions)
 	b = ASTBox(fits_header) (must be an image HDU)
+	b = ASTBox(ast_box) (where ast_box is an Ast.Box object)
 	
 	Points and dimensions can be any two element container, e.g. (1,2), [1,2], np.array([1,2])
 	If "dimensions" is specified, a box enclosing the entire area will be defined.
@@ -68,8 +69,9 @@ class ASTBox(ASTRegion):
 		#    1: box specified by a corner and its oppsite corner
 		input_form = None
 		
+		# Get the frame from the FITS header
 		if fits_header:
-			from ..channel.fits_channel import ASTFITSChannel
+			from ..channel import ASTFITSChannel
 			# get frame from header
 			fits_channel = ASTFITSChannel(header=fits_header)
 			
