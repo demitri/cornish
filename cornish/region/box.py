@@ -22,7 +22,7 @@ class ASTBox(ASTRegion):
 	'''
 	ASTBox is an ASTRegion that represents a box with sides parallel to the axes of an ASTFrame.
 	
-	There are three accepted signatures for creating an ASTBox:
+	Accepted signatures for creating an ASTBox:
 	
 	b = ASTBox(frame, cornerPoint, cornerPoint2)
 	b = ASTBox(frame, cornerPoint, centerPoint)
@@ -77,23 +77,24 @@ class ASTBox(ASTRegion):
 			
 			# does this channel contain a frame set?
 			frame_set = fits_channel.frameSet
-			if frame_set is None:
-				raise ValueError("The provided FITS header does not describe a region (e.g. not an image, does not contain a WCS that AST can read).")
-			else:
-				frame = frame_set.baseFrame
-				
-				# support n-dimensional boxes
-				
-				# define needed parameters for box creation below
-				dimensions = fits_channel.dimensions
-				n_dim = len(dimensions)
-				cornerPoint = [0.5 for x in range(n_dim)]
-				cornerPoint2 = [dimensions[x] + 0.5 for x in range(n_dim)]
-				#cornerPoint=[0.5,0.5], # center of lower left pixel
-				#cornerPoint2=[dimensions[0]+0.5, dimensions[1]+0.5])
-		
-				if n_dim > 2:
-					raise NotImplementedError("the code below must be written to handle n-dim")
+			#if frame_set is None:
+			#	raise ValueError("The provided FITS header does not describe a region (e.g. not an image, does not contain a WCS that AST can read).")
+			#else:
+
+			frame = frame_set.baseFrame
+						
+			# support n-dimensional boxes
+			
+			# define needed parameters for box creation below
+			dimensions = fits_channel.dimensions
+			n_dim = len(dimensions)
+			cornerPoint = [0.5 for x in range(n_dim)]
+			cornerPoint2 = [dimensions[x] + 0.5 for x in range(n_dim)]
+			#cornerPoint=[0.5,0.5], # center of lower left pixel
+			#cornerPoint2=[dimensions[0]+0.5, dimensions[1]+0.5])
+	
+			if n_dim > 2:
+				raise NotImplementedError("the code below must be written to handle n-dim")
 				
 		# check valid combination of parameters
 		# -------------------------------------

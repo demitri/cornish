@@ -14,6 +14,9 @@ import starlink.Ast as Ast
 import cornish.region # to avoid circular imports below - better way?
 from ..ast_object import ASTObject
 from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
+from ..exc import NotA2DRegion
+
+__all__ = ['ASTRegion']
 
 '''
 Copied from documentation, to be implemented.
@@ -71,12 +74,20 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]]
 		# transpose the points before returning
+		points = self.astObject.norm(self.astObject.getregionpoints())
 		if units == u.deg:
-			return np.rad2deg(self.astObject.getregionpoints().T)
+			return np.rad2deg(points.T)
 		elif units == u.rad:
-			return self.astObject.getregionpoints().T
+			return points.T
 		else:
 			raise ValueError("Requested units for points must be either astropy.units.deg or astropy.units.rad.")
+		
+# 		if units == u.deg:
+# 			return np.rad2deg(self.astObject.getregionpoints().T)
+# 		elif units == u.rad:
+# 			return self.astObject.getregionpoints().T
+# 		else:
+# 			raise ValueError("Requested units for points must be either astropy.units.deg or astropy.units.rad.")
 
 	@property
 	def uncertainty(self):
@@ -272,7 +283,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# -> make a deep copy, replace obj.astObject with new one (check any properties)
 		#
 		if new_ast_region.Class == 'Polygon' or isinstance(new_ast_region, starlink.Ast.Polygon):
-			return cornish.region.ASTPolygon(ast_polygon=new_ast_region)
+			return cornish.region.ASTPolygon(ast_object=new_ast_region)
 		elif new_ast_region.Class == 'Box' or isinstance(new_ast_region, starlink.Ast.Box):
 			return cornish.region.ASTBox(ast_box=new_ast_region)
 		else:
@@ -363,7 +374,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# See discussion of "MeshSize" in method "boundaryPointMesh".
 		
 		if npoints is not None and not isinstance(npoints, int):
-			raise Exception("The parameter 'npoints' must be an integer ('{1}' provided).".format(npoints))
+			raise Exception(f"The parameter 'npoints' must be an integer ('{type(npoints)}' provided).")
 
 		if npoints is None:
 			pass # use default value
@@ -372,11 +383,17 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			old_mesh_size = self.astObject.get("MeshSize")
 			self.astObject.set("MeshSize={0}".format(npoints))
 
+		# The returned "points" array from getregionmesh() will be a 2-dimensional array with shape (ncoord,npoint),
+		# where "ncoord" is the number of axes within the Frame represented by the Region,
+		# and "npoint" is the number of points in the mesh (see attribute "MeshSize").
 		mesh = self.astObject.getregionmesh(0) # surface=0, here "surface" means the interior
-
+		mesh = self.astObject.norm(mesh)
+		
 		if npoints is not None:
 			# restore original value
 			self.astObject.set("MeshSize={0}".format(old_mesh_size))
+
+		# .. todo:: double check points as degrees vs radians!
 
 		return mesh.T
 	
@@ -384,10 +401,18 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		'''
 		Returns the smallest circle (ASTCircle) that bounds this region.
 		
-		It is up to the caller to know that this is a 2D image (only minimal checks are made).
+		It is up to the caller to know that this is a 2D region (only minimal checks are made).
+		:raises cornish.exc.NotA2DRegion: raised when attempting to get a bounding circle for a region that is not 2D
 		'''
+		
+		if self.naxes != 2:
+			raise NotA2DRegion(f"A bounding circle can only be computed on a 2D region; this region has {self.naxes} axes.")
+		
 		from .circle import ASTCircle
 		centre, radius = self.astObject.getregiondisc() # returns radians
-		return ASTCircle(frame=self, center_point=np.rad2deg(centre), radius=np.rad2deg(radius))
+		return ASTCircle(frame=self, center_point=np.rad2deg(centre), radius=rad2deg(radius))
 	
+
+
+
 

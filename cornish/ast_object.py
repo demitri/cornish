@@ -33,6 +33,7 @@ class ASTObject(metaclass=ABCMeta):
 	def __repr__(self):
 		return self.astString #str(self.astObject)
 	
+	@property
 	def astString(self):
 		'''
 		Return the AST serialization of this object.

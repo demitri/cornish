@@ -12,6 +12,8 @@ from ..mapping import ASTMapping
 from ...exc import FrameNotFoundException
 #from ...channel import ASTFITSChannel
 
+__all__ = ['ASTFrameSet']
+
 class ASTFrameSet(ASTFrame):
 	'''
 	A sets of inter-related coordinate systems made up of existing `Mapping`s and `Frame`s.

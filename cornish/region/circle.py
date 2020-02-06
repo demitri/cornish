@@ -1,5 +1,5 @@
 
-from typing import Union
+from typing import Union, Iterator
 
 import astropy
 import astropy.units as u
@@ -31,17 +31,17 @@ class ASTCircle(ASTRegion):
 	c = ASTCircle(frame, center, edge)
 	c = ASTCircle(frame, center, radius)		
 	'''
-	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=None, center_point=None, edge_point=None, radius:[float, astropy.units.quantity.Quantity]=None):
+	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=None, center_point:Iterator=None, edge_point=None, radius:[float, astropy.units.quantity.Quantity]=None):
 		'''
 		Parameters
 		----------
-		centerPoint : numpy.ndarray, list, tuple
+		centerPoint : `numpy.ndarray`, list, tuple
 			Two elements that describe the center point of the circle in the provided frame in degrees
 	
-		edgePoint : numpy.ndarray, list, tuple
+		edgePoint : `numpy.ndarray`, list, tuple
 			Two elements that describe a point on the circumference of the circle in the provided frame in degrees
 	
-		radius : float, astropy.units.quantity.Quantity
+		:param radius: float, `astropy.units.quantity.Quantity`
 			The radius in degrees (if float) of the circle to be created.
 		'''
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
@@ -79,8 +79,8 @@ class ASTCircle(ASTRegion):
 			raise ValueError("Along with 'center_point', a 'radius' or 'edge_point' must be specified.")
 		
 		# input forms:
-		#	CENTER_EDGE   (0) : circle specified by center point and any point on the circumference
-		#	CENTER_RADIUS (1) : circle specified by  point and radius
+		#	CENTER_EDGE   (0) : circle specified by center point and any point on the circumference (p1 = [float,float], p2 = [float,float])
+		#	CENTER_RADIUS (1) : circle specified by center point and radius                         (p1 = [float,float], p2 = float)
 		input_form = None
 		if edge_point is None:
 			input_form = CENTER_RADIUS
@@ -106,7 +106,7 @@ class ASTCircle(ASTRegion):
 			p1 = [center_point.ra.to(u.rad).value, center_point.dec.to(u.rad).value]
 		elif isinstance(center_point[0], astropy.units.quantity.Quantity):
 			try:
-				p1 = [center_point[0].to(u.deg).value, center_point[1].to(u.deg).value]
+				p1 = [center_point[0].to(u.rad).value, center_point[1].to(u.rad).value]
 			except astropy.units.core.UnitConversionError as e:
 				# todo: be more descriptive
 				raise e
@@ -129,15 +129,15 @@ class ASTCircle(ASTRegion):
 		self.astObject = Ast.Circle( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty )
 	
 	def __repr__(self):
-		return "<{0}.{1} {2}: r={3:0.6}d, center={4} deg>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
-														self.radius, self.center)
+		return "<{0}.{1} {2}: center={3} deg, r={4:0.6} deg>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
+														self.center, self.radius)
 	
 	@property
 	def radius(self):
 		'''
 		The radius of this circle region in degrees.
 		
-		@returns The radius as a geodesic distance in the associated coordinate system in degrees.
+		:returns: The radius as a geodesic distance in the associated coordinate system in degrees.
 		'''
 		center = None
 		radius = None
@@ -155,7 +155,7 @@ class ASTCircle(ASTRegion):
 		
 		Returns
 		-------
-		@returns A list of points [x,y] that describe the center of the circle in degrees.
+		:returns: A list of points [x,y] that describe the center of the circle in degrees.
 		'''
 		center = None
 		radius = None

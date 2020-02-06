@@ -13,8 +13,6 @@ from ..mapping.frame import ASTFrame, ASTFrameSet
 from ..region import ASTBox, ASTPolygon, ASTCircle
 from ..exc import FrameNotFoundException
 
-logger = logging.getLogger("cornish") # cornish logger
-
 _astropy_available = True
 _fitsio_available = True
 try:
@@ -26,6 +24,10 @@ try:
 	import fitsio
 except ImportError:
 	_fitsio_available = False
+
+__all__ = ['ASTFITSChannel']
+
+logger = logging.getLogger("cornish") # cornish logger
 
 class ASTFITSChannel(ASTChannel):
 	'''
@@ -354,7 +356,7 @@ class ASTFITSChannel(ASTChannel):
 		# The code below is adapted from code originally provided by David Berry.
 		
 		# create an ASTFrameSet that contains two frames (pixel grid, WCS) and the mapping between them
-		wcsFrameSet = self.frameSet()
+		wcsFrameSet = self.frameSet
 				
 		# Create a Box describing the extent of the image in pixel coordinates.
 		#
@@ -468,6 +470,8 @@ class ASTFITSChannel(ASTChannel):
 		logger.debug("distances from center to each corner (deg): {}".format(np.rad2deg(distances)))
 	
 		radius = max(distances) # -> unit: radians
+		radius *= 1.000001 # increase by a tiny amount to account for possible rounding errors
+		
 	
 		logger.debug("radius: {0} (radians), {1} (deg)".format(radius, np.rad2deg(radius)))
 		

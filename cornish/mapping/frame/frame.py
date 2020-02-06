@@ -6,6 +6,8 @@ import starlink.Ast as Ast
 from ... import ASTObject
 from ..mapping import ASTMapping
 
+__all__ = ['ASTFrame', 'ASTCompoundFrame']
+
 class ASTFrame(ASTMapping):
 	'''
 	A Frame is a representation of a coordinate system, e.g. Cartesian, RA/dec.

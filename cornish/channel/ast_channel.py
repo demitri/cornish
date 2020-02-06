@@ -4,6 +4,8 @@
 import starlink.Ast
 from ..ast_object import ASTObject
 
+__all__ = ['ASTChannel']
+
 class ASTChannel(ASTObject):
 	'''
 	An ASTChannel is a class that handles data input/output into and from different data formats.
@@ -22,5 +24,6 @@ class ASTChannel(ASTObject):
 			else:
 				raise ValueError(f"The parameter 'ast_object' must be an existing starlink.Ast.Channel object; got '{type(ast_object)}'.")
 		
+		raise NotImplementedError()
 		# under construction...
 	

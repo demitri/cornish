@@ -13,7 +13,7 @@ from ..mapping import ASTMapping
 from ..mapping import ASTFrame, ASTSkyFrame
 from ..exc import FrameNotFoundException
 
-#__all__ = ["ASTCircle"]
+__all__ = ["ASTPolygon"]
 
 class ASTPolygon(ASTRegion):
 	
@@ -242,7 +242,7 @@ class ASTPolygon(ASTRegion):
 			# Transform the Polygon into (RA,Dec)
 			new_ast_polygon = pix_poly.mapregion( wcs, skyframe )
 		
-		return ASTPolygon(ast_polygon=new_ast_polygon)
+		return ASTPolygon(ast_object=new_ast_polygon)
 		
 	
 	def downsize(self, maxerr=None, maxvert=0):
@@ -272,7 +272,7 @@ class ASTPolygon(ASTRegion):
 			raise Exception("ASTPolygon.downsize: Both 'maxerr' and 'maxvert' must be specified.")
 		
 		ast_polygon = self.astObject.downsize(maxerr, maxvert)
-		return ASTPolygon(ast_polygon=ast_polygon)
+		return ASTPolygon(ast_object=ast_polygon)
 
 
 
