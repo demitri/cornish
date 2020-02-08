@@ -62,7 +62,6 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	  '''
 	  super().__init__(ast_object=ast_object)
 	  self._uncertainty = None
-	  self._frame = None # cache excapsualted frame (if ever requested)
 		
 	@property
 	def points(self, units:astropy.units.core.Unit=u.deg):
@@ -164,18 +163,24 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		else:
 			raise Exception("ASTRegion.isBounded property must be one of [True, False, 1, 0].")
 	
-	@property
 	def frame(self):
 		'''
-		Returns the frame encapsulated by this region.
+		Returns a copy of the frame encapsulated by this region.
 		'''
 		ast_frame = self.astObject.getregionframe()
-		if self._frame and self._frame.astObject is ast_frame:
-			pass
-		else:
-			self._frame = ASTFrame.frameFromAstObject(ast_frame)
-					
-		return self._frame
+		return ASTFrame.frameFromAstObject(ast_frame)
+
+	def frameSet(self):
+		'''
+		Returns a copy of the frameset encapsulated by this region.
+		
+		From AST docs:
+		> The base Frame is the Frame in which the box was originally defined,
+		> and the current Frame is the Frame into which the Region is currently mapped
+		> (i.e. it will be the same as the Frame returned by astGetRegionFrame).
+		'''
+		raise NotImplementedError("getregionframeset() has not yet been exposed to the Python interface.")
+		return ASTFrameSet(ast_object=self.astObject.getregionframeset())
 	
 	@property
 	def points(self):
