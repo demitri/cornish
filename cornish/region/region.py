@@ -13,7 +13,7 @@ import starlink.Ast as Ast
 
 import cornish.region # to avoid circular imports below - better way?
 from ..ast_object import ASTObject
-from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
+from ..mapping import ASTFrame, ASTFrameSet, ASTMapping, ASTSkyFrame
 from ..exc import NotA2DRegion
 
 __all__ = ['ASTRegion']
@@ -62,6 +62,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	  '''
 	  super().__init__(ast_object=ast_object)
 	  self._uncertainty = None
+	  self._frame = None # cache excapsualted frame (if ever requested)
 		
 	@property
 	def points(self, units:astropy.units.core.Unit=u.deg):
@@ -162,7 +163,29 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			self.astObject.set("Bounded=0")
 		else:
 			raise Exception("ASTRegion.isBounded property must be one of [True, False, 1, 0].")
+	
+	@property
+	def frame(self):
+		'''
+		Returns the frame encapsulated by this region.
+		'''
+		ast_frame = self.astObject.getregionframe()
+		if self._frame and self._frame.astObject is ast_frame:
+			pass
+		else:
+			self._frame = ASTFrame.frameFromAstObject(ast_frame)
+					
+		return self._frame
+	
+	@property
+	def points(self):
+		'''
+		Returns a 2D Numpy array of coordinate points that define this region.
 		
+		The returned array shape will be (ncoord, 2), e.g. ((ra1,dec1), (ra2, dec2), ..., (ran, decn))
+		'''
+		return np.rad2deg(self.astObject.getregionpoints().T)
+	
 	@property
 	def meshSize(self):
 		''' Number of points used to create a mesh covering the region. '''

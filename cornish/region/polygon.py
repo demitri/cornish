@@ -34,7 +34,7 @@ class ASTPolygon(ASTRegion):
 		
 		:param ast_object: Create a new ASTPolygon from an existing :class:`starlink.Ast.Polygon` object.
 		:param frame: The frame the provided points lie in, accepts either ASTFrame or starlink.Ast.Frame objects.
-		:param points: Points that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points.
+		:param points: Points (in degrees if frame is a SkyFrame) that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points.
 		:returns: Returns a new ASTPolygon object.
 		'''
 		
@@ -65,6 +65,9 @@ class ASTPolygon(ASTRegion):
 			ast_frame = frame.astObject
 		else:
 			raise Exception("ASTPolygon: The supplied 'frame' object must either be a starlink.Ast.Frame or ASTFrame object.")
+		
+		if isinstance(frame, (starlink.Ast.SkyFrame, ASTSkyFrame)):
+			points = np.deg2rad(points)
 		
 		# The problem with accepting both forms is that the case of two points is ambiguous:
 		# [[x1,x2], [y1, y2]]

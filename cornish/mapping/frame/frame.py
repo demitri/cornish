@@ -44,7 +44,36 @@ class ASTFrame(ASTMapping):
 # 			self.astObject = Ast.Frame(naxes)
 # 		else:
 # 			self.astObject = ast_frame
+	
+	@staticmethod
+	def frameFromAstObject(ast_object=None):
+		'''
+		Factory method that returns the appropriate Cornish frame object (e.g. ASTSkyFrame) for a given frame.
+		'''
+		if ast_object is None:
+			raise ValueError("An ast_object must be specified.")
+		elif not isinstance(ast_object, Ast.Frame):
+			raise Exception(f"Expected 'ast_object' to be some kind of Ast frame, but got {type(ast_object)}")
 		
+		# the order might need to be rearranged depending on the object hierarchy
+		
+		if isinstance(ast_object, Ast.SkyFrame):
+			return ASTSkyFrame(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.SpecFrame):
+			return ASTSpecFrame(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.TimeFrame):
+			return ASTTimeFrame(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.CmpFrame):
+			return ASTCompositeFrame(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.FluxFrame):
+			return ASTFluxFrame(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.SpecFluxFrame):
+			return ASTSpecFluxFrame(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.TimeFrame):
+			return ASTTimeFrame(ast_object=ast_object)
+		else:
+			return ASTFrame(ast_object=ast_object)
+	
 	@property
 	def naxes(self):
 		''' Returns the number of axes for the frame. '''
