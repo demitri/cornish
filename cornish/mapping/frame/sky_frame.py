@@ -4,6 +4,8 @@ from astropy.units import u
 from .frame import ASTFrame
 import starlink.Ast as Ast
 
+__all__ = ['ASTSkyFrame', 'ASTICRSFrame']
+
 # this is a list of sky coordinate systems supported by AST,
 # see: http://starlink.eao.hawaii.edu/docs/sun211.htx/sun211ss424.html
 sky_systems = ["ICRS", "J2000", "AZEL", "ECLIPTIC", "FK4", "FK4-NO-E",

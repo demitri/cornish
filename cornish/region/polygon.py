@@ -97,12 +97,14 @@ class ASTPolygon(ASTRegion):
 				self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2]))
 	
 	@staticmethod
-	def fromPoints(radec_pairs:np.ndarray=None, ra=None, dec=None, system=None, skyframe:Ast.SkyFrame=None, expand_by=20*u.pix): # astropy.coordinates.BaseRADecFrame
+	def fromPointsOnSkyFrame(radec_pairs:np.ndarray=None, ra=None, dec=None, system:str=None, skyframe:ASTSkyFrame=None, expand_by=20*u.pix): # astropy.coordinates.BaseRADecFrame
 		'''
-		Create an ASTPolygon from an array of points.
+		Create an ASTPolygon from an array of points. NOTE: THIS IS SPECIFICALLY FOR SKY FRAMES.
 		
 		:param ra: list of RA points, must be in degrees (or :class:`astropy.units.Quantity` objects)
 		:param dec: list of declination points, must be in degrees (or :class:`astropy.units.Quantity` objects)
+		:param system: the coordinate system, see cornish.constants for accepted values
+		:param frame: the frame the points lie in, specified as an ASTSkyFrame object
 		:returns: new ASTPolygon object
 		'''
 		# author: David Berry
@@ -148,11 +150,21 @@ class ASTPolygon(ASTRegion):
 # 		             0.7087136, 0.7211723, 0.7199059, 0.7268493, 0.7119532 ]
 
 		# .. todo:: handle various input types (np.ndarray, Quantity)
+		if isinstance(skyframe, (ASTSkyFrame, Ast.SkyFrame)):
+			# if it's a sky frame of some kind, we will expect degrees
+			ra = np.deg2rad(ra)
+			dec = np.deg2rad(dec)
+			
 		ra_list = ra
 		dec_list = dec
-		
-		if isinstance(skyframe, ASTSkyFrame):
+				
+		# convert frame parameter to an Ast.Frame object
+		if isinstance(skyframe, ASTFrame):
 			skyframe = skyframe.astObject
+		elif isinstance(skyframe, Ast.Frame):
+			pass
+		else:
+			raise ValueError(f"The 'skyframe' parameter must be either an Ast.SkyFrame or ASTSkyFrame object; got {type(skyframe)}")
 		
 		#  Create a PointList holding the (RA,Dec) positions.
 		plist = Ast.PointList( skyframe, [ra_list, dec_list] )
