@@ -43,6 +43,31 @@ polygon = ASTPolygon(frame=ASTICRSFrame(), points=points)
 
 bounding_circle = polygon.boundingCircle()
 
+# -------------------------------------------------------
+# Create frame set that will map the position in the plot
+# (i.e. pixel coordinates) to the sky (i.e. WCS)
+
+fits_chan = ASTFITSChannel()
+
+cards = {
+	"CRVAL1":bounding_circle.center[0], # reference point (image center) in sky coords
+	"CRVAL2":bounding_circle.center[1],
+	"CTYPE1":"RA---TAN", #"GLON-TAN", # projection type
+	"CTYPE2":"DEC--TAN", #"GLAT-TAN",
+	"CRPIX1":50.5, # reference point (image center) point in pixel coords
+	"CRPIX2":50.5,
+	"CDELT1":2.1*bounding_circle.radius/100,
+	"CDELT2":2.1*bounding_circle.radius/100,
+	"NAXIS1":100,
+	"NAXIS2":100,
+	"NAXES":2,
+}
+naxis1 = cards['NAXIS1']
+naxis2 = cards['NAXIS2']
+pix2sky_mapping = ASTFrameSet.fromFITSHeader(fits_header=cards)
+# -------------------------------------------------------
+#pix2sky_mapping.system = "Galactic"
+
 #  Create a matplotlib figure, 12x12 inches in size.
 dx=12.0
 dy=12.0
@@ -55,7 +80,7 @@ fig_aspect_ratio = dy/dx
 #naxis2 = int(cards["NAXIS2"])
 #bbox = (0.5, 0.5, naxis1 + 0.5, naxis2 + 0.5)
 #fits_aspect_ratio = ( bbox[3] - bbox[1] )/( bbox[2] - bbox[0] )
-bbox = (0.5, 0.5, 1000 + 0.5, 1000 + 0.5)
+bbox = (0.5, 0.5, naxis1 + 0.5, naxis2 + 0.5)
 fits_aspect_ratio = 1
 
 #  Set up the bounding box of the image as fractional offsets within the
@@ -95,11 +120,16 @@ ax_plot.patch.set_alpha(0.0)
 #  marks and strings) into this second Axes structure.
 grf = Grf.grf_matplotlib( ax_plot )
 
+print(f"gbox: {gbox}")
+print(f"bbox: {bbox}")
+
 # box in graphics coordinates (area to draw on, dim of plot)
 #plot = Ast.Plot( frameset.astObject, gbox, bbox, grf )
-plot = Ast.Plot( polygon.astObject.getregionframe(), gbox, bbox, grf )
+plot = Ast.Plot( pix2sky_mapping.astObject, gbox, bbox, grf )
 plot.Grid = True # can change the line properties
 
 plot.grid()
+plot.regionoutline(bounding_circle.astObject)
 plot.regionoutline(polygon.astObject)
+
 plt.show()
