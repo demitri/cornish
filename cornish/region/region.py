@@ -1,6 +1,6 @@
 
 from abc import ABCMeta
-from typing import Union
+from typing import Iterable, Union
 
 from math import radians as deg2rad
 from math import degrees as rad2deg
@@ -438,7 +438,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 		from .circle import ASTCircle
 		centre, radius = self.astObject.getregiondisc() # returns radians
-		return ASTCircle(frame=self, center_point=np.rad2deg(centre), radius=rad2deg(radius))
+		return ASTCircle(frame=self, center=np.rad2deg(centre), radius=rad2deg(radius))
 	
 
 

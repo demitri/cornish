@@ -29,9 +29,14 @@ class ASTCircle(ASTRegion):
 	
 	c = ASTCircle(ast_object)             # where ast_object is a starlink.Ast.Circle object
 	c = ASTCircle(frame, center, edge)
-	c = ASTCircle(frame, center, radius)		
+	c = ASTCircle(frame, center, radius)
+	
+	:param ast_object:
+	:param frame:
+	:param edge_point:
+	:param radius:
 	'''
-	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=None, center_point:Iterator=None, edge_point=None, radius:[float, astropy.units.quantity.Quantity]=None):
+	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=None, center:Iterator=None, edge_point=None, radius:[float, astropy.units.quantity.Quantity]=None):
 		'''
 		Parameters
 		----------
@@ -73,10 +78,10 @@ class ASTCircle(ASTRegion):
 				
 		if all([x is not None for x in [edge_point, radius]]):
 			raise ValueError("Both 'edge_point' and 'radius' cannot be simultaneously specified.")
-		if center_point is None:
-			raise ValueError("The 'center_point' parameter must be set.")
+		if center is None:
+			raise ValueError("The 'center' parameter must be set.")
 		if all([x is None for x in [edge_point, radius]]):
-			raise ValueError("Along with 'center_point', a 'radius' or 'edge_point' must be specified.")
+			raise ValueError("Along with 'center', a 'radius' or 'edge_point' must be specified.")
 		
 		# input forms:
 		#	CENTER_EDGE   (0) : circle specified by center point and any point on the circumference (p1 = [float,float], p2 = [float,float])
@@ -102,16 +107,16 @@ class ASTCircle(ASTRegion):
 # 			raise Exception("ASTCircle: Either 'centerPoint' and 'edgePoint' OR 'centerPoint' " + \
 # 							"and 'radius' must be specified when creating an ASTCircle.")
 		
-		if isinstance(center_point, astropy.coordinates.SkyCoord):
-			p1 = [center_point.ra.to(u.rad).value, center_point.dec.to(u.rad).value]
-		elif isinstance(center_point[0], astropy.units.quantity.Quantity):
+		if isinstance(center, astropy.coordinates.SkyCoord):
+			p1 = [center.ra.to(u.rad).value, center.dec.to(u.rad).value]
+		elif isinstance(center[0], astropy.units.quantity.Quantity):
 			try:
-				p1 = [center_point[0].to(u.rad).value, center_point[1].to(u.rad).value]
+				p1 = [center[0].to(u.rad).value, center[1].to(u.rad).value]
 			except astropy.units.core.UnitConversionError as e:
 				# todo: be more descriptive
 				raise e
 		else:
-			p1 = [deg2rad(center_point[0]), deg2rad(center_point[1])]
+			p1 = [deg2rad(center[0]), deg2rad(center[1])]
 			
 		if input_form == CENTER_EDGE:
 			# p1 = center point, p2 = edge point
