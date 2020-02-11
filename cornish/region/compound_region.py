@@ -53,7 +53,7 @@ class ASTCompoundRegion(ASTRegion):
 			if isinstance(r2, ASTRegion):
 				r2 = r2.astObject
 
-			compound_region = Ast.CmpRegion( r1, r2 ) # todo: series parameter?
+			compound_region = Ast.CmpRegion( r1, r2, oper=operation ) # todo: 'series' parameter?
 			if compound_region is None:
 				# an error occurred
 				return None
