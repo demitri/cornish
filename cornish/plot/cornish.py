@@ -1,0 +1,3 @@
+
+class CornishPlot:
+	pass

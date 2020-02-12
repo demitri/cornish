@@ -43,7 +43,7 @@ new_frameset = frameset.framesetWithMappingTo(icrs_frame)
 
 # create a circle in the sky frame
 circle_region = ASTCircle(frame=new_frameset.currentFrame,
-						  center_point=[354.47207716*u.deg, 0.75203964*u.deg],
+						  center=[354.47207716*u.deg, 0.75203964*u.deg],
 						  radius=30*u.arcsec)
 
 # get mapping from region to pixel

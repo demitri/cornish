@@ -475,7 +475,7 @@ class ASTFITSChannel(ASTChannel):
 	
 		logger.debug("radius: {0} (radians), {1} (deg)".format(radius, np.rad2deg(radius)))
 		
-		return ASTCircle(frame=wcsFrame, center_point=np.rad2deg(center), radius=np.rad2deg(radius))
+		return ASTCircle(frame=wcsFrame, center=np.rad2deg(center), radius=np.rad2deg(radius))
 
 
 

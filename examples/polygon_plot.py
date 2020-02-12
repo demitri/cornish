@@ -7,7 +7,7 @@ import warnings
 
 import numpy as np
 from cornish import ASTPolygon
-from cornish import ASTICRSFrame, ASTFrameSet, ASTBox, ASTFITSChannel
+from cornish import ASTICRSFrame, ASTFrameSet, ASTBox, ASTFITSChannel, ASTCircle, ASTCompoundRegion
 
 from astropy.io import fits
 import matplotlib.pyplot as plt
@@ -39,9 +39,16 @@ points = np.array([[ 24.9220814, -2.32553877e-01],
  [ 25.2219908, -9.67569213e-02],
  [ 25.1986233, -1.49820068e-01],
  [ 25.0872686, -2.32297073e-01]])
-polygon = ASTPolygon(frame=ASTICRSFrame(), points=points)
+icrs_frame = ASTICRSFrame()
+polygon = ASTPolygon(frame=icrs_frame, points=points)
 
-bounding_circle = polygon.boundingCircle()
+galex_circle = ASTCircle(frame=icrs_frame, center=[24.617269485878584,0.2727299618460874], radius=1.1312250143591236)
+
+compound_region = ASTCompoundRegion(regions=[polygon, galex_circle], operation=Ast.AND)
+
+# define the extend of the plot
+#bounding_circle = polygon.boundingCircle()
+bounding_circle = compound_region.boundingCircle()
 
 # -------------------------------------------------------
 # Create frame set that will map the position in the plot
@@ -67,6 +74,8 @@ naxis2 = cards['NAXIS2']
 pix2sky_mapping = ASTFrameSet.fromFITSHeader(fits_header=cards)
 # -------------------------------------------------------
 #pix2sky_mapping.system = "Galactic"
+
+print(bounding_circle.center)
 
 #  Create a matplotlib figure, 12x12 inches in size.
 dx=12.0
@@ -125,11 +134,37 @@ print(f"bbox: {bbox}")
 
 # box in graphics coordinates (area to draw on, dim of plot)
 #plot = Ast.Plot( frameset.astObject, gbox, bbox, grf )
-plot = Ast.Plot( pix2sky_mapping.astObject, gbox, bbox, grf )
+plot = Ast.Plot( pix2sky_mapping.astObject, gbox, bbox, grf, options="Uni1=ddd:mm:ss" )
+ #, options="Grid=1" )
+#plot.set( "Colour(border)=2, Font(textlab)=3" );
+
 plot.Grid = True # can change the line properties
+plot.Format_1 = "dms"
+
+# colors:
+# 1 = black
+# 2 = red
+# 3 = lime
+# 4 = blue
+# 5 = 
+# 6 = pink
 
 plot.grid()
-plot.regionoutline(bounding_circle.astObject)
+plot.Width_Border = 2
+
+#plot.Colour_Border = "#0099cc"
+#plot.regionoutline(bounding_circle.astObject)
+
+plot.Colour_Border = "#106942"
 plot.regionoutline(polygon.astObject)
 
+plot.Colour_Border = "blue"
+plot.regionoutline(galex_circle.astObject)
+#plt.plot(galex_circle.center[0],galex_circle.center[1],'ro')
+
+plot.Colour_Border = "red"
+plot.Style = 3
+plot.regionoutline(bounding_circle.astObject)
+
 plt.show()
+

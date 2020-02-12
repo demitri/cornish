@@ -156,11 +156,22 @@ class ASTCircle(ASTRegion):
 	@property
 	def center(self):
 		'''
+		The center of this circle region in degrees (a synonym for "self.centre").
+		
+		Returns
+		-------
+		:returns: A list of points [x,y] that describe the centre of the circle in degrees.
+		'''
+		return self.centre
+
+	@property
+	def centre(self):
+		'''
 		The center of this circle region in degrees.
 		
 		Returns
 		-------
-		:returns: A list of points [x,y] that describe the center of the circle in degrees.
+		:returns: A list of points [x,y] that describe the centre of the circle in degrees.
 		'''
 		center = None
 		radius = None
