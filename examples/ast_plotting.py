@@ -3,8 +3,8 @@
 import sys
 import warnings
 
-from cornish import ASTICRSFrame, ASTBox, ASTFITSChannel
-from cornish import ASTFrameSet
+import numpy as np
+from cornish import ASTFrameSet, ASTBox, ASTFITSChannel
 
 from astropy.io import fits
 import matplotlib.pyplot as plt
@@ -21,10 +21,14 @@ box_region = ASTBox(fits_header=hdu_list[0].header)
 
 print(f"box_region is of type '{box_region.astObject.Class}'");
 print(box_region.astObject.isabox()) # --> false, why?
+print(isinstance(box_region.astObject, Ast.Box))
+print(f"{type(box_region)}, {type(box_region.astObject)}")
 
 # check that box_region is a sky system before setting "system" to a sky system
 #
 # box_region.getregionframe() # <- check is sky frame
+
+print(box_region.system)
 
 # set the region as being in ICRS
 # - internally, adds a new frame with the new system (and mapping)
@@ -44,11 +48,11 @@ bounding_circle = box_region.boundingCircle()
 fits_chan = ASTFITSChannel()
 
 cards = {
-	"CRVAL1":bounding_circle.center[0],
+	"CRVAL1":bounding_circle.center[0],  # reference point (image center) in sky coords
 	"CRVAL2":bounding_circle.center[1],
 	"CTYPE1":"RA---TAN", #"GLON-TAN"
 	"CTYPE2":"DEC--TAN", #"GLAT-TAN"
-	"CRPIX1":50.5,
+	"CRPIX1":50.5, # reference point (image center) point in pixel coords
 	"CRPIX2":50.5,
 	"CDELT1":2.1*bounding_circle.radius/100,
 	"CDELT2":2.1*bounding_circle.radius/100,
@@ -96,13 +100,13 @@ ax_image = fig.add_axes( [ gbox[0], gbox[1], gbox[2] - gbox[0],
 						  gbox[3] - gbox[1] ], zorder=1 )
 ax_image.xaxis.set_visible( False )
 ax_image.yaxis.set_visible( False )
-#ax_image.imshow( hdu_list[0].data, vmin=0, vmax=200, cmap=plt.cm.gist_heat,
-#				origin='lower', aspect='auto')
+ax_image.imshow( np.log(hdu_list[0].data), vmin=0, vmax=200, cmap=plt.cm.gist_heat,
+				origin='lower', aspect='auto')
 
 #  Add another Axes structure to the figure to hold the annotated axes
 #  produced by AST. It is displayed on top of the previous Axes
 #  structure. Make it transparent so that the image will show through.
-ax_plot = fig.add_axes( [ 0, 0, 1, 1 ], zorder=2 )
+ax_plot = fig.add_axes( [ 0, 0, 1, 1 ], zorder=2 ) # rect = [x0, y0, width, height], 1 = full canvas size
 ax_plot.xaxis.set_visible(False)
 ax_plot.yaxis.set_visible(False)
 ax_plot.patch.set_alpha(0.0)
@@ -117,4 +121,6 @@ plot.Grid = True # can change the line properties
 
 plot.grid()
 plot.regionoutline(box_region.astObject)
+#plot.regionoutline(bounding_circle.astObject)
 plt.show()
+
