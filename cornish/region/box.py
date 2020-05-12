@@ -24,11 +24,12 @@ class ASTBox(ASTRegion):
 	
 	Accepted signatures for creating an ASTBox:
 	
-	b = ASTBox(frame, cornerPoint, cornerPoint2)
-	b = ASTBox(frame, cornerPoint, centerPoint)
-	b = ASTBox(frame, dimensions)
-	b = ASTBox(fits_header) (must be an image HDU)
-	b = ASTBox(ast_box) (where ast_box is an Ast.Box object)
+	.. code-block:: python
+	
+		b = ASTBox(frame, cornerPoint, cornerPoint2)
+		b = ASTBox(frame, cornerPoint, centerPoint)
+		b = ASTBox(frame, dimensions)
+		b = ASTBox(ast_box) (where ast_box is an Ast.Box object)
 	
 	Points and dimensions can be any two element container, e.g. (1,2), [1,2], np.array([1,2])
 	If "dimensions" is specified, a box enclosing the entire area will be defined.
@@ -41,11 +42,14 @@ class ASTBox(ASTRegion):
 	in a SkyFrame will look more like a fan than a box (the Polygon class can be used to
 	create a box-like region close to a pole).
 	
-	self.astObject is of type starlink.Ast.Box.
-	
-	@param ast_box An existing object of type starlink.Ast.Box.
+	:param ast_box: An existing object of type starlink.Ast.Box.
+	:param frame:
+	:param cornerPoint:
+	:param cornerPoint2:
+	:param centerPoint:
+	:param dimensions:
 	'''
-	def __init__(self, ast_box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None, dimensions=None, fits_header=None):
+	def __init__(self, ast_box:starlink.Ast.Box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None, dimensions=None):
 		#self.astFrame = frame
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		#self._ast_box = None
@@ -56,7 +60,7 @@ class ASTBox(ASTRegion):
 		
 		if ast_box is not None:
 			if isinstance(ast_box, Ast.Box):
-				if not any([cornerPoint, cornerPoint2, centerPoint, dimensions, fits_header]):
+				if not any([cornerPoint, cornerPoint2, centerPoint, dimensions]):
 					self.astObject = ast_box
 					return
 				else:
@@ -70,31 +74,31 @@ class ASTBox(ASTRegion):
 		input_form = None
 		
 		# Get the frame from the FITS header
-		if fits_header:
-			from ..channel import ASTFITSChannel
-			# get frame from header
-			fits_channel = ASTFITSChannel(header=fits_header)
-			
-			# does this channel contain a frame set?
-			frame_set = fits_channel.frameSet
-			#if frame_set is None:
-			#	raise ValueError("The provided FITS header does not describe a region (e.g. not an image, does not contain a WCS that AST can read).")
-			#else:
-
-			frame = frame_set.baseFrame
-						
-			# support n-dimensional boxes
-			
-			# define needed parameters for box creation below
-			dimensions = fits_channel.dimensions
-			n_dim = len(dimensions)
-			cornerPoint = [0.5 for x in range(n_dim)]
-			cornerPoint2 = [dimensions[x] + 0.5 for x in range(n_dim)]
-			#cornerPoint=[0.5,0.5], # center of lower left pixel
-			#cornerPoint2=[dimensions[0]+0.5, dimensions[1]+0.5])
-	
-			if n_dim > 2:
-				raise NotImplementedError("the code below must be written to handle n-dim")
+# 		if fits_header:
+# 			from ..channel import ASTFITSChannel
+# 			# get frame from header
+# 			fits_channel = ASTFITSChannel(header=fits_header)
+# 			
+# 			# does this channel contain a frame set?
+# 			frame_set = fits_channel.frameSet
+# 			#if frame_set is None:
+# 			#	raise ValueError("The provided FITS header does not describe a region (e.g. not an image, does not contain a WCS that AST can read).")
+# 			#else:
+# 
+# 			frame = frame_set.baseFrame
+# 						
+# 			# support n-dimensional boxes
+# 			
+# 			# define needed parameters for box creation below
+# 			dimensions = fits_channel.dimensions
+# 			n_dim = len(dimensions)
+# 			cornerPoint = [0.5 for x in range(n_dim)]
+# 			cornerPoint2 = [dimensions[x] + 0.5 for x in range(n_dim)]
+# 			#cornerPoint=[0.5,0.5], # center of lower left pixel
+# 			#cornerPoint2=[dimensions[0]+0.5, dimensions[1]+0.5])
+# 	
+# 			if n_dim > 2:
+# 				raise NotImplementedError("the code below must be written to handle n-dim")
 				
 		# check valid combination of parameters
 		# -------------------------------------
@@ -144,13 +148,13 @@ class ASTBox(ASTRegion):
 			# AstBox( starlink.Ast.Frame(2), [0,1], 
 			self.astObject = Ast.Box( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty )
 			
-			if fits_header is not None:
-				# create the mapping from pixel to sky (or whatever is there) if available
-				mapping = frame_set.astObject.getmapping() # defaults are good
-				current_frame = frame_set.astObject.getframe(starlink.Ast.CURRENT)
-				
-				# create a new region with new mapping
-				self.astObject = self.astObject.mapregion(mapping, current_frame)
+# 			if fits_header is not None:
+# 				# create the mapping from pixel to sky (or whatever is there) if available
+# 				mapping = frame_set.astObject.getmapping() # defaults are good
+# 				current_frame = frame_set.astObject.getframe(starlink.Ast.CURRENT)
+# 				
+# 				# create a new region with new mapping
+# 				self.astObject = self.astObject.mapregion(mapping, current_frame)
 
 
 	@property

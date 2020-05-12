@@ -1,5 +1,6 @@
 
 import math
+import logging
 from typing import Union
 
 import starlink
@@ -8,12 +9,15 @@ import astropy.units as u
 import astropy
 import numpy as np
 
+from .box import ASTBox
 from .region import ASTRegion
 from ..mapping import ASTMapping
 from ..mapping import ASTFrame, ASTSkyFrame
 from ..exc import FrameNotFoundException
 
 __all__ = ["ASTPolygon"]
+
+logger = logging.getLogger('cornish')
 
 class ASTPolygon(ASTRegion):
 	
@@ -23,14 +27,19 @@ class ASTPolygon(ASTRegion):
 
 		Accepted signatures for creating an ASTPolygon:
 		
-		p = ASTPolygon(frame, points)
-		p = ASTPolygon(fits_header, points)   # get the frame from the FITS header provided
-		p = ASTPolygon(ast_object)            # where ast_object is a starlink.Ast.Polygon object
+		.. code-block:: python
+
+			p = ASTPolygon(frame, points)
+			p = ASTPolygon(fits_header, points)   # get the frame from the FITS header provided
+			p = ASTPolygon(ast_object)            # where ast_object is a starlink.Ast.Polygon object
 
 		Points may be provided as a list of coordinate points, e.g.
-			[(x1, y1), (x2, y2), ... , (xn, yn)]
+			
+			`[(x1, y1), (x2, y2), ... , (xn, yn)]`
+			
 		or as two parallel arrays, e.g.
-			[[x1, x2, x3, ..., xn], [y1, y2, y3, ..., yn]]
+
+			`[[x1, x2, x3, ..., xn], [y1, y2, y3, ..., yn]]`
 		
 		:param ast_object: Create a new ASTPolygon from an existing :class:`starlink.Ast.Polygon` object.
 		:param frame: The frame the provided points lie in, accepts either ASTFrame or starlink.Ast.Frame objects.
@@ -97,17 +106,89 @@ class ASTPolygon(ASTRegion):
 				self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2]))
 	
 	@staticmethod
-	def fromPointsOnSkyFrame(radec_pairs:np.ndarray=None, ra=None, dec=None, system:str=None, skyframe:ASTSkyFrame=None, expand_by=20*u.pix): # astropy.coordinates.BaseRADecFrame
+	def fromFITSHeader(header=None):
+		'''
+		Creates an ASTPolygon in a sky frame from a FITS header. Header must be a 2D image and contain WCS information.
+		
+		:param header:
+		'''
+		if header is None:
+			raise ValueError("A FITS header must be provided.")
+
+		from ..channel import ASTFITSChannel # avoids circular import
+		
+		# The code below is adapted from code originally provided by David Berry.
+		fitsChannel = ASTFITSChannel(header=header)
+
+		# create an ASTFrameSet that contains two frames (pixel grid, WCS) and the mapping between them
+		wcsFrameSet = fitsChannel.frameSet
+		
+		# Create a Box describing the extent of the image in pixel coordinates.
+		#
+		# From David Berry:
+		#       "Because of the FITS-WCS standard, the base Frame in a FrameSet read
+		#       from a FITS header will always represent FITS pixel coordinates, which
+		#       are defined by the FITS-WCS standard so that the bottom left (i.e.
+		#       first) pixel in a 2D array is centred at (1,1). That means that
+		#       (0.5,0.5) is the bottom left corner of the bottom left pixel, and
+		#       (dim1+0.5,dim2+0.5) is the top right corner of the top right pixel.
+		#       This results in the Box covering the whole image area."
+		#
+		dims = fitsChannel.dimensions
+		pixelbox = ASTBox(frame=wcsFrameSet.baseFrame,
+						  cornerPoint=[0.5,0.5], # center of lower left pixel
+						  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
+		
+		#  Map this box into (RA,Dec)
+		#
+		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTRegion
+
+		#  Get the (RA,Dec) at a large number of points evenly distributed around
+		#  the polygon. The number of points created is controlled by the
+		#  MeshSize attribute of the polygon.
+		#
+		mesh = skybox.boundaryPointMesh() # np.array of points
+
+		#  Create a polygon using the vertices in the mesh. This polygon is
+		#  defined in a basic Frame (flat geometry) - not a SkyFrame (spherical
+		#  geometry). If we used a SkyFrame, then all the mesh points along each
+		#  edge of the box would fall exactly on a geodesic (i.e. a great circle),
+		#  and so the subsequent call to the downsize function would remove them all
+		#  (except the corners). Using a basic Frame means that the downsize function
+		#  will use geodesics that are Cartesian straight lines. So points that
+		#  deviate by more than the required error form a Cartesian straight line
+		#  will be retained by the downsize function.
+		#
+		degFlatFrame = ASTFrame(naxes=2)
+		degFlatFrame.setUnitForAxis(axis=1, unit="deg")
+		degFlatFrame.setUnitForAxis(axis=2, unit="deg")
+
+		flatpoly = ASTPolygon(frame=degFlatFrame, points=mesh)
+
+		#  Remove mesh points where the polygon is close to a Cartesian straight
+		#  line, and retain them where it deviates from a stright line, in order
+		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
+		#
+		return flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon 
+		
+	
+	@staticmethod
+	def fromPointsOnSkyFrame(radec_pairs:np.ndarray=None, ra=None, dec=None, frame:ASTSkyFrame=None, expand_by=20*u.pix): # astropy.coordinates.BaseRADecFrame
 		'''
 		Create an ASTPolygon from an array of points. NOTE: THIS IS SPECIFICALLY FOR SKY FRAMES.
 		
+		:param radec_points: an array of pairs of points with shape (n,2), e.g. [[ra1,dec1], [ra2,dec2], ..., [ran,decn]]
 		:param ra: list of RA points, must be in degrees (or :class:`astropy.units.Quantity` objects)
 		:param dec: list of declination points, must be in degrees (or :class:`astropy.units.Quantity` objects)
-		:param system: the coordinate system, see cornish.constants for accepted values
 		:param frame: the frame the points lie in, specified as an ASTSkyFrame object
 		:returns: new ASTPolygon object
 		'''
-		# author: David Berry
+		if radec_pairs is None and (ra is not None or dec is not None):
+			raise ValueError("Cannot specify both 'radec_pairs' and 'ra' or 'dec'.")
+		if any([x is not None for x in [ra,dec]]) and not all([x is not None for x in [ra,dec]]):
+			raise ValueError("If one of 'ra','dec' is provided, both must be.")
+		
+		# author: David Berry (any errors are Demitri Muna's)
 		#
 		#  This method uses astConvex to find the shortest polygon enclosing a
 		#  set of positions on the sky. The astConvex method determines the
@@ -149,25 +230,26 @@ class ASTPolygon(ASTRegion):
 # 		             0.724532, 0.7318467, 0.7273944, 0.7225725, 0.7120513,
 # 		             0.7087136, 0.7211723, 0.7199059, 0.7268493, 0.7119532 ]
 
-		# .. todo:: handle various input types (np.ndarray, Quantity)
-		if isinstance(skyframe, (ASTSkyFrame, Ast.SkyFrame)):
+		# .. todo:: handle various input types (e.g. Quantity)
+		if isinstance(radec_pairs, np.ndarray):
+			if len(radec_pairs.shape) != 2 or radec_pairs.shape[1] != 2:
+				raise ValueError("The shape of the array provided should be (n,2).")
+			ra_list, dec_list = np.deg2rad(radec_pairs.T)
+		elif isinstance(frame, (ASTSkyFrame, Ast.SkyFrame)):
 			# if it's a sky frame of some kind, we will expect degrees
-			ra = np.deg2rad(ra)
-			dec = np.deg2rad(dec)
+			ra_list  = np.deg2rad(ra)
+			dec_list = np.deg2rad(dec)
 			
-		ra_list = ra
-		dec_list = dec
-				
 		# convert frame parameter to an Ast.Frame object
-		if isinstance(skyframe, ASTFrame):
-			skyframe = skyframe.astObject
-		elif isinstance(skyframe, Ast.Frame):
+		if isinstance(frame, ASTFrame):
+			frame = frame.astObject
+		elif isinstance(frame, Ast.Frame):
 			pass
 		else:
-			raise ValueError(f"The 'skyframe' parameter must be either an Ast.SkyFrame or ASTSkyFrame object; got {type(skyframe)}")
+			raise ValueError(f"The 'frame' parameter must be either an Ast.SkyFrame or ASTSkyFrame object; got {type(frame)}")
 		
 		#  Create a PointList holding the (RA,Dec) positions.
-		plist = Ast.PointList( skyframe, [ra_list, dec_list] )
+		plist = Ast.PointList( frame, [ra_list, dec_list] )
 		
 		#  Get the centre and radius of the circle that bounds the points (in
 		#  radians).
@@ -251,14 +333,21 @@ class ASTPolygon(ASTRegion):
 			big_poly = Ast.Polygon( wcs.getframe( Ast.BASE ), [ x_new, y_new ] )
 			
 			# Transform the Polygon into (RA,Dec).
-			new_ast_polygon = big_poly.mapregion( wcs, skyframe )
+			new_ast_polygon = big_poly.mapregion( wcs, frame )
 		
 		else:
 			# Transform the Polygon into (RA,Dec)
-			new_ast_polygon = pix_poly.mapregion( wcs, skyframe )
+			new_ast_polygon = pix_poly.mapregion( wcs, frame )
 		
 		return ASTPolygon(ast_object=new_ast_polygon)
-		
+	
+# 	@property
+# 	def points(self):
+# 		'''
+# 		Returns the array of points that describe this polygon as a NumPy array of shape (n,2) in degrees.
+# 		'''
+# 		#return np.rad2deg(region.getregionpoints().T)
+# 		return np.rad2deg(self.points().T)
 	
 	def downsize(self, maxerr=None, maxvert=0):
 		'''

@@ -6,6 +6,7 @@ from typing import Union
 
 import ast
 import numpy as np
+import starlink
 import starlink.Ast as Ast
 
 from .ast_channel import ASTChannel
@@ -57,7 +58,7 @@ class ASTFITSChannel(ASTChannel):
 				if isinstance(ast_object, starlink.Ast.FitsChan):
 					super().__init__(ast_object=ast_object)
 				else:
-					raise ValueError
+					raise ValueError("Expected first parameter to be type 'ast_object'; did you mean to use 'header=' or 'hdu='?")
 		
 		# ----------
 		# Validation
@@ -67,12 +68,12 @@ class ASTFITSChannel(ASTChannel):
 			
 		# get header from HDU
 		if hdu:
-			if hdu and _astropy_available and isinstance(hdu, astropy.io.fits.hdu.base.ExtensionHDU):
+			if hdu and _astropy_available and isinstance(hdu, (astropy.io.fits.hdu.image.PrimaryHDU, astropy.io.fits.hdu.base.ExtensionHDU)):
 				header = hdu.header        # type: astropy.io.fits.header.Header
-			elif hdu and _fitsio_available and isinstance(hdu, fitsio.fitslib.HDUBase):
+			elif hdu and _fitsio_available and isinstance(hdu, fitsio.hdu.base.HDUBase):
 				header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
 			else:
-				raise Exception("ASTFITSChannel: unknown HDU type specified ('{0}').".format(type(hdu)))
+				raise Exception(f"ASTFITSChannel: unknown HDU type specified ('{0}').".format(type(hdu)))
 		# ----------
 		
 		self._dimensions = None
@@ -86,6 +87,7 @@ class ASTFITSChannel(ASTChannel):
 			   (isinstance(header, list) and isinstance(header[0], str)):
 			   self._readHeader()
 			elif isinstance(header, list):
+				logger.debug("Found list header")
 				self._readHeader()
 			elif isinstance(header, str) and (len(header) % 80 == 0):
 				# split into list, then process
@@ -111,8 +113,6 @@ class ASTFITSChannel(ASTChannel):
 		Accepts astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, a dictionary (keyword,value), a list of strings,
 		or a plain string divisible by 80 characters (full header as a single string).
 		'''
-		logger.debug("ASTFitsChannel._readHeader.")
-		
 		assert self.header is not None, "Attempting to read a header before it has been set."
 		
 		# try to read the header from an Astropy header object
@@ -137,7 +137,6 @@ class ASTFITSChannel(ASTChannel):
 			#
 			# read header from provided list of strings or keyword/value pairs
 			#
-			logger.debug("ASTFITSChannel: Reading header cards from list.")
 			first_item = self.header[0]
 			if isinstance(first_item, str):
 				for card in self.header:
@@ -161,17 +160,12 @@ class ASTFITSChannel(ASTChannel):
 		'''
 		self.astObject.emptyfits()
 	
-	def addHeader(self, card=None, keyword=None, value=None, comment=None, overwrite=False):
+	def addHeader(self, card=None, keyword=None, value=None, comment=None, overwrite:bool=False):
 		'''
 		Add a card to this header.
 		
-		Parameters
-		----------
-		card : fitsio.fitslib.FITSRecord or astropy.io.fits.card.Card or str
-			A single FITS header.
-		
-		overwrite : boolean, optional
-			If 'True', the provided card overwrites any existing one with the same keyword.
+		:param card: fitsio.fitslib.FITSRecord or astropy.io.fits.card.Card or str. A single FITS header.
+		:param overwrite: If 'True', the provided card overwrites any existing one with the same keyword.
 		'''
 				
 		# NOTE: putfits(card, overwrite=<anything>) results in
@@ -279,7 +273,7 @@ class ASTFITSChannel(ASTChannel):
 #				else:
 #					raise Exception("Not implemented: handle value of type '{0}'.".format(type(value)))
 		
-		assert len(fits_header_card) <= 80, "The FITS card is incorrectly formatted (>80 char) or a bad value has been given: '{0]'".format(fits_header_card)
+		assert len(fits_header_card) <= 80, "The FITS card is incorrectly formatted (>80 char) or a bad value has been given: '{0}'".format(fits_header_card)
 		
 		self.astObject.putfits(fits_header_card, overwrite)
 		self.astObject.retainfits() # this a single flag -> turn into a top level property

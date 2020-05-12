@@ -6,15 +6,18 @@ import starlink.Grf as Grf
 import starlink.Ast as Ast
 import starlink.Atl as Atl
 
+from ..region.region import ASTRegion
+from ..region.circle import ASTCircle
+
 from cornish import ASTFITSChannel, ASTFrameSet
 
 class SkyPlot(CornishPlot):
 	'''
 	A convenience class to create a sky plot in Matplotlib.
 	
-	:param circle_extent: an ASTCircle that encompasses the full area to plot.
+	:param circle_extent: an ASTRegion that encompasses the full area to plot
 	'''
-	def __init__(self, circle_extent=None, figsize=(12.0, 12.0)):
+	def __init__(self, extent:ASTRegion=None, figsize=(12.0, 12.0)):
 		
 		self.ast_plot = None # type: Ast.Plot
 		
@@ -25,6 +28,15 @@ class SkyPlot(CornishPlot):
 		
 		naxis1 = 100
 		naxis2 = 100
+
+		if isinstance(extent, ASTCircle):
+			circle_extent = extent
+		elif isinstance(extent, ASTRegion):
+			bounding_region = extent.boundingCircle()
+			center = bounding_region.center
+		else:
+			raise ValueError("Could not determine a center point for the provided extent. Hint: provide an ASTRegion object.")
+				
 
 		# The NAXIS values are arbitrary; this object is used for mapping.
 		cards = {

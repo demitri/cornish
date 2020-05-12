@@ -85,12 +85,11 @@ fig_aspect_ratio = dy/dx
 
 #  Set up the bounding box of the image in pixel coordinates, and get
 #  the aspect ratio of the image.
-#naxis1 = int(cards["NAXIS1"])
-#naxis2 = int(cards["NAXIS2"])
-#bbox = (0.5, 0.5, naxis1 + 0.5, naxis2 + 0.5)
-#fits_aspect_ratio = ( bbox[3] - bbox[1] )/( bbox[2] - bbox[0] )
+naxis1 = int(cards["NAXIS1"])
+naxis2 = int(cards["NAXIS2"])
 bbox = (0.5, 0.5, naxis1 + 0.5, naxis2 + 0.5)
-fits_aspect_ratio = 1
+fits_aspect_ratio = ( bbox[3] - bbox[1] )/( bbox[2] - bbox[0] )
+#fits_aspect_ratio = 1
 
 #  Set up the bounding box of the image as fractional offsets within the
 #  figure. The hx and hy variables hold the horizontal and vertical half
@@ -129,8 +128,8 @@ ax_plot.patch.set_alpha(0.0)
 #  marks and strings) into this second Axes structure.
 grf = Grf.grf_matplotlib( ax_plot )
 
-print(f"gbox: {gbox}")
-print(f"bbox: {bbox}")
+#print(f"gbox: {gbox}")
+#print(f"bbox: {bbox}")
 
 # box in graphics coordinates (area to draw on, dim of plot)
 #plot = Ast.Plot( frameset.astObject, gbox, bbox, grf )
