@@ -194,39 +194,25 @@ class ASTFITSChannel(ASTChannel):
 			
 			if _astropy_available and isinstance(card, astropy.io.fits.card.Card):
 				#self.astObject.putfits(card.image)
-				fits_header_card = card.image
-				#return
+				if len(card.image) > 80 and "&'CONTINUE" in card.image:
+					# Astropy will concatenate long strings into one card, e.g.
+					#    "SEXCAT  = '/home/eisa2/fltops/pipe/01-vsn/03000-MISDR1_24278_0266/d/00-visits/&'CONTINUE  '0001-img/07-try/MISDR1_24278_0266_0001-nd-cat.fits'
+					# Split them back up again.
+					cards = card.image.split("CONTINUE")
+					self.astObject.putfits(cards.pop(0), overwrite)
+					for c in cards:
+						self.astObject.putfits("CONTINUE"+c, overwrite)
+					self.astObject.retainfits()
+					return
+				else:
+					fits_header_card = card.image
+					#return
 			
-			elif isinstance(card, str) and len(card) <= 80:
-				#self.astObject.putfits(card)
-				fits_header_card = card
-				#return
-				
-				# ** I don't think this code is needed / was used. **
-				
-				# parse individual strings and convert to the appropriate value
-# 				if "=" in card:
-# 					keyword, string_value = card.split("=")
-# 					keyword = keyword.strip()
-# 					string_value = string_value.strip()
-# 					try:
-# 						# handles (float, int), converted to the correct type
-# 						value = ast.literal_eval(string_value)
-# 					except ValueError:
-# 						# string value
-# 						if s == "T":
-# 							value = True
-# 						elif s == "F":
-# 							value = False
-# 						else:
-# 							# a regular string - remove leading and trailing quotes if present
-# 							if s[0] == "'" and s[-1] == "'":
-# 								value = s[1:-1]
-# 							else:
-# 								value = s
-# 					self.astObject[keyword] = value
-# 				return
-			
+			elif isinstance(card, str):
+				if len(card) <= 80:
+					fits_header_card = card
+				else:
+					raise NotImplementedError("handle long cards")
 			else:
 				raise Exception("Unknown card type: '{0}'.".format(type(card)))
 		
@@ -273,7 +259,7 @@ class ASTFITSChannel(ASTChannel):
 #				else:
 #					raise Exception("Not implemented: handle value of type '{0}'.".format(type(value)))
 		
-		assert len(fits_header_card) <= 80, "The FITS card is incorrectly formatted (>80 char) or a bad value has been given: '{0}'".format(fits_header_card)
+		assert len(fits_header_card) <= 80, "The FITS card is incorrectly formatted (>80 char) or a bad value has been given: \"{0}\"".format(fits_header_card)
 		
 		self.astObject.putfits(fits_header_card, overwrite)
 		self.astObject.retainfits() # this a single flag -> turn into a top level property

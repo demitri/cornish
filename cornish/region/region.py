@@ -114,23 +114,23 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		#else:
 		#	raise Exception("ASTBox: unexpected frame type specified ('{0}').".format(type(frame)))
 
-# 		if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]) or dimensions is not None:
-# 			if dimensions is not None:
-# 				input_form = CORNER_CORNER
-# 				p1 = [0.5,0.5] # use 0.5 to specify the center of each pixel
-# 				p2 = [dimensions[0]+0.5, dimensions[1]+0.5]
-# 			elif centerPoint is None:
-# 				input_form = CORNER_CORNER
-# 				p1 = [cornerPoint[0], cornerPoint[1]]
-# 				p2 = [cornerPoint2[0], cornerPoint2[1]]
-# 				dimensions = [math.fabs(cornerPoint[0] - cornerPoint2[0]),
-# 							  math.fabs(cornerPoint[1] - cornerPoint2[1])]
-# 			else:
-# 				input_form = CENTER_CORNER
-# 				p1 = [centerPoint[0], centerPoint[1]]
-# 				p2 = [cornerPoint[0], cornerPoint[1]]
-# 				dimensions = [2.0 * math.fabs(centerPoint[0] - cornerPoint[0]),
-# 							  2.0 * math.fabs(centerPoint[1] - cornerPoint[1])]
+		#if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]) or dimensions is not None:
+		#	if dimensions is not None:
+		#		input_form = CORNER_CORNER
+		#		p1 = [0.5,0.5] # use 0.5 to specify the center of each pixel
+		#		p2 = [dimensions[0]+0.5, dimensions[1]+0.5]
+		#	elif centerPoint is None:
+		#		input_form = CORNER_CORNER
+		#		p1 = [cornerPoint[0], cornerPoint[1]]
+		#		p2 = [cornerPoint2[0], cornerPoint2[1]]
+		#		dimensions = [math.fabs(cornerPoint[0] - cornerPoint2[0]),
+		#					  math.fabs(cornerPoint[1] - cornerPoint2[1])]
+		#	else:
+		#		input_form = CENTER_CORNER
+		#		p1 = [centerPoint[0], centerPoint[1]]
+		#		p2 = [cornerPoint[0], cornerPoint[1]]
+		#		dimensions = [2.0 * math.fabs(centerPoint[0] - cornerPoint[0]),
+		#					  2.0 * math.fabs(centerPoint[1] - cornerPoint[1])]
 
 		# input_form constants (define properly elsewhere?)
 		CENTER_CORNER = 0

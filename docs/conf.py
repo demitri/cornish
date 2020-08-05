@@ -38,11 +38,11 @@ extensions = [
 	'sphinx.ext.autodoc',
 	'sphinx.ext.intersphinx',
 	'sphinx.ext.graphviz',
-	'sphinx.ext.inheritance_diagram',
-	'sphinx.ext.viewcode',
-	'sphinx.ext.todo',
-	'sphinx.ext.napoleon', # must appear before 'sphinx-autodoc-typehints'
-	'sphinx_autodoc_typehints'
+ 	'sphinx.ext.inheritance_diagram',
+ 	'sphinx.ext.viewcode',
+ 	'sphinx.ext.todo',
+ 	'sphinx.ext.napoleon', # must appear before 'sphinx-autodoc-typehints'
+ 	'sphinx_autodoc_typehints'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -59,8 +59,8 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 intersphinx_cache_limit = 5
 
 intersphinx_mapping = {
-	'astropy'    : ('https://docs.astropy.org/en/stable/objects.inv', None),
-	'numpy'      : ('https://docs.scipy.org/doc/numpy/', None)
+	'astropy'    : ('https://docs.astropy.org/en/stable', None),
+	'numpy'      : ('https://numpy.org/doc/stable/', None)
 }
 
 todo_include_todos = True

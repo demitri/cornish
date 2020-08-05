@@ -48,14 +48,14 @@ bounding_circle = box_region.boundingCircle()
 fits_chan = ASTFITSChannel()
 
 cards = {
-	"CRVAL1":bounding_circle.center[0],  # reference point (image center) in sky coords
-	"CRVAL2":bounding_circle.center[1],
-	"CTYPE1":"RA---TAN", #"GLON-TAN"
-	"CTYPE2":"DEC--TAN", #"GLAT-TAN"
+	"CRVAL1":bounding_circle.center[0],  # reference point value (image center) in sky coords (RA)
+	"CRVAL2":bounding_circle.center[1],  # reference point value (image center) in sky coords (dec)
+	"CTYPE1":"RA---TAN", #"GLON-TAN" # first coordinate RA, projection tangential
+	"CTYPE2":"DEC--TAN", #"GLAT-TAN" # # second coordinate dec, projection tangential
 	"CRPIX1":50.5, # reference point (image center) point in pixel coords
 	"CRPIX2":50.5,
-	"CDELT1":2.1*bounding_circle.radius/100,
-	"CDELT2":2.1*bounding_circle.radius/100,
+	"CDELT1":2.1*bounding_circle.radius/100, # per pixel increment along RA, degrees/pixel
+	"CDELT2":2.1*bounding_circle.radius/100, # per pixel increment along dec, degrees/pixel
 	"NAXIS1":100,
 	"NAXIS2":100,
 	"NAXES":2,

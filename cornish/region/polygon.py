@@ -183,7 +183,7 @@ class ASTPolygon(ASTRegion):
 		:param frame: the frame the points lie in, specified as an ASTSkyFrame object
 		:returns: new ASTPolygon object
 		'''
-		if radec_pairs is None and (ra is not None or dec is not None):
+		if radec_pairs is None and (ra is None or dec is None):
 			raise ValueError("Cannot specify both 'radec_pairs' and 'ra' or 'dec'.")
 		if any([x is not None for x in [ra,dec]]) and not all([x is not None for x in [ra,dec]]):
 			raise ValueError("If one of 'ra','dec' is provided, both must be.")
@@ -194,7 +194,7 @@ class ASTPolygon(ASTRegion):
 		#  set of positions on the sky. The astConvex method determines the
 		#  required polygon by examining an array of pixel values, so we first
 		#  need to create a suitable pixel array. An (M,M) integer array is first
-		#  created and initialised to hold zero at every pixel. A tangent plane
+		#  created and initialised to hold zero axt every pixel. A tangent plane
 		#  projection is then determined that maps the smallest circle containing
 		#  the specified (RA,Dec) positions onto the grid of (M,M) pixels. This
 		#  projection is then used to convert each (RA,Dec) position into a pixel
