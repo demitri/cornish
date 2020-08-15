@@ -13,7 +13,7 @@ def get_property(prop:str, project:str):
 	result = re.search(r'{}\s*=\s*[\'"]([^\'"]*)[\'"]'.format(prop), open(project + '/__init__.py').read())
 	return result.group(1)
 	
-with open('README.md') as readme_file:
+with open('README.rst') as readme_file:
     readme = readme_file.read()
 
 try:
@@ -48,7 +48,7 @@ setup(
     version=__version__,
     #version=get_property('__version__', 'cornish'),
     description=description,
-    long_description=f"{readme}\\n\n{history}",
+    long_description=f"{readme}\n\n{history}",
     #long_description_content_type='text/markdown; charset=UTF-8; variant=GFM',
     #license="GPL",
     #classifiers=classifiers,
