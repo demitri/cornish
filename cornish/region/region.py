@@ -1,4 +1,8 @@
 
+from __future__ import annotations # remove in Python 3.10
+# Needed for forward references, see:
+# https://stackoverflow.com/a/33533514/2712652
+
 from abc import ABCMeta
 from typing import Iterable, Union
 
@@ -164,6 +168,15 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		else:
 			raise Exception(f"Unexpected region type encountered: {type(ast_object)}.")
 
+	@classmethod
+	def fromPoints(cls, points:np.ndarray) -> ASTRegion:
+		'''
+		Create a new region from a set of points.
+		
+		:points: a collection of points as vertex pairs
+		'''
+		
+
 	@property
 	def points(self) -> np.ndarray:
 		'''
@@ -250,12 +263,12 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			raise Exception("ASTRegion.isClosed property must be one of [True, False, 1, 0].")
 	
 	@property
-	def isBounded(self):
+	def isBounded(self) -> bool:
 		''' Boolean attribute that indicates whether the region is bounded. '''
-		return self.astObject.get("Bounded")
+		return self.astObject.get("Bounded") == "1"
 
 	@isBounded.setter
-	def isBounded(self, newValue):
+	def isBounded(self, newValue:Union[bool,int]):
 		if newValue in [True, 1]:
 			self.astObject.set("Bounded=1")
 		elif newValue in [False, 0]:
@@ -263,14 +276,14 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		else:
 			raise Exception("ASTRegion.isBounded property must be one of [True, False, 1, 0].")
 	
-	def frame(self): # -> ASTFrame:
+	def frame(self) -> ASTFrame:
 		'''
 		Returns a copy of the frame encapsulated by this region.
 		'''
 		ast_frame = self.astObject.getregionframe()
 		return ASTFrame.frameFromAstObject(ast_frame)
 
-	def frameSet(self):
+	def frameSet(self) -> ASTFrameSet:
 		'''
 		Returns a copy of the frameset encapsulated by this region.
 		
@@ -283,12 +296,12 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		return ASTFrameSet(ast_object=self.astObject.getregionframeset())
 		
 	@property
-	def meshSize(self):
+	def meshSize(self) -> int:
 		''' Number of points used to create a mesh covering the region. '''
-		return self.astObject.get("MeshSize")
+		return int(self.astObject.get("MeshSize"))
 	
 	@meshSize.setter
-	def meshSize(self, newValue):
+	def meshSize(self, newValue:int):
 		if isinstance(newValue, int):
 			if newValue < 5:
 				newValue = 5
@@ -325,7 +338,22 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		raise NotImplementedError()
 		# use the "bounds" method above to create a bounding box
 
-	def overlaps(self, region):
+	def boundingCircle(self):
+		'''
+		Returns the smallest circle (ASTCircle) that bounds this region.
+		
+		It is up to the caller to know that this is a 2D region (only minimal checks are made).
+		:raises cornish.exc.NotA2DRegion: raised when attempting to get a bounding circle for a region that is not 2D
+		'''
+		
+		if self.naxes != 2:
+			raise NotA2DRegion(f"A bounding circle can only be computed on a 2D region; this region has {self.naxes} axes.")
+		
+		from .circle import ASTCircle
+		centre, radius = self.astObject.getregiondisc() # returns radians
+		return ASTCircle(frame=self, center=np.rad2deg(centre), radius=rad2deg(radius))
+
+	def overlaps(self, region) -> bool:
 		'''
 		Return 'True' if this region overlaps with the provided one.
 		'''
@@ -353,7 +381,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		elif return_value == 6:
 			return False			# the second region is the exact negation of this region to within their uncertainties
 
-	def isIdenticalTo(self, region):
+	def isIdenticalTo(self, region:ASTRegion) -> bool:
 		'''
 		Returns 'True' if this region is identical (to within their uncertainties) to the provided region, 'False' otherwise.
 		'''
@@ -371,7 +399,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		else:
 			return return_value == 5
 
-	def isFullyWithin(self, region):
+	def isFullyWithin(self, region:ASTRegion) -> bool:
 		'''
 		Returns 'True' if this region is fully within the provided region.
 		'''
@@ -389,7 +417,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		else:
 			return return_value == 2
 
-	def fullyEncloses(self, region):
+	def fullyEncloses(self, region:ASTRegion) -> bool:
 		'''
 		Returns 'True' if this region fully encloses the provided region.
 		'''
@@ -539,23 +567,23 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 		self.astObject.mapregionmesh( mapping, frame )
 
-	def boundaryPointMesh(self, npoints=None):
+	def boundaryPointMesh(self, npoints:int=None):
 		'''
 		Returns an array of evenly distributed points that cover the boundary of the region.
 		For example, if the region is a box, it will generate a list of points that trace the edges of the box.
 		
 		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
 		
-		@param npoints The approximate number of points to generate in the mesh.
-		@returns List of points.
+		:param npoints: The approximate number of points to generate in the mesh.
+		:returns: List of points.
 		'''
 		# The starlink.AST object uses the attribute "MeshSize" to determine the number of points to
 		# use. This should be specified when building the mesh - the attribute doesn't seem to be used
 		# anywhere else. This method shouldn't change the value in case that's not true, but we'll make
 		# this one step here.
 		
-		if npoints is not None and not isinstance(npoints, int):
-			raise Exception("The parameter 'npoints' must be an integer ('{1}' provided).".format(npoints))
+		#if npoints is not None and not isinstance(npoints, int):
+		#	raise Exception("The parameter 'npoints' must be an integer ('{1}' provided).".format(npoints))
 		
 		if npoints is None:
 			pass # use default meshSize value
@@ -574,7 +602,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 		if npoints is not None:
 			# restore original value
-			self.astObject.meshSize = old_mesh_size #self.astObject.set("MeshSize={0}".format(old_mesh_size))
+			self.meshSize = old_mesh_size #self.astObject.set("MeshSize={0}".format(old_mesh_size))
 		
 		return mesh.T # returns as a list of pairs of points, not two parallel arrays
 		
@@ -613,22 +641,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# .. todo:: double check points as degrees vs radians!
 
 		return mesh.T
-	
-	def boundingCircle(self):
-		'''
-		Returns the smallest circle (ASTCircle) that bounds this region.
 		
-		It is up to the caller to know that this is a 2D region (only minimal checks are made).
-		:raises cornish.exc.NotA2DRegion: raised when attempting to get a bounding circle for a region that is not 2D
-		'''
-		
-		if self.naxes != 2:
-			raise NotA2DRegion(f"A bounding circle can only be computed on a 2D region; this region has {self.naxes} axes.")
-		
-		from .circle import ASTCircle
-		centre, radius = self.astObject.getregiondisc() # returns radians
-		return ASTCircle(frame=self, center=np.rad2deg(centre), radius=rad2deg(radius))
-	
 
 
 

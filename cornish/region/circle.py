@@ -13,6 +13,7 @@ import starlink
 import starlink.Ast as Ast
 
 from .region import ASTRegion
+from .polygon import ASTPolygon
 from ..mapping import ASTMapping
 from ..mapping import ASTFrame
 
@@ -156,7 +157,7 @@ class ASTCircle(ASTRegion):
 	@property
 	def center(self):
 		'''
-		The center of this circle region in degrees (a synonym for "self.centre").
+		The center of this circle region in degrees (a synonym for :py:func:`self.centre`").
 		
 		Returns
 		-------
@@ -178,8 +179,18 @@ class ASTCircle(ASTRegion):
 		
 		( center, radius, some_point_on_circumference ) = self.astObject.circlepars()
 		
-		# TODO: possibly cache this
+		# ..todo:: possibly cache this
+		# ..todo:: create another method (e.g. centerCoord) that returns an astropy.coordinates.SkyCoordinate object; would need to check if it's a sky object
+		#          example use is from boundingCircle, but that does is not a SkyFrame.
 		
 		return np.rad2deg(center)
 			
-	
+	def toPolygon(self, npoints=200):
+		'''
+		Returns a new polygon region that approximates this circle in the same frame.
+		
+		:param npoints: number of points to use for the resulting polygon
+		'''
+		points = self.boundaryPointMesh(npoints=npoints)
+		return ASTPolygon.fromPointsOnSkyFrame(radec_pairs=points, frame=self.frame)
+		

@@ -49,7 +49,7 @@ class ASTBox(ASTRegion):
 	:param centerPoint:
 	:param dimensions:
 	'''
-	def __init__(self, ast_box:starlink.Ast.Box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None, dimensions=None):
+	def __init__(self, ast_object:starlink.Ast.Box=None, frame=None, cornerPoint=None, cornerPoint2=None, centerPoint=None, dimensions=None):
 		#self.astFrame = frame
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		#self._ast_box = None
@@ -58,19 +58,19 @@ class ASTBox(ASTRegion):
 		# dimensions = pixel dimensions
 		self.dimensions = None
 		
-		if ast_box is not None:
-			if isinstance(ast_box, Ast.Box):
+		if ast_object is not None:
+			if isinstance(ast_object, Ast.Box):
 				if not any([cornerPoint, cornerPoint2, centerPoint, dimensions]):
-					self.astObject = ast_box
+					self.astObject = ast_object
 					return
 				else:
-					raise Exception("ASTBox: Cannot specify both an 'ast_box' and any other parameter.")
+					raise Exception("ASTBox: Cannot specify both an 'ast_object' and any other parameter.")
 			else:
-				raise Exception("ASTBox: The ast_box provided was not of type starlink.Ast.Box.")
+				raise Exception("ASTBox: The 'ast_object' provided was not of type starlink.Ast.Box.")
 		
 		# input forms:
 		#    0: box specified by center point and any corner point
-		#    1: box specified by a corner and its oppsite corner
+		#    1: box specified by a corner and its opposite corner
 		input_form = None
 		
 		# Get the frame from the FITS header
