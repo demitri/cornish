@@ -15,7 +15,7 @@ import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
 # import from local files rather than an installed version:
-sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath('../source'))
 
 import cornish
 

@@ -1,0 +1,3 @@
+numpy>=1.18
+starlink-pyast>=3.14.4
+astropy
