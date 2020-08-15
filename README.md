@@ -12,7 +12,20 @@ Cornish is currently under active development and all APIs are subject to change
 
 Many thanks to David Berry for the generous and extremely responsive help and advice in the development of the library.
 
-### Examples
+## Installation
+
+#### Install from PyPy
+
+    pip install cornish
+
+#### Install from source
+
+    git clone https://github.com/demitri/cornish.git
+    cd cornish/source
+    python setup.py install
+
+
+## Examples
 
 The main documentation (in progress) will be the primary reference for this library. A few examples demonstrate its capabilities.
 
