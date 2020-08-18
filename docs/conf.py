@@ -26,7 +26,7 @@ copyright = '2020, Demitri Muna'
 author = 'Demitri Muna'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0'
+release = cornish.__version__
 
 
 # -- General configuration ---------------------------------------------------

@@ -139,18 +139,18 @@ class ASTCircle(ASTRegion):
 														self.center, self.radius)
 	
 	@property
-	def radius(self):
+	def radius(self) -> astropy.units.quantity.Quantity:
 		'''
 		The radius of this circle region in degrees.
 		
-		:returns: The radius as a geodesic distance in the associated coordinate system in degrees.
+		:returns: The radius as a geodesic distance in the associated coordinate system as an astropy Quantity object in degrees.
 		'''
 		center = None
 		radius = None
 		
 		( center, radius, some_point_on_circumference ) = self.astObject.circlepars()
 		
-		return rad2deg(radius)
+		return rad2deg(radius) * u.deg
 		
 		# TODO: possibly cache this
 
@@ -193,4 +193,7 @@ class ASTCircle(ASTRegion):
 		'''
 		points = self.boundaryPointMesh(npoints=npoints)
 		return ASTPolygon.fromPointsOnSkyFrame(radec_pairs=points, frame=self.frame)
-		
+	
+	@property
+	def area(self):
+		raise NotImplementedError()

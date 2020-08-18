@@ -1,11 +1,10 @@
-__version__ = '0.0.0'
 
 import logging
 
 from .ast_object import ASTObject
 
 # channels
-from .channel.ast_channel import *
+from .channel.ast_channel import ASTChannel
 from .channel.fits_channel import *
 
 # mapping

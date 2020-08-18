@@ -253,7 +253,9 @@ class ASTBox(ASTRegion):
 		
 		return corner_points
 	
-
+	@property
+	def area(self):
+		raise NotImplementedError()
 			
 			
 		

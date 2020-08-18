@@ -642,7 +642,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 		return mesh.T
 		
-
+	@abstractproperty
+	def area(self):
+		# subclasses  must implement
+		raise NotImplementedError()
 
 
 

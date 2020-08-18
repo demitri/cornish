@@ -378,5 +378,14 @@ class ASTPolygon(ASTRegion):
 		ast_polygon = self.astObject.downsize(maxerr, maxvert)
 		return ASTPolygon(ast_object=ast_polygon)
 
-
+	@property
+	def area(self):
+		'''
+		
+		'''
+		# See: https://stackoverflow.com/questions/1340223/calculating-area-enclosed-by-arbitrary-polygon-on-earths-surface
+		# Multiple useful answers on that page.
+		# see also: https://github.com/anutkk/sphericalgeometry/blob/master/sphericalgeometry/highlevel.py#L145
+		#           https://github.com/spacetelescope/spherical_geometry/blob/fbdc54aa5e5953c5b22723c0982a5f0b45ab2d39/spherical_geometry/polygon.py#L525
+		raise NotImplementedError()
 

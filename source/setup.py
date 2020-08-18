@@ -13,9 +13,6 @@ def get_property(prop:str, project:str):
 	result = re.search(r'{}\s*=\s*[\'"]([^\'"]*)[\'"]'.format(prop), open(project + '/__init__.py').read())
 	return result.group(1)
 	
-with open('README.rst') as readme_file:
-    readme = readme_file.read()
-
 try:
 	with open('HISTORY.rst') as history_file:
 		history = history_file.read()
@@ -32,7 +29,10 @@ define_macros = [('NPY_NO_DEPRECATED_API', 'NPY_1_18_API_VERSION')] # warn if us
 extra_link_args = [] # e.g. ['-framework', 'OpenGL', '-framework', 'GLUT'])
 
 description = ("A pure Python interface to the excellent Starlink AST library.")
-long_description = '''<long description here>'''
+#long_description = '''<long description here>'''
+with open('README.rst') as readme_file:
+    readme = readme_file.read()
+
 
 # list of classifiers: https://pypi.org/classifiers/
 classifiers = [
@@ -46,6 +46,8 @@ exec(open('cornish/version.py').read())
 setup(
     name="cornish",
     version=__version__,
+    author="Demitri Muna",
+    author_email="demitri@trillianverse.org",
     #version=get_property('__version__', 'cornish'),
     description=description,
     long_description=f"{readme}\n\n{history}",
@@ -62,15 +64,14 @@ setup(
     	"Documentation": "https://github.com/demitri/cornish",
     	"Source Code":"https://github.com/demitri/cornish",
     },
-    author="Demitri Muna",
-    author_email="demitri@trillianverse.org",
     #setup_requires=['wheel'], # needed to package for distribution
     #install_requires=[],
-    #packages=find_packages(),
+    #packages=['cornish'],
+    packages=setuptools.find_packages(),#exclude=["tests"]), # https://setuptools.readthedocs.io/en/latest/setuptools.html#id15
     data_files=data_files,
     #ext_package="cornish", # will compile the methods from the extension to the namespace "cornish"
     #ext_modules=[c_extension], # alternative: cythonize(etc), needs "from Cython.Build import cythonize"
     #include_dirs=[],
-    packages=['cornish'],
+    #py_modules=['cornish'], 
     python_requires='>=3.6'
 )
