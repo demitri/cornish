@@ -1,5 +1,9 @@
 
-from typing import Union, Iterator
+from __future__ import annotations # remove in Python 3.10
+# Needed for forward references, see:
+# https://stackoverflow.com/a/33533514/2712652
+
+from typing import Union, Iterator, List
 
 import astropy
 import astropy.units as u
@@ -15,7 +19,8 @@ import starlink.Ast as Ast
 from .region import ASTRegion
 from .polygon import ASTPolygon
 from ..mapping import ASTMapping
-from ..mapping import ASTFrame
+from ..mapping.frame import ASTFrame
+from ..mapping.frame.sky_frame import ASTICRSFrame
 
 __all__ = ["ASTCircle"]
 
@@ -37,7 +42,7 @@ class ASTCircle(ASTRegion):
 	:param edge_point:
 	:param radius:
 	'''
-	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=None, center:Iterator=None, edge_point=None, radius:[float, astropy.units.quantity.Quantity]=None):
+	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=None, center:Union[astropy.coordinates.SkyCoord, Iterator]=None, edge_point=None, radius:[float, astropy.units.quantity.Quantity]=None):
 		'''
 		Parameters
 		----------
@@ -47,6 +52,7 @@ class ASTCircle(ASTRegion):
 		edgePoint : `numpy.ndarray`, list, tuple
 			Two elements that describe a point on the circumference of the circle in the provided frame in degrees
 	
+		:param frame: an :py:class:`ASTFrame` object; :py:class:`astropy.coordinates.ICRS` also supported
 		:param radius: float, `astropy.units.quantity.Quantity`
 			The radius in degrees (if float) of the circle to be created.
 		'''
@@ -73,9 +79,12 @@ class ASTCircle(ASTRegion):
 			if isinstance(frame, ASTFrame):
 				self.frame = frame
 			elif isinstance(frame, starlink.Ast.Frame):
-				self.frame = ASTFrame(frame=frame)
+				self.frame = ASTFrame.frameFromAstObject(frame)
+			elif isinstance(frame, astropy.coordinates.builtin_frames.icrs.ICRS):
+				self.frame = ASTICRSFrame()
 			else:
 				raise Exception("ASTCircle: unexpected frame type specified ('{0}').".format(type(frame)))
+			
 				
 		if all([x is not None for x in [edge_point, radius]]):
 			raise ValueError("Both 'edge_point' and 'radius' cannot be simultaneously specified.")
@@ -193,6 +202,12 @@ class ASTCircle(ASTRegion):
 		'''
 		points = self.boundaryPointMesh(npoints=npoints)
 		return ASTPolygon.fromPointsOnSkyFrame(radec_pairs=points, frame=self.frame)
+	
+	def boundingCircle(self) -> ASTCircle:
+		'''
+		This method returns "self"; a circle region is its own bounding circle.
+		'''
+		return self
 	
 	@property
 	def area(self):

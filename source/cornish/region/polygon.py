@@ -312,7 +312,7 @@ class ASTPolygon(ASTRegion):
 			# Transform the centre position from sky to pixel coordinates.
 			( x_cen, y_cen ) = wcs.tran( [[centre[0]], [centre[1]]], False )
 			
-			#  For each vertex, extend it's radial vector by 20 pixels. Create lists
+			#  For each vertex, extend its radial vector by 20 pixels. Create lists
 			#  of extended x and y vertex positions. [Expanding about the centroid of
 			#  the original vertices may give better results than expanding about the
 			#  centre of the bounding disc in some cases].

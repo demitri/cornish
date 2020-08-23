@@ -39,7 +39,8 @@ class ASTFITSChannel(ASTChannel):
 	:param hdu: a FITS HDU of type `astropy.io.fits.hdu.base.ExtensionHDU` or `fitsio.fitslib.HDUBase`
 	:param header: a FITS header, type `astropy.io.fits.header.Header` or `fitsio.fitslib.FITSHDR`, a list of tuples/arrays (keyword,value), or a single string
 	'''
-	def __init__(self, ast_object:Ast.FitsChan=None, hdu:Union[astropy.io.fits.hdu.base.ExtensionHDU,fitsio.hdu.base.HDUBase]=None, header=None):
+	# note: quote 'fitsio.hdu.base.HDUBase' as is it an optional package
+	def __init__(self, ast_object:Ast.FitsChan=None, hdu:Union[astropy.io.fits.hdu.base.ExtensionHDU,'fitsio.hdu.base.HDUBase']=None, header=None):
 		'''
 		Initialize object with either an HDU or header from fitsio or astropy.io.fits.
 		
@@ -83,7 +84,8 @@ class ASTFITSChannel(ASTChannel):
 			# Note that the starlink.Ast.Channel.read() operation is destructive.
 			# Save the header so it can be restored/reused.
 			self.header = header
-			if isinstance(header, (astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR)) or \
+			if isinstance(header, astropy.io.fits.header.Header) or \
+			   (_fitsio_available and isinstance(header, fitsio.fitslib.FITSHDR)) or \
 			   (isinstance(header, list) and isinstance(header[0], str)):
 			   self._readHeader()
 			elif isinstance(header, list):

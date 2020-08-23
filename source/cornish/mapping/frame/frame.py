@@ -46,9 +46,11 @@ class ASTFrame(ASTMapping):
 # 			self.astObject = ast_frame
 	
 	@staticmethod
-	def frameFromAstObject(ast_object=None):
+	def frameFromAstObject(ast_object:Ast.Frame=None):
 		'''
 		Factory method that returns the appropriate Cornish frame object (e.g. ASTSkyFrame) for a given frame.
+		
+		:param ast_object: an :py:class:`Ast.Frame` object
 		'''
 		if ast_object is None:
 			raise ValueError("An ast_object must be specified.")

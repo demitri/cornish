@@ -3,7 +3,7 @@ from __future__ import annotations # remove in Python 3.10
 # Needed for forward references, see:
 # https://stackoverflow.com/a/33533514/2712652
 
-from abc import ABCMeta
+from abc import ABCMeta, abstractproperty
 from typing import Iterable, Union
 
 import math
@@ -338,9 +338,9 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		raise NotImplementedError()
 		# use the "bounds" method above to create a bounding box
 
-	def boundingCircle(self):
+	def boundingCircle(self) -> ASTCircle:
 		'''
-		Returns the smallest circle (ASTCircle) that bounds this region.
+		Returns the smallest circle (:pt:class:``ASTCircle``) that bounds this region.
 		
 		It is up to the caller to know that this is a 2D region (only minimal checks are made).
 		:raises cornish.exc.NotA2DRegion: raised when attempting to get a bounding circle for a region that is not 2D
