@@ -20,32 +20,35 @@ __all__ = ["ASTPolygon"]
 logger = logging.getLogger('cornish')
 
 class ASTPolygon(ASTRegion):
+	'''
+	ASTPolygon is an ASTRegion that represents a polygon, a collection of vertices on a sphere in a 2D plane.
+
+	Accepted signatures for creating an ASTPolygon:
 	
+	.. code-block:: python
+
+		p = ASTPolygon(frame, points)
+		p = ASTPolygon(fits_header, points)  # get the frame from the FITS header provided
+		p = ASTPolygon(ast_object)           # where ast_object is a starlink.Ast.Polygon object
+
+	Points may be provided as a list of coordinate points, e.g.
+		
+	.. code-block:: python
+
+		[(x1, y1), (x2, y2), ... , (xn, yn)]
+		
+	or as two parallel arrays, e.g.
+
+	.. code-block:: python
+
+		[[x1, x2, x3, ..., xn], [y1, y2, y3, ..., yn]]
+	
+	:param ast_object: Create a new ASTPolygon from an existing :class:`starlink.Ast.Polygon` object.
+	:param frame: The frame the provided points lie in, accepts either ASTFrame or starlink.Ast.Frame objects.
+	:param points: Points (in degrees if frame is a SkyFrame) that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points.
+	:returns: Returns a new ASTPolygon object.
+	'''
 	def __init__(self, ast_object:starlink.Ast.Polygon=None, frame:Union[ASTFrame, starlink.Ast.Frame]=None, points=None, fits_header=None):
-		'''
-		ASTPolygon is an ASTRegion that represents a polygon, a collection of vertices on a sphere in a 2D plane.
-
-		Accepted signatures for creating an ASTPolygon:
-		
-		.. code-block:: python
-
-			p = ASTPolygon(frame, points)
-			p = ASTPolygon(fits_header, points)   # get the frame from the FITS header provided
-			p = ASTPolygon(ast_object)            # where ast_object is a starlink.Ast.Polygon object
-
-		Points may be provided as a list of coordinate points, e.g.
-			
-			`[(x1, y1), (x2, y2), ... , (xn, yn)]`
-			
-		or as two parallel arrays, e.g.
-
-			`[[x1, x2, x3, ..., xn], [y1, y2, y3, ..., yn]]`
-		
-		:param ast_object: Create a new ASTPolygon from an existing :class:`starlink.Ast.Polygon` object.
-		:param frame: The frame the provided points lie in, accepts either ASTFrame or starlink.Ast.Frame objects.
-		:param points: Points (in degrees if frame is a SkyFrame) that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points.
-		:returns: Returns a new ASTPolygon object.
-		'''
 		
 		if ast_object:
 			if any([frame, points, fits_header]):
@@ -178,8 +181,8 @@ class ASTPolygon(ASTRegion):
 		Create an ASTPolygon from an array of points. NOTE: THIS IS SPECIFICALLY FOR SKY FRAMES.
 		
 		:param radec_points: an array of pairs of points with shape (n,2), e.g. [[ra1,dec1], [ra2,dec2], ..., [ran,decn]]
-		:param ra: list of RA points, must be in degrees (or :class:`astropy.units.Quantity` objects)
-		:param dec: list of declination points, must be in degrees (or :class:`astropy.units.Quantity` objects)
+		:param ra: list of RA points, must be in degrees (or :astropy:`astropy.units.Quantity` objects)
+		:param dec: list of declination points, must be in degrees (or :astropy:`astropy.units.Quantity` objects)
 		:param frame: the frame the points lie in, specified as an ASTSkyFrame object
 		:returns: new ASTPolygon object
 		'''
@@ -381,7 +384,7 @@ class ASTPolygon(ASTRegion):
 	@property
 	def area(self):
 		'''
-		
+		Returns the area of the polygon as an :astropy:`astropy.units.Quantity`. [Not yet implemented.]
 		'''
 		# See: https://stackoverflow.com/questions/1340223/calculating-area-enclosed-by-arbitrary-polygon-on-earths-surface
 		# Multiple useful answers on that page.

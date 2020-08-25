@@ -15,7 +15,7 @@ class ASTCompoundRegion(ASTRegion):
 	e.g. if regions=[r1, r2, r3, r4]
 	the result would be
 	
-	region = compound( compound( compound(r1, r2), r3 ) r4 )
+	    region = compound( compound( compound(r1, r2), r3 ) r4 )
 	
 	all using the same operator as specified.
 	
@@ -59,3 +59,8 @@ class ASTCompoundRegion(ASTRegion):
 				return None
 		
 		super().__init__(ast_object=compound_region)
+
+	def area(self):
+		'''
+		'''
+		raise NotImplementedError()

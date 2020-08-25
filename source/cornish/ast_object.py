@@ -1,7 +1,7 @@
 
-from abc import ABCMeta
+from abc import ABC
 
-class ASTObject(metaclass=ABCMeta):
+class ASTObject(ABC):
 	'''
 	This is the root class for all AST objects.
 	

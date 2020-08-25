@@ -33,28 +33,30 @@ class ASTCircle(ASTRegion):
 	
 	Accepted signatures for creating an ASTPolygon:
 	
-	c = ASTCircle(ast_object)             # where ast_object is a starlink.Ast.Circle object
-	c = ASTCircle(frame, center, edge)
-	c = ASTCircle(frame, center, radius)
+	.. code-block:: python
+
+		c = ASTCircle(ast_object)     # where ast_object is a starlink.Ast.Circle object
+		c = ASTCircle(frame, center, edge)
+		c = ASTCircle(frame, center, radius)
 	
 	:param ast_object:
 	:param frame:
 	:param edge_point:
-	:param radius:
+	:param radius: radius of the circle in degrees
 	'''
-	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=None, center:Union[astropy.coordinates.SkyCoord, Iterator]=None, edge_point=None, radius:[float, astropy.units.quantity.Quantity]=None):
+	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=ASTICRSFrame(), center:Union[astropy.coordinates.SkyCoord, Iterator]=None, edge_point=None, radius:Union[float, astropy.units.quantity.Quantity]=None):
 		'''
 		Parameters
 		----------
-		centerPoint : `numpy.ndarray`, list, tuple
+		centerPoint : :numpy:`numpy.ndarray`, list, tuple
 			Two elements that describe the center point of the circle in the provided frame in degrees
 	
-		edgePoint : `numpy.ndarray`, list, tuple
+		edgePoint : :numpy:`numpy.ndarray`, list, tuple
 			Two elements that describe a point on the circumference of the circle in the provided frame in degrees
 	
 		:param frame: an :py:class:`ASTFrame` object; :py:class:`astropy.coordinates.ICRS` also supported
 		:param radius: float, `astropy.units.quantity.Quantity`
-			The radius in degrees (if float) of the circle to be created.
+			The radius in degrees (if `float`) of the circle to be created.
 		'''
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		
@@ -80,10 +82,10 @@ class ASTCircle(ASTRegion):
 				self.frame = frame
 			elif isinstance(frame, starlink.Ast.Frame):
 				self.frame = ASTFrame.frameFromAstObject(frame)
-			elif isinstance(frame, astropy.coordinates.builtin_frames.icrs.ICRS):
+			elif isinstance(frame, astropy.coordinates.ICRS):
 				self.frame = ASTICRSFrame()
 			else:
-				raise Exception("ASTCircle: unexpected frame type specified ('{0}').".format(type(frame)))
+				raise Exception(f"ASTCircle: unexpected frame type specified ('{type(frame)}').")
 			
 				
 		if all([x is not None for x in [edge_point, radius]]):
@@ -144,7 +146,7 @@ class ASTCircle(ASTRegion):
 		self.astObject = Ast.Circle( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty )
 	
 	def __repr__(self):
-		return "<{0}.{1} {2}: center={3} deg, r={4:0.6} deg>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
+		return "<{0}.{1} {2}: center={3} deg, r={4:0.6}>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
 														self.center, self.radius)
 	
 	@property
@@ -152,7 +154,7 @@ class ASTCircle(ASTRegion):
 		'''
 		The radius of this circle region in degrees.
 		
-		:returns: The radius as a geodesic distance in the associated coordinate system as an astropy Quantity object in degrees.
+		:returns: The radius as a geodesic distance in the associated coordinate system as an :class:`astropy.units.Quantity` object in degrees.
 		'''
 		center = None
 		radius = None
@@ -166,7 +168,7 @@ class ASTCircle(ASTRegion):
 	@property
 	def center(self):
 		'''
-		The center of this circle region in degrees (a synonym for :py:func:`self.centre`").
+		The center of this circle region in degrees (a synonym for :func:`self.centre`").
 		
 		Returns
 		-------
@@ -198,11 +200,19 @@ class ASTCircle(ASTRegion):
 		'''
 		Returns a new polygon region that approximates this circle in the same frame.
 		
+		The algorithm used in this method leads to the new polygon being fully inscribed by the
+		originating circle; all points generated are on the circle's circumference.
+		
 		:param npoints: number of points to use for the resulting polygon
 		'''
+		#old_mesh_size = self.meshSize
+		#self.meshSize = npoints
 		points = self.boundaryPointMesh(npoints=npoints)
-		return ASTPolygon.fromPointsOnSkyFrame(radec_pairs=points, frame=self.frame)
-	
+		return ASTPolygon(frame=self.astObject, points=points)
+		
+		#points = self.boundaryPointMesh(npoints=npoints)
+		#return ASTPolygon.fromPointsOnSkyFrame(radec_pairs=points, frame=self.frame)
+		
 	def boundingCircle(self) -> ASTCircle:
 		'''
 		This method returns "self"; a circle region is its own bounding circle.

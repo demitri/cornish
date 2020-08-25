@@ -8,7 +8,7 @@ import starlink.Ast as Ast
 class ASTMapping(ASTObject):
 	'''
 	
-	self.astObject is of type starlink.Ast.Mapping.
+	:param ast_object: is of type :py:class:``starlink.Ast.Mapping``.
 	'''
 	def __init__(self, ast_object=None):
 		super().__init__(ast_object=ast_object)

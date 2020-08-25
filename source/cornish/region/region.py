@@ -56,7 +56,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	'''
 	Represents a region within a coordinate system.
 	This is an abstract superclass - there is no means to create an ASTRegion object directly
-	(see ASTBox, ASTPolygon, etc.).
+	(see :py:class:`ASTBox`, :py:class:`ASTPolygon`, etc.).
 	
 	Accepted signatures for creating an ASTRegion:
 	
@@ -279,8 +279,11 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	def frame(self) -> ASTFrame:
 		'''
 		Returns a copy of the frame encapsulated by this region.
+		
+		Note that the frame is not directly accessible; both this method and the underlying `starlink-pyast` function returns a copy.
 		'''
-		ast_frame = self.astObject.getregionframe()
+		# this is not a property since a new object is being returned.
+		ast_frame = self.astObject.getregionframe() # "A pointer to a deep copy of the Frame represented by the Region."
 		return ASTFrame.frameFromAstObject(ast_frame)
 
 	def frameSet(self) -> ASTFrameSet:
@@ -288,9 +291,14 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		Returns a copy of the frameset encapsulated by this region.
 		
 		From AST docs:
-		> The base Frame is the Frame in which the box was originally defined,
-		> and the current Frame is the Frame into which the Region is currently mapped
-		> (i.e. it will be the same as the Frame returned by astGetRegionFrame).
+		
+		::
+		
+		  The base Frame is the Frame in which the box was originally
+		  defined, and the current Frame is the Frame into which the
+		  Region is currently mapped (i.e. it will be the same as the
+		  Frame returned by astGetRegionFrame).
+			
 		'''
 		raise NotImplementedError("getregionframeset() has not yet been exposed to the Python interface.")
 		return ASTFrameSet(ast_object=self.astObject.getregionframeset())
@@ -298,7 +306,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	@property
 	def meshSize(self) -> int:
 		''' Number of points used to create a mesh covering the region. '''
-		return int(self.astObject.get("MeshSize"))
+		#return int(self.astObject.get("MeshSize"))
+		return int(self.astObject.MeshSize)
 	
 	@meshSize.setter
 	def meshSize(self, newValue:int):
@@ -355,7 +364,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 	def overlaps(self, region) -> bool:
 		'''
-		Return 'True' if this region overlaps with the provided one.
+		Return ``True`` if this region overlaps with the provided one.
 		'''
 		if region is None:
 			raise ValueError("'None' was provided as the second region.")
@@ -488,15 +497,15 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		npix_masked = self.astObject.mask(mapping.astObject, mask_inside, lower_bounds, image, value)
 		return npix_masked
 		
-	def regionWithMapping(self, map=None, frame=None):
+	def regionWithMapping(self, map=None, frame=None) -> ASTRegion:
 		'''
 		Returns a new ASTRegion with the coordinate system from the supplied frame.
 		
-		Corresponds to the astMapRegion C function (starlink.Ast.mapregion).
+		Corresponds to the ``astMapRegion`` C function (``starlink.Ast.mapregion``).
 		
-		@param frame A frame containing the coordinate system for the new region.
-		@param map A mapping that can convert coordinates from the system of the current region to that of the supplied frame.
-		@returns New ASTRegion with a new coordinate system
+		:param frame: A frame containing the coordinate system for the new region.
+		:param map: A mapping that can convert coordinates from the system of the current region to that of the supplied frame.
+		:returns: new ASTRegion with a new coordinate system
 		'''
 		if frame is None:
 			raise Exception("A frame must be specified.")

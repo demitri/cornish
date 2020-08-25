@@ -1,4 +1,6 @@
 
+from .version import __version__
+
 import logging
 
 from .ast_object import ASTObject

@@ -2,6 +2,7 @@
 
 # This script plots a polygon created from points.
 
+import pdb
 import sys
 import warnings
 
@@ -9,6 +10,7 @@ import numpy as np
 from cornish import ASTPolygon
 from cornish import ASTICRSFrame, ASTFrameSet, ASTBox, ASTFITSChannel, ASTCircle, ASTCompoundRegion
 
+import astropy.units as u
 from astropy.io import fits
 import matplotlib.pyplot as plt
 import starlink.Grf as Grf
@@ -63,12 +65,13 @@ cards = {
 	"CTYPE2":"DEC--TAN", #"GLAT-TAN",
 	"CRPIX1":50.5, # reference point (image center) point in pixel coords
 	"CRPIX2":50.5,
-	"CDELT1":2.1*bounding_circle.radius/100,
-	"CDELT2":2.1*bounding_circle.radius/100,
+	"CDELT1":2.1*bounding_circle.radius.to_value(u.deg)/100,
+	"CDELT2":2.1*bounding_circle.radius.to_value(u.deg)/100,
 	"NAXIS1":100,
 	"NAXIS2":100,
 	"NAXES":2,
 }
+print(cards)
 naxis1 = cards['NAXIS1']
 naxis2 = cards['NAXIS2']
 pix2sky_mapping = ASTFrameSet.fromFITSHeader(fits_header=cards)
@@ -124,8 +127,8 @@ ax_plot.xaxis.set_visible(False)
 ax_plot.yaxis.set_visible(False)
 ax_plot.patch.set_alpha(0.0)
 
-#  Create a drawing object that knows how to draw primitives (lines,
-#  marks and strings) into this second Axes structure.
+#  Create a drawing object that knows how to draw primitives
+#  (lines, marks and strings) into this second Axes structure.
 grf = Grf.grf_matplotlib( ax_plot )
 
 #print(f"gbox: {gbox}")
