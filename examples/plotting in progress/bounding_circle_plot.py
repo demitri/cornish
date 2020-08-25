@@ -43,7 +43,7 @@ data = fits_file[0].data
 
 # todoL wrap this into the SkyPlot API
 # imshow ref: https://matplotlib.org/3.2.1/api/_as_gen/matplotlib.axes.Axes.imshow.html?highlight=imshow#matplotlib.axes.Axes.imshow
-skyplot.imageAxes.imshow( data, vmin=0, vmax=200, cmap=plt.cm.gist_heat,origin='lower', aspect='auto')
+skyplot.imageAxes.imshow( data, vmin=-50, vmax=200, cmap=plt.cm.gist_heat,origin='lower', aspect='auto')
 
 
 plt.show()
