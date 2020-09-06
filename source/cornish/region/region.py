@@ -539,7 +539,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		if new_ast_region.Class == 'Polygon' or isinstance(new_ast_region, starlink.Ast.Polygon):
 			return cornish.region.ASTPolygon(ast_object=new_ast_region)
 		elif new_ast_region.Class == 'Box' or isinstance(new_ast_region, starlink.Ast.Box):
-			return cornish.region.ASTBox(ast_box=new_ast_region)
+			return cornish.region.ASTBox(ast_object=new_ast_region)
 		else:
 			raise Exception("ASTRegion.regionWithMapping: unhandled region type (easy fix).")
 	

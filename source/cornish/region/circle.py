@@ -149,6 +149,21 @@ class ASTCircle(ASTRegion):
 		return "<{0}.{1} {2}: center={3} deg, r={4:0.6}>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
 														self.center, self.radius)
 	
+	def __add__(self, value):
+		'''
+		Return a new ASTCircle with a radius increased by the provided :class:`astropy.units.Quantity` angular distance.
+		:param value: new value is assumed to be in degrees if it's not an :class:`astropy.units.Quantity` object
+		'''
+		try:
+			value = float(value) * u.deg
+		except (ValueError, TypeError):
+			pass
+					
+		if value:
+			return ASTCircle(frame=self.frame, center=self.center, radius=self.radius + value)
+		else:
+			raise ValueError(f"Could not interpret provided value as a number.")
+	
 	@property
 	def radius(self) -> astropy.units.quantity.Quantity:
 		'''

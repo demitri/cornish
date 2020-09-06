@@ -152,16 +152,16 @@ class SkyPlot(CornishPlot):
 		else:
 			raise ValueError(f"Region provided must either be an ASTRegion or starlink.Ast.Object; was given '{type(region)}'.")
 		
-		old_color = self.astPlot.Colour_Border
-		old_style = style
+		original_color = self.astPlot.Colour_Border
+		original_style = self.astPlot.Style
 
 		self.astPlot.Style = style
 		self.astPlot.Colour_Border = color
 
 		self.astPlot.regionoutline(region)
 		
-		self.astPlot.Style = old_style
-		self.astPlot.Colour_Border = old_color
+		self.astPlot.Colour_Border = original_color
+		self.astPlot.Style = original_style
 		
 	def show(self):
 		'''

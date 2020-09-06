@@ -4,7 +4,7 @@ import sys
 import warnings
 
 import numpy as np
-from cornish import ASTFrameSet, ASTBox, ASTFITSChannel
+from cornish import ASTFrameSet, ASTRegion, ASTFITSChannel
 
 from astropy.io import fits
 import matplotlib.pyplot as plt
@@ -17,22 +17,17 @@ warnings.filterwarnings(action="ignore", message="The following header keyword i
 
 # create region from FITS image
 hdu_list = fits.open("frame-r-000094-5-0131.fits")
-box_region = ASTBox(fits_header=hdu_list[0].header)
+polygon = ASTRegion.fromFITSHeader(hdu_list[0].header)
 
-print(f"box_region is of type '{box_region.astObject.Class}'");
-print(box_region.astObject.isabox()) # --> false, why?
-print(isinstance(box_region.astObject, Ast.Box))
-print(f"{type(box_region)}, {type(box_region.astObject)}")
-
-# check that box_region is a sky system before setting "system" to a sky system
+# check that polygon is a sky system before setting "system" to a sky system
 #
-# box_region.getregionframe() # <- check is sky frame
+# polygon.getregionframe() # <- check is sky frame
 
-print(box_region.system)
+print(polygon.system)
 
 # set the region as being in ICRS
 # - internally, adds a new frame with the new system (and mapping)
-box_region.system = "ICRS" # "Galactic" -> will produce an error if not a sky system
+polygon.system = "ICRS" # "Galactic" -> will produce an error if not a sky system
 
 # Could instead use the FITS file to determine the
 # frame to draw in. This is done by getting the "system"
@@ -43,7 +38,7 @@ box_region.system = "ICRS" # "Galactic" -> will produce an error if not a sky sy
 # * make sure the system is a sky system
 
 
-bounding_circle = box_region.boundingCircle()
+bounding_circle = polygon.boundingCircle()
 
 fits_chan = ASTFITSChannel()
 
@@ -54,8 +49,8 @@ cards = {
 	"CTYPE2":"DEC--TAN", #"GLAT-TAN" # # second coordinate dec, projection tangential
 	"CRPIX1":50.5, # reference point (image center) point in pixel coords
 	"CRPIX2":50.5,
-	"CDELT1":2.1*bounding_circle.radius/100, # per pixel increment along RA, degrees/pixel
-	"CDELT2":2.1*bounding_circle.radius/100, # per pixel increment along dec, degrees/pixel
+	"CDELT1":2.1*bounding_circle.radius.to_value(u.deg)/100, # per pixel increment along RA, degrees/pixel
+	"CDELT2":2.1*bounding_circle.radius.to_value(u.deg)/100, # per pixel increment along dec, degrees/pixel
 	"NAXIS1":100,
 	"NAXIS2":100,
 	"NAXES":2,
@@ -120,7 +115,7 @@ plot = Ast.Plot( frameset.astObject, gbox, bbox, grf )
 plot.Grid = True # can change the line properties
 
 plot.grid()
-plot.regionoutline(box_region.astObject)
+plot.regionoutline(polygon.astObject)
 #plot.regionoutline(bounding_circle.astObject)
 plt.show()
 
