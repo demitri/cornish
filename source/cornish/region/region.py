@@ -605,6 +605,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 				
 		try:
 			mesh = self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
+			# if a basic frame is used instead of a sky frame, the points need to be normalized on [0,360)
+			mesh = self.astObject.norm(mesh)
 		except Ast.MBBNF as e:
 			print("AST error: Mapping bounding box not found. ({0})".format(e))
 			raise e
