@@ -158,11 +158,26 @@ class ASTCircle(ASTRegion):
 			value = float(value) * u.deg
 		except (ValueError, TypeError):
 			pass
-					
+		
 		if value:
 			return ASTCircle(frame=self.frame, center=self.center, radius=self.radius + value)
 		else:
 			raise ValueError(f"Could not interpret provided value as a number.")
+	
+	def __mul__(self, value):
+		'''
+		Return a new ASTCircle with a radius increased by a multiple of the value provided.
+		:param value: numeric value to increase the radius by, e.g. 1.2 increases the radius by 20%
+		'''
+		# try:
+		# 	new_radius = self.radius.to_value() * value
+		# except Exception as e:
+		# 	raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
+			
+		if value:
+			return ASTCircle(frame=self.frame, center=self.center, radius=self.radius.unit * self.radius.to(u.deg).value * value)
+		else:
+			raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
 	
 	@property
 	def radius(self) -> astropy.units.quantity.Quantity:

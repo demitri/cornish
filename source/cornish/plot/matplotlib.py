@@ -142,7 +142,7 @@ class SkyPlot(CornishPlot):
 		Overlay the outline of the provided region to the plot.
 		
 		:param region: the region to draw
-		:param color: a color name (e.g. ``black"``) or hex code (e.g. ``#4a7f7b``)
+		:param color: a color name (e.g. ``black``) or hex code (e.g. ``#4a7f7b``)
 		:param style: line style: 1=solid, 2=solid, 3=dashes, 4=short dashes, 5=long dashes
 		'''
 		if isinstance(region, ASTRegion):

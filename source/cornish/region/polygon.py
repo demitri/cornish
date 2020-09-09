@@ -172,7 +172,12 @@ class ASTPolygon(ASTRegion):
 		#  line, and retain them where it deviates from a stright line, in order
 		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
 		#
-		return flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon 
+		downsizedPolygon = flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon
+		
+		return downsizedPolygon
+		# Return a polygon with the same vertices bu defined in a SkyFrame
+		# rather than a flat Frame.
+		#return ASTPolygon(frame=wcsFrameSet, points=downsizedPolygon.astObject.getregionpoints()) 
 		
 	
 	@staticmethod
