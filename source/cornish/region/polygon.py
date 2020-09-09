@@ -132,7 +132,7 @@ class ASTPolygon(ASTRegion):
 		#       "Because of the FITS-WCS standard, the base Frame in a FrameSet read
 		#       from a FITS header will always represent FITS pixel coordinates, which
 		#       are defined by the FITS-WCS standard so that the bottom left (i.e.
-		#       first) pixel in a 2D array is centred at (1,1). That means that
+		#       first) pixel in a 2D array is centered at (1,1). That means that
 		#       (0.5,0.5) is the bottom left corner of the bottom left pixel, and
 		#       (dim1+0.5,dim2+0.5) is the top right corner of the top right pixel.
 		#       This results in the Box covering the whole image area."
@@ -172,12 +172,24 @@ class ASTPolygon(ASTRegion):
 		#  line, and retain them where it deviates from a stright line, in order
 		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
 		#
-		downsizedPolygon = flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon
+		downsizedpoly = flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon
 		
-		return downsizedPolygon
+		#  Create a polygon with the same vertices but defined in a SkyFrame rather than a flat Frame.
+		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet, points=downsizedpoly.astObject.getregionpoints())
+		
+		#  The order in which the vertices are supplied to the polygon constructor above
+		#  defines which side of the polygon boundary is the inside and which is the
+		#  outside. Since we do not know the order of the points returned by the
+		#  getregionpoints or boundarypointmesh methods, we check now that the
+		#  central pixel in the FITS image is "inside" the polygon, and negate
+		#  the polygon if it is not.
+		(a, b) = wcsFrameSet.astObject.tran( [[dims[0]/2], [dims[1]/2]] )
+		if not sky_frame_polygon.astObject.pointinregion( [a[0], b[0]] ):
+			 sky_frame_polygon.astObject.negate()
+		
 		# Return a polygon with the same vertices bu defined in a SkyFrame
 		# rather than a flat Frame.
-		#return ASTPolygon(frame=wcsFrameSet, points=downsizedPolygon.astObject.getregionpoints()) 
+		return sky_frame_polygon #ASTPolygon(frame=wcsFrameSet, points=downsizedPolygon.astObject.getregionpoints()) 
 		
 	
 	@staticmethod
