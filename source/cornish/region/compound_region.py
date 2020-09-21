@@ -60,7 +60,9 @@ class ASTCompoundRegion(ASTRegion):
 		
 		super().__init__(ast_object=compound_region)
 
+	@property
 	def area(self):
 		'''
+		The area of the compound region on the sphere. [Not yet implemented.]
 		'''
 		raise NotImplementedError()

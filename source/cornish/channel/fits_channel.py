@@ -4,7 +4,7 @@ import math
 import logging
 from typing import Union
 
-import ast
+#import ast
 import numpy as np
 import starlink
 import starlink.Ast as Ast
@@ -126,7 +126,7 @@ class ASTFITSChannel(ASTChannel):
 		# try to read the header from an fitsio header object
 		elif _fitsio_available and isinstance(self.header, fitsio.fitslib.FITSHDR):
 			all_cards = list()
-			[all_cards.append(record["card_string"]) for record in self.header.records()]
+			all_cards.extend([record["card_string"] for record in self.header.records()])
 			#self.fitsChan = Ast.FitsChan(source=all_cards) # don't know why this doesn't work
 			for card in all_cards:
 				self.addHeader(card=card)
@@ -458,8 +458,4 @@ class ASTFITSChannel(ASTChannel):
 		logger.debug("radius: {0} (radians), {1} (deg)".format(radius, np.rad2deg(radius)))
 		
 		return ASTCircle(frame=wcsFrame, center=np.rad2deg(center), radius=np.rad2deg(radius))
-
-
-
-
 

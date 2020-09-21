@@ -1,6 +1,5 @@
 #/usr/bin/env python
 
-from astropy.units import u
 import starlink.Ast as Ast
 
 from ... import ASTObject
@@ -60,18 +59,24 @@ class ASTFrame(ASTMapping):
 		# the order might need to be rearranged depending on the object hierarchy
 		
 		if isinstance(ast_object, Ast.SkyFrame):
+			from .sky_frame import ASTSkyFrame
 			return ASTSkyFrame(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.SpecFrame):
+			from .spec_frame import ASTSpecFrame
 			return ASTSpecFrame(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.TimeFrame):
+			from .time_frame import ASTTimeFrame
 			return ASTTimeFrame(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.CmpFrame):
-			return ASTCompositeFrame(ast_object=ast_object)
+			return ASTCompoundFrame(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.FluxFrame):
-			return ASTFluxFrame(ast_object=ast_object)
+			raise NotImplementedError("ASTFluxFrame not yet implemented.")
+			#return ASTFluxFrame(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.SpecFluxFrame):
-			return ASTSpecFluxFrame(ast_object=ast_object)
+			raise NotImplementedError("ASTSpecFluxFrame not yet implemented.")
+			#return ASTSpecFluxFrame(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.TimeFrame):
+			from .time_frame import ASTTimeFrame
 			return ASTTimeFrame(ast_object=ast_object)
 		else:
 			return ASTFrame(ast_object=ast_object)
@@ -166,7 +171,7 @@ class ASTFrame(ASTMapping):
 		The Domain attribute also controls how Frames align with each other.
 		If the Domain value in a Frame is set, then only Frames with the same Domain value can be aligned with it.
 		
-		Example values: GRID, FRACTION, PIXEL, AXIS, SKY, SPECTRUM, CURPIC, NDC, BASEPIC, GRAPHICS
+		Example values: ``GRID``, ``FRACTION``, ``PIXEL``, ``AXIS``, ``SKY``, ``SPECTRUM``, ``CURPIC``, ``NDC``, ``BASEPIC``, ``GRAPHICS``
 		
 		Frames created by the user (for instance, using WCSADD) can have any Domain value, but the standard
 		domain names should be avoided unless the standard meanings are appropriate for the Frame being created.
@@ -200,7 +205,7 @@ class ASTFrame(ASTMapping):
 		'''
 		Searches 
 		:param template_frame:
-		:returns: ... , None if no mapping can be found
+		:returns: ... , ``None`` if no mapping can be found
 		'''
 		from .frame_set import ASTFrameSet
 		if template_frame is None:
@@ -209,11 +214,11 @@ class ASTFrame(ASTMapping):
 		
 class ASTCompoundFrame(ASTObject):
 	'''
-	A compound frame is the merging of two existing `Frame`s.
+	A compound frame is the merging of two existing :class:`Frame`s.
 	For example, a `CompoundFrame` could have celestial coordinates on two axes
 	and an unrelated coordinate (wavelength, perhaps) on a third.
 	Knowledge of the relationships between the axes is preserved internally
-	by the process of constructing the `CompoundFrame` which represents them.
+	by the process of constructing the :class:`CompoundFrame` which represents them.
 	'''
 	def __init__(self, ast_object=None):
 		raise NotImplementedError()

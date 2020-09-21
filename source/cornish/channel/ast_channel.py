@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 #from typing import Union
-import starlink.Ast
+import starlink.Ast as Ast
 from ..ast_object import ASTObject
 
 __all__ = ['ASTChannel']

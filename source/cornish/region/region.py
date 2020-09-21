@@ -4,7 +4,7 @@ from __future__ import annotations # remove in Python 3.10
 # https://stackoverflow.com/a/33533514/2712652
 
 from abc import ABCMeta, abstractproperty
-from typing import Iterable, Union
+from typing import Union
 
 import math
 from math import radians as deg2rad
@@ -12,13 +12,11 @@ from math import degrees as rad2deg
 
 import numpy as np
 import astropy
-import astropy.units as u
 import starlink
 import starlink.Ast as Ast
 
 import cornish.region # to avoid circular imports below - better way?
-from ..ast_object import ASTObject
-from ..mapping import ASTFrame, ASTFrameSet, ASTMapping, ASTSkyFrame
+from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
 from ..exc import NotA2DRegion, CoordinateSystemsCouldNotBeMapped
 
 __all__ = ['ASTRegion']
@@ -69,7 +67,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	'''
 	def __init__(self, ast_object:starlink.Ast.Region=None, uncertainty=None):
 		super().__init__(ast_object=ast_object)
-		self._uncertainty = None
+		self._uncertainty = uncertainty
 	
 	@classmethod
 	def fromFITSHeader(cls, fits_header=None, uncertainty=4.848e-6):
@@ -160,8 +158,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		ast_object = ast_object.mapregion(mapping, current_frame)
 		
 		if isinstance(ast_object, Ast.Box):
+			from .box import ASTBox # avoid circular imports
 			return ASTBox(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.Circle):
+			from .circle import ASTCircle # avoid circular imports
 			return ASTCircle(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.Polygon):
 			return ASTPolygon(ast_object=ast_object)
@@ -235,7 +235,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			raise Exception("ASTRegion.adaptive property must be one of [True, False, 1, 0].")
 	
 	@property
-	def isNegated(self, newValue):
+	def isNegated(self):
 		''' Boolean attribute that indicates whether the original region has been negated. '''
 		return self.astObject.get("Negated")
 	
@@ -340,6 +340,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# e.g. for a 2D image,
 		# [-10,5], [10,20] <- ra, dec or pixel bounds
 		
+		raise Exception("test units?")
+		
+		return (lower_bounds, upper_bounds)
+		
 	def boundingBox(self):
 		'''
 		
@@ -349,7 +353,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 	def boundingCircle(self) -> ASTCircle:
 		'''
-		Returns the smallest circle (:pt:class:``ASTCircle``) that bounds this region.
+		Returns the smallest circle (:py:class:`ASTCircle`) that bounds this region.
 		
 		It is up to the caller to know that this is a 2D region (only minimal checks are made).
 		:raises cornish.exc.NotA2DRegion: raised when attempting to get a bounding circle for a region that is not 2D
@@ -477,7 +481,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 		# coded now for numpy arrays, but set ndim,shape for anything else
 		ndim = len(image.shape)
-		shape = image.shape
+		shape = image.shape # <-- unused variable!
 		
 		# assert number of axes in image == # of outputs in the mapping
 		if ndim != mapping.number_of_output_coordinates:
@@ -494,7 +498,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 #		for idx, n in enumerate(shape):
 #			upper_bounds.append(lower_bounds[idx] + n)
 
-		npix_masked = self.astObject.mask(mapping.astObject, mask_inside, lower_bounds, image, value)
+		npix_masked = self.astObject.mask(mapping.astObject, mask_inside, lower_bounds, image, mask_value)
 		return npix_masked
 		
 	def regionWithMapping(self, map=None, frame=None) -> ASTRegion:
@@ -654,7 +658,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		return mesh.T
 		
 	@abstractproperty
-	def area(self):
+	def area(self) -> astropy.units.quantity.Quantity:
 		# subclasses  must implement
 		raise NotImplementedError()
 

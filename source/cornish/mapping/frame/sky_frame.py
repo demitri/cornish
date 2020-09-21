@@ -1,8 +1,8 @@
 #/usr/bin/env python
 
-from astropy.units import u
-from .frame import ASTFrame
 import starlink.Ast as Ast
+
+from .frame import ASTFrame
 
 __all__ = ['ASTSkyFrame', 'ASTICRSFrame']
 
@@ -29,7 +29,7 @@ class ASTSkyFrame(ASTFrame):
 	:param system: coordinate system used to describe positions within the domain, see `AST System <http://starlink.eao.hawaii.edu/docs/sun211.htx/sun211ss424.html>`, default value = "ICRS"
 	:param epoch: epoch of the mean equinox as a string value, e.g. "J2000.0", "B1950.0", default = "2000.0"
 	'''
-	def __init__(self, ast_object:Ast.SkyFrame=None, equinox:str=None, system:str=None, epoch:str=None):
+	def __init__(self, ast_object:Ast.SkyFrame=None, equinox:str=None, system:str=None, epoch:str=None): 
 
 		#if all([naxes, ast_frame]):
 		#	raise Exception("The number of axes (naxes) argument cannot be specified with a provided ast_frame.")
@@ -37,7 +37,7 @@ class ASTSkyFrame(ASTFrame):
 		# TODO: if ast_frame provided, check it is a sky frame (see below)
 		
 		if ast_object and any([equinox, system, epoch]):
-			raise ValueError(f"If 'ast_object' is provided, none of the other parameters ('equinox', 'system', 'epoch') can be specified.")
+			raise ValueError("If 'ast_object' is provided, none of the other parameters ('equinox', 'system', 'epoch') can be specified.")
 		
 		if ast_object:
 			if ast_object.isaskyframe():

@@ -3,14 +3,13 @@ from __future__ import annotations # remove in Python 3.10
 # Needed for forward references, see:
 # https://stackoverflow.com/a/33533514/2712652
 
-from typing import Union, Iterator, List
-
-import astropy
-import astropy.units as u
-from astropy.coordinates import SkyCoord
+from typing import Union, Iterator
 
 from math import radians as deg2rad
 from math import degrees as rad2deg
+
+import astropy
+import astropy.units as u
 
 import numpy as np
 import starlink
@@ -18,7 +17,6 @@ import starlink.Ast as Ast
 
 from .region import ASTRegion
 from .polygon import ASTPolygon
-from ..mapping import ASTMapping
 from ..mapping.frame import ASTFrame
 from ..mapping.frame.sky_frame import ASTICRSFrame
 
@@ -31,7 +29,7 @@ class ASTCircle(ASTRegion):
 	'''
 	ASTCircle is an ASTRegion that represents a circle.
 	
-	Accepted signatures for creating an ASTPolygon:
+	Accepted signatures for creating an ASTCircle
 	
 	.. code-block:: python
 
@@ -39,32 +37,26 @@ class ASTCircle(ASTRegion):
 		c = ASTCircle(frame, center, edge)
 		c = ASTCircle(frame, center, radius)
 	
-	:param ast_object:
-	:param frame:
-	:param edge_point:
+	:param ast_object: a circle object from the ``starlink-pyast`` module
+	:param frame: a frame the circle is to be defined in, uses :class:`ASTICRSFrame` if `None`
+	:param center: two elements that describe the center point of the circle in the provided frame in degrees 
+	:param edge_point: two elements that describe a point on the circumference of the circle in the provided frame in degrees
 	:param radius: radius of the circle in degrees
 	'''
-	def __init__(self, ast_object:starlink.Ast.Circle=None, frame=ASTICRSFrame(), center:Union[astropy.coordinates.SkyCoord, Iterator]=None, edge_point=None, radius:Union[float, astropy.units.quantity.Quantity]=None):
-		'''
-		Parameters
-		----------
-		centerPoint : :numpy:`numpy.ndarray`, list, tuple
-			Two elements that describe the center point of the circle in the provided frame in degrees
-	
-		edgePoint : :numpy:`numpy.ndarray`, list, tuple
-			Two elements that describe a point on the circumference of the circle in the provided frame in degrees
-	
-		:param frame: an :py:class:`ASTFrame` object; :py:class:`astropy.coordinates.ICRS` also supported
-		:param radius: float, `astropy.units.quantity.Quantity`
-			The radius in degrees (if `float`) of the circle to be created.
-		'''
+	def __init__(self, \
+				 ast_object:starlink.Ast.Circle=None, \
+				 frame:Union[ASTFrame,Ast.astFrame,astropy.coordinates.ICRS]=None, \
+				 center:Union[astropy.coordinates.SkyCoord,Iterator]=None, \
+				 edge_point:Union[np.ndarray,Iterator]=None, \
+				 radius:Union[float,astropy.units.quantity.Quantity]=None):
+				 
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 		
 		if ast_object:
-			if any([x is None for x in [frame, centerPoint, radius, edgePoint]]):
+			if any([x is None for x in [frame, center, edge_point, radius]]):
 				raise Exception("ASTCircle: cannot specify both 'ast_object' and any other parameter.")
 
-			if isinstance(ast_object, starlink.Ast.Circle):
+			if isinstance(ast_object, Ast.Circle):
 				# make sure no other parameters are set
 				self.astObject = ast_object
 				return
@@ -76,7 +68,8 @@ class ASTCircle(ASTRegion):
 
 		# make sure we have a frame we can work with
 		if frame is None:
-			raise Exception("ASTCircle: A frame must be specified when creating an ASTCircle.")
+			frame = ASTICRSFrame()
+			#raise Exception("ASTCircle: A frame must be specified when creating an ASTCircle.")
 		else:
 			if isinstance(frame, ASTFrame):
 				self.frame = frame
@@ -103,21 +96,21 @@ class ASTCircle(ASTRegion):
 			input_form = CENTER_RADIUS
 		
 		# convert np.array types to lists so that the value can be used in 'any' and 'all' comparisons.
-#		if isinstance(centerPoint, np.ndarray):
-# 			centerPoint = centerPoint.tolist()
-# 		if isinstance(edgePoint, np.ndarray):
-# 			edgePoint = edgePoint.tolist()
-# 		if isinstance(centerPoint, astropy.coordinates.SkyCoord):
-# 			centerPoint = [centerPoint.ra.to(u.deg).value, centerPoint.dec.to(u.deg).value]
-		
-# 		if all([centerPoint, edgePoint]) or all([centerPoint, radius]):
-# 			if edgePoint:
-# 				input_form = CENTER_EDGE
-# 			else:
-# 				input_form = CENTER_RADIUS
-# 		else:
-# 			raise Exception("ASTCircle: Either 'centerPoint' and 'edgePoint' OR 'centerPoint' " + \
-# 							"and 'radius' must be specified when creating an ASTCircle.")
+		# if isinstance(centerPoint, np.ndarray):
+		# 	centerPoint = centerPoint.tolist()
+		# if isinstance(edgePoint, np.ndarray):
+		# 	edgePoint = edgePoint.tolist()
+		# if isinstance(centerPoint, astropy.coordinates.SkyCoord):
+		# 	centerPoint = [centerPoint.ra.to(u.deg).value, centerPoint.dec.to(u.deg).value]
+		# 
+		# if all([centerPoint, edgePoint]) or all([centerPoint, radius]):
+		# 	if edgePoint:
+		# 		input_form = CENTER_EDGE
+		# 	else:
+		# 		input_form = CENTER_RADIUS
+		# else:
+		# 	raise Exception("ASTCircle: Either 'centerPoint' and 'edgePoint' OR 'centerPoint' " + \
+		# 					"and 'radius' must be specified when creating an ASTCircle.")
 		
 		if isinstance(center, astropy.coordinates.SkyCoord):
 			p1 = [center.ra.to(u.rad).value, center.dec.to(u.rad).value]
@@ -198,22 +191,22 @@ class ASTCircle(ASTRegion):
 	@property
 	def center(self):
 		'''
-		The center of this circle region in degrees (a synonym for :func:`self.centre`").
+		The center of this circle region in degrees (a synonym for :func:`self.centre`" for the Americans).
 		
 		Returns
 		-------
-		:returns: A list of points [x,y] that describe the centre of the circle in degrees.
+		:returns: a list of points [x,y] that describe the centre of the circle in degrees
 		'''
 		return self.centre
 
 	@property
 	def centre(self):
 		'''
-		The center of this circle region in degrees.
+		The centre of this circle region in degrees.
 		
 		Returns
 		-------
-		:returns: A list of points [x,y] that describe the centre of the circle in degrees.
+		:returns: a list of points [x,y] that describe the centre of the circle in degrees
 		'''
 		center = None
 		radius = None
@@ -245,10 +238,12 @@ class ASTCircle(ASTRegion):
 		
 	def boundingCircle(self) -> ASTCircle:
 		'''
-		This method returns "self"; a circle region is its own bounding circle.
+		This method returns itself; a circle region is its own bounding circle.
 		'''
 		return self
 	
 	@property
 	def area(self):
+		''' The area of the circle on the sphere. [Not yet implemented.] '''
+		# see: https://math.stackexchange.com/questions/1832110/area-of-a-circle-on-sphere
 		raise NotImplementedError()

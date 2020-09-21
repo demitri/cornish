@@ -3,7 +3,6 @@ import math
 import logging
 from typing import Union
 
-import starlink
 import starlink.Ast as Ast
 import astropy.units as u
 import astropy
@@ -11,9 +10,7 @@ import numpy as np
 
 from .box import ASTBox
 from .region import ASTRegion
-from ..mapping import ASTMapping
 from ..mapping import ASTFrame, ASTSkyFrame
-from ..exc import FrameNotFoundException
 
 __all__ = ["ASTPolygon"]
 
@@ -48,13 +45,13 @@ class ASTPolygon(ASTRegion):
 	:param points: Points (in degrees if frame is a SkyFrame) that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points.
 	:returns: Returns a new ASTPolygon object.
 	'''
-	def __init__(self, ast_object:starlink.Ast.Polygon=None, frame:Union[ASTFrame, starlink.Ast.Frame]=None, points=None, fits_header=None):
+	def __init__(self, ast_object:Ast.Polygon=None, frame:Union[ASTFrame, Ast.Frame]=None, points=None, fits_header=None):
 		
 		if ast_object:
 			if any([frame, points, fits_header]):
 				raise ValueError("ASTPolygon: Cannot specify 'ast_object' along with any other parameter.")
 			# test object
-			if isinstance(ast_object, starlink.Ast.Polygon):
+			if isinstance(ast_object, Ast.Polygon):
 				super().__init__(ast_object=ast_object)
 				return
 			else:
@@ -68,17 +65,16 @@ class ASTPolygon(ASTRegion):
 			if frame is not None:
 				raise ValueError("ASTPolygon: Provide the frame via the 'frame' parameter or the FITS header, but not both.")
 			
-			from ..channel import ASTFITSChannel
 			frame_set = ASTFrameSet.fromFITSHeader(fits_header=fits_header).baseFrame # raises FrameNotFoundException
 		
-		if isinstance(frame, starlink.Ast.Frame):
+		if isinstance(frame, Ast.Frame):
 			ast_frame = frame
 		elif isinstance(frame, ASTFrame):
 			ast_frame = frame.astObject
 		else:
 			raise Exception("ASTPolygon: The supplied 'frame' object must either be a starlink.Ast.Frame or ASTFrame object.")
 		
-		if isinstance(frame, (starlink.Ast.SkyFrame, ASTSkyFrame)):
+		if isinstance(frame, (Ast.SkyFrame, ASTSkyFrame)):
 			points = np.deg2rad(points)
 		
 		# The problem with accepting both forms is that the case of two points is ambiguous:
@@ -91,7 +87,7 @@ class ASTPolygon(ASTRegion):
 		# Internally, the starlink.Ast.Polygon constructor takes the parallel array form of points.
 		# starlink.Ast.Polygon( ast_frame, points, unc=None, options=None )
 
-		parallel_arrays = not (len(points[0]) == 2)
+		parallel_arrays = not len(points[0]) == 2
 		
 		if parallel_arrays:
 			self.astObject = Ast.Polygon(ast_frame, points)
@@ -109,11 +105,12 @@ class ASTPolygon(ASTRegion):
 				self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2]))
 	
 	@staticmethod
-	def fromFITSHeader(header=None):
+	def fromFITSHeader(header=None, uncertainty=4.848e-6):
 		'''
 		Creates an ASTPolygon in a sky frame from a FITS header. Header must be a 2D image and contain WCS information.
 		
-		:param header:
+		:param header: a FITS header
+		:param uncertainty: TODO: parameter not yet used
 		'''
 		if header is None:
 			raise ValueError("A FITS header must be provided.")
@@ -198,8 +195,8 @@ class ASTPolygon(ASTRegion):
 		Create an ASTPolygon from an array of points. NOTE: THIS IS SPECIFICALLY FOR SKY FRAMES.
 		
 		:param radec_points: an array of pairs of points with shape (n,2), e.g. [[ra1,dec1], [ra2,dec2], ..., [ran,decn]]
-		:param ra: list of RA points, must be in degrees (or :astropy:`astropy.units.Quantity` objects)
-		:param dec: list of declination points, must be in degrees (or :astropy:`astropy.units.Quantity` objects)
+		:param ra: list of RA points, must be in degrees (or :class:`astropy.units.quantity.Quantity` objects)
+		:param dec: list of declination points, must be in degrees (or :class:`astropy.units.quantity.Quantity` objects)
 		:param frame: the frame the points lie in, specified as an ASTSkyFrame object
 		:returns: new ASTPolygon object
 		'''
@@ -399,9 +396,9 @@ class ASTPolygon(ASTRegion):
 		return ASTPolygon(ast_object=ast_polygon)
 
 	@property
-	def area(self):
+	def area(self) -> astropy.units.quantity.Quantity:
 		'''
-		Returns the area of the polygon as an :astropy:`astropy.units.Quantity`. [Not yet implemented.]
+		Returns the area of the polygon as an :class:`astropy.units.quantity.Quantity`. [Not yet implemented.]
 		'''
 		# See: https://stackoverflow.com/questions/1340223/calculating-area-enclosed-by-arbitrary-polygon-on-earths-surface
 		# Multiple useful answers on that page.

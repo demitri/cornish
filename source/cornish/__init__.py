@@ -1,6 +1,4 @@
 
-from .version import __version__
-
 import logging
 
 from .ast_object import ASTObject
@@ -21,6 +19,8 @@ from .region.circle import *
 from .region.compound_region import *
 from .region.polygon import *
 from .region.region import *
+
+from .version import __version__
 
 # Set up logger
 # =============

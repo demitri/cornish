@@ -4,7 +4,6 @@ from distutils.core import setup
 
 import numpy as np
 
-
 def get_property(prop:str, project:str):
 	'''
 	Read the requested property (e.g. '__version__', '__author__') from the specified Python module.
@@ -67,7 +66,7 @@ setup(
     #setup_requires=['wheel'], # needed to package for distribution
     #install_requires=[],
     #packages=['cornish'],
-    packages=setuptools.find_packages(),#exclude=["tests"]), # https://setuptools.readthedocs.io/en/latest/setuptools.html#id15
+    packages=setuptools.find_packages(include=["cornish.*"]),#exclude=["tests"]), # https://setuptools.readthedocs.io/en/latest/setuptools.html#id15
     data_files=data_files,
     #ext_package="cornish", # will compile the methods from the extension to the namespace "cornish"
     #ext_modules=[c_extension], # alternative: cythonize(etc), needs "from Cython.Build import cythonize"

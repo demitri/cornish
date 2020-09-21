@@ -3,7 +3,6 @@
 from typing import Iterable
 
 from ..ast_object import ASTObject
-import starlink.Ast as Ast
 
 class ASTMapping(ASTObject):
 	'''
@@ -44,7 +43,8 @@ class ASTMapping(ASTObject):
 		inv_mapping = self.astObject.copy() # creates a new mapping
 		return ASTMapping(ast_object=inv_mapping.invert())
 	
-	def transform(self, points:Iterable=None): # TODO, test "out" param, out:Iterable=None): # ? use forward=T/F
+	# TODO, test "out" param, out:Iterable=None): # ? use forward=T/F
+	def transform(self, points:Iterable=None): 
 		'''
 		Transform the coordinates of a set of points provided according the mapping defined by this object.
 		

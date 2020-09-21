@@ -1,13 +1,13 @@
 
 from typing import Union
-from .cornish import CornishPlot
 
 import matplotlib.pyplot as plt
 import astropy.units as u
 import starlink.Grf as Grf
 import starlink.Ast as Ast
-import starlink.Atl as Atl
+#import starlink.Atl as Atl
 
+from .cornish import CornishPlot
 from ..region.region import ASTRegion
 from ..region.circle import ASTCircle
 
@@ -27,7 +27,7 @@ class SkyPlot(CornishPlot):
 		# -------------------------------------------------------
 		# Create frame set that will map the position in the plot
 		# (i.e. pixel coordinates) to the sky (i.e. WCS)
-		fits_chan = ASTFITSChannel()
+		#fits_chan = ASTFITSChannel()
 		
 		naxis1 = 100
 		naxis2 = 100
@@ -36,7 +36,7 @@ class SkyPlot(CornishPlot):
 			circle_extent = extent
 		elif isinstance(extent, ASTRegion):
 			circle_extent = extent.boundingCircle()
-			center = circle_extent.center
+			#center = circle_extent.center
 		else:
 			raise ValueError("Could not determine a center point for the provided extent. Hint: provide an ASTRegion object.")
 				
@@ -147,7 +147,7 @@ class SkyPlot(CornishPlot):
 		'''
 		if isinstance(region, ASTRegion):
 			region = region.astObject
-		elif isinstance(region, starlink.Ast.Object):
+		elif isinstance(region, Ast.Object):
 			pass
 		else:
 			raise ValueError(f"Region provided must either be an ASTRegion or starlink.Ast.Object; was given '{type(region)}'.")
