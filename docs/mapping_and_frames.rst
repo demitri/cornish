@@ -23,15 +23,6 @@ ASTFrame
 	:inherited-members:
 	:show-inheritance:
 
-ASTCompoundFrame
-----------------
-
-.. autoclass:: ASTCompoundFrame
-	:members:
-	:undoc-members:
-	:inherited-members:
-	:show-inheritance:
-
 ASTFrameSet
 -----------
 
@@ -40,7 +31,16 @@ ASTFrameSet
 	:undoc-members:
 	:inherited-members:
 	:show-inheritance:
+		
+ASTSkyFrame
+-----------
 
+.. autoclass:: ASTSkyFrame
+	:members:
+	:undoc-members:
+	:inherited-members:
+	:show-inheritance:
+		
 ASTICRSFrame
 ------------
 
@@ -49,6 +49,13 @@ ASTICRSFrame
 	:undoc-members:
 	:inherited-members:
 	:show-inheritance:
+		
+ASTCompoundFrame
+----------------
 
-|
+.. autoclass:: ASTCompoundFrame
+	:members:
+	:undoc-members:
+	:inherited-members:
+	:show-inheritance:
 

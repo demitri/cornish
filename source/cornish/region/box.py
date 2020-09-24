@@ -176,20 +176,20 @@ class ASTBox(ASTRegion):
 		self._uncertainty = unc
 	
 	@property
-	def center(self):
+	def center(self) -> np.ndarray:
 		'''
 		Returns the location of the Box's center as a coordinate pair (tuple).
 		
-		@returns A Numpy array of points (axis1, axis2).
+		:returns: a Numpy array of points (axis1, axis2)
 		'''
 		return self.astObject.getregionpoints()[0] # returns two points as a Numpy array: (center, a corner)
 	
 	@property
-	def corner(self):
+	def corner(self) -> np.ndarray:
 		'''
 		Returns the location of one of the Box's corners as a coordinate pair.
 		
-		@returns A Numpy array of points (axis1, axis2).
+		:returns: a Numpy array of points (axis1, axis2).
 		'''
 		
 		# !! Is this off by 1 or 0.5  (or neither) due to lower left being [0.5,0.5] ?

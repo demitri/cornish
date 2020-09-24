@@ -2,10 +2,13 @@
 
 from typing import Iterable
 
+import numpy as np
+
 from ..ast_object import ASTObject
 
 class ASTMapping(ASTObject):
 	'''
+	
 	
 	:param ast_object: an existing :class:`starlink.Ast.Mapping` object
 	'''
@@ -44,15 +47,14 @@ class ASTMapping(ASTObject):
 		return ASTMapping(ast_object=inv_mapping.invert())
 	
 	# TODO, test "out" param, out:Iterable=None): # ? use forward=T/F
-	def transform(self, points:Iterable=None): 
+	def transform(self, points:Iterable=None) -> np.ndarray: 
 		'''
 		Transform the coordinates of a set of points provided according the mapping defined by this object.
 		
 		:param in: input list of coordinates as numpy.ndarray,
 				   any iterable list accepted
 				   2-dimensional array with shape (nin,npoint)
-		:param out:
-		:returns: numpy.ndarray
+		:param out: output coordinates
 		
 		Format of points:
 		

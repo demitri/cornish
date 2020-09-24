@@ -383,9 +383,9 @@ class ASTPolygon(ASTRegion):
 		to achieve the maximum discrepancy specified by "maxerr". The unardoned value is in radians,
 		but accepts Astropy unit objects.
 		
-		@param maxerr Maximum allowed discrepancy in radians between the original and new polygons as a geodesic distance within the polygon's coordinate frame.
-		@param maxvert Maximum allowed number of vertices in the returned Polygon.
-		@returns A new ASTPolygon.
+		:param maxerr: maximum allowed discrepancy in radians between the original and new polygons as a geodesic distance within the polygon's coordinate frame
+		:param maxvert: maximum allowed number of vertices in the returned polygon
+		:returns: a new ASTPolygon.
 		'''
 		
 		# should find some reasonable default values

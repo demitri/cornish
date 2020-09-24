@@ -16,18 +16,19 @@ sky_systems = ["ICRS", "J2000", "AZEL", "ECLIPTIC", "FK4", "FK4-NO-E",
 class ASTSkyFrame(ASTFrame):
 	'''
 	
-	self.astObject is of type starlink.Ast.SkyFrame.
+	A SkyFrame is a specialised form of Frame which describes celestial longitude/latitude coordinate systems.
 	
 	Systems available in AST:
-	    `ICRS`, `J2000`, `AZEL`, `ECLIPTIC`, `FK4`, `FK4-NO-E`,
-	    `FK4_NO_E`, `FK5`, `EQUATORIAL`,
-	    `GALACTIC`, `GAPPT`, `GEOCENTRIC`, `APPARENT`,
-	    `HELIOECLIPTIC`, `SUPERGALACTIC`
 	
-	:param ast_object:
-	:param equinox: frame equinox, default value "2000.0"
-	:param system: coordinate system used to describe positions within the domain, see `AST System <http://starlink.eao.hawaii.edu/docs/sun211.htx/sun211ss424.html>`, default value = "ICRS"
-	:param epoch: epoch of the mean equinox as a string value, e.g. "J2000.0", "B1950.0", default = "2000.0"
+	``ICRS``, ``J2000``, ``AZEL``, ``ECLIPTIC``, ``FK4``, ``FK4-NO-E``,
+	``FK4_NO_E``, ``FK5``, ``EQUATORIAL``,
+	``GALACTIC``, ``GAPPT``, ``GEOCENTRIC``, ``APPARENT``,
+	``HELIOECLIPTIC``, ``SUPERGALACTIC``
+
+	:param ast_object: an existing :class:`starlink.Ast.SkyFrame` object
+	:param equinox: frame equinox, default value ``2000.0``
+	:param system: coordinate system used to describe positions within the domain, see `AST System documentation <http://starlink.eao.hawaii.edu/docs/sun211.htx/sun211ss424.html>`_, default value = ``ICRS``
+	:param epoch: epoch of the mean equinox as a string value, e.g. ``J2000.0``, ``B1950.0``, default = ``2000.0``
 	'''
 	def __init__(self, ast_object:Ast.SkyFrame=None, equinox:str=None, system:str=None, epoch:str=None): 
 

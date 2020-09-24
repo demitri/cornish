@@ -85,12 +85,12 @@ class ASTFrame(ASTMapping):
 			return ASTFrame(ast_object=ast_object)
 	
 	@property
-	def naxes(self):
+	def naxes(self) -> int:
 		''' Returns the number of axes for the frame. '''
 		return int(self.astObject.get("Naxes"))
 		
 	@property
-	def title(self):
+	def title(self) -> str:
 		''' Returns the frame title, a string describing the coordinate system which the frame represents. '''
 		return self.astObject.get("Title")
 	
@@ -98,7 +98,7 @@ class ASTFrame(ASTMapping):
 	def title(self, newTitle):
 		self.astObject.set("Title={0}".format(newTitle))
 	
-	def label(self, axis=None):
+	def label(self, axis=None) -> str:
 		''' Return the label for the specified axis. '''
 		if axis is None:
 			raise Exception("An axis number must be specified.")
@@ -161,14 +161,14 @@ class ASTFrame(ASTMapping):
 		self.astObject.set("System={0}".format(system))
 		
 	@property
-	def isSkyFrame(self):
+	def isSkyFrame(self) -> bool:
 		'''
-		Returns 'True' if this is a SkyFrame, 'False' otherwise.
+		Returns ``True`` if this is a SkyFrame, ``False`` otherwise.
 		'''
 		return self.astObject.isaskyframe()
 	
 	@property
-	def domain(self):
+	def domain(self) -> str:
 		'''
 		The physical domain of the coordinate system (string value).
 		The Domain attribute also controls how Frames align with each other.

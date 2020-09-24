@@ -12,10 +12,11 @@ class ASTObject(ABC):
 		self.astObject = ast_object
 	
 	def ast_description(self):
+		''' A string description of this object, customized for each subclass of :class:`ASTObject`. '''
 		return "This is an AST object (override the 'ast_description' method for a more descriptive output)."
 
 	@property
-	def id(self):
+	def id(self) -> str:
 		'''
 		String which may be used to identify this object.
 		
@@ -26,7 +27,7 @@ class ASTObject(ABC):
 		
 		Not sure how to handle the above in this class.
 		
-		@returns string identifier that can be used to uniquely identify this object
+		:returns: string identifier that can be used to uniquely identify this object
 		'''
 		return self.astObject.get("ID")
 		
