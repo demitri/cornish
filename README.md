@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/cornish/badge/?version=latest)](https://cornish.readthedocs.io/en/latest/?badge=latest)
+
 # Cornish
 
 Cornish is a Python interface over the [Starlink AST](http://starlink.eao.hawaii.edu/starlink/AST) astronomical software library, part of the [Starlink Software Collection](http://starlink.eao.hawaii.edu/). Cornish is designed and written by Demitri Muna.
