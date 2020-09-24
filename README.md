@@ -32,7 +32,7 @@ API documentation can be found here: [https://cornish.readthedocs.io/en/latest/]
 
 ## Examples
 
-The main documentation (in progress) will be the primary reference for this library. A few examples demonstrate its capabilities.
+A few examples demonstrate the library's capabilities.
 
 
 ```python
