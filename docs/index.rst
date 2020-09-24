@@ -22,13 +22,14 @@ Many thanks to David Berry for the generous and extremely responsive help and ad
    :maxdepth: 2
    :caption: Contents:
 
-Cornish Regions API
--------------------
+Cornish API
+-----------
 
 .. toctree::
    :maxdepth: 2
 
    regions
+   mapping_and_frames
 
 Indices and tables
 ==================

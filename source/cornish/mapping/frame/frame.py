@@ -1,5 +1,7 @@
 #/usr/bin/env python
 
+from typing import Union, Iterable
+
 import starlink.Ast as Ast
 
 from ... import ASTObject
@@ -13,12 +15,13 @@ class ASTFrame(ASTMapping):
 	It contains information about the labels which appear on the axes, the axis units,
 	a title, knowledge of how to format the coordinate values on each axis, etc.
 	
-	List and description of starlink.Ast.Frame attributes in documentation: Section 7.5.
+	List and description of ``starlink.Ast.Frame`` attributes in documentation: Section 7.5.
+	
 	Ref:
 	http://www.starlink.rl.ac.uk/docs/sun95.htx/sun95se27.html
 	http://www.strw.leidenuniv.nl/docs/starlink/sun210.htx/node71.html
 	
-	self.astObject is of type starlink.Ast.Frame.
+	:param ast_object: an existing :class:`starlink.Ast.Frame` object
 	'''
 	def __init__(self, ast_object:Ast.Frame=None, naxes:int=None):
 
@@ -38,16 +41,16 @@ class ASTFrame(ASTMapping):
 
 		#self.axis_labels = list() # a list of labels indexed by axis number, first=0
 		#self.axis_units = list() # a list of axis units indexed by axis number, first=0
-# 		
-# 		if ast_frame is None:
-# 			self.astObject = Ast.Frame(naxes)
-# 		else:
-# 			self.astObject = ast_frame
+	#	
+	#	if ast_frame is None:
+	#		self.astObject = Ast.Frame(naxes)
+	#	else:
+	#		self.astObject = ast_frame
 	
 	@staticmethod
 	def frameFromAstObject(ast_object:Ast.Frame=None):
 		'''
-		Factory method that returns the appropriate Cornish frame object (e.g. ASTSkyFrame) for a given frame.
+		Factory method that returns the appropriate Cornish frame object (e.g. :class:`ASTSkyFrame`) for a given frame.
 		
 		:param ast_object: an :py:class:`Ast.Frame` object
 		'''
@@ -143,8 +146,8 @@ class ASTFrame(ASTMapping):
 	def system(self):
 		'''
 		String which identifies the coordinate system represented by the Frame.
-		The system is "Cartesian" by default, but can have other values for subclasses of Frame,
-		e.g. "FK4", "Galactic".
+		The system is ``Cartesian`` by default, but can have other values for subclasses of Frame,
+		e.g. ``FK4``, ``Galactic``.
 		'''
 		return self.astObject.get("System")
 	
@@ -184,28 +187,27 @@ class ASTFrame(ASTMapping):
 			raise Exception("The domain value must be set to a string.")
 		self.astObject.set("Domain={0}".format(newDomain))
 		
-	def distance(self, point1, point2):
+	def distance(self, point1:Iterable, point2:Iterable) -> float:
 		'''
 		Distance between two points in this frame.
 		
-		Parameters
-		----------
-		point1 : list
-			A two element list/tuple/Numpy array of the first point coordinates.
-		point2 : list
-			A two element list/tuple/Numpy array of the second point coordinates.
-		
-		Returns
-		-------
-		float, distance between two provided points
+		:param point1: a two element list/tuple/Numpy array of the first point coordinates
+		:param point2: a two element list/tuple/Numpy array of the second point coordinates
 		'''
 		return self.astObject.distance(point1, point2)
 		
-	def framesetWithMappingTo(self, template_frame=None): # maybe think of better name?!
+	def framesetWithMappingTo(self, template_frame:"ASTFrame"=None) -> Union["ASTFrame", None]: # maybe think of better name?!
 		'''
-		Searches 
-		:param template_frame:
-		:returns: ... , ``None`` if no mapping can be found
+		Search this frame (or set) to identify a frame that shares the same coordinate system as the provided template frame.
+		
+		For example, this method can be used to see if this frame
+		(or frame set) contains a sky frame.
+		
+		Returns ``None`` if no mapping can be found.
+		
+		:param template_frame: an instance of the type of frame
+		  beaing searched for
+		:returns: a frame that matches the template
 		'''
 		from .frame_set import ASTFrameSet
 		if template_frame is None:
@@ -214,8 +216,9 @@ class ASTFrame(ASTMapping):
 		
 class ASTCompoundFrame(ASTObject):
 	'''
-	A compound frame is the merging of two existing :class:`Frame`s.
-	For example, a `CompoundFrame` could have celestial coordinates on two axes
+	A compound frame is the merging of two existing :class:`Frame` objects.
+
+	For example, a compound frame could have celestial coordinates on two axes
 	and an unrelated coordinate (wavelength, perhaps) on a third.
 	Knowledge of the relationships between the axes is preserved internally
 	by the process of constructing the :class:`CompoundFrame` which represents them.

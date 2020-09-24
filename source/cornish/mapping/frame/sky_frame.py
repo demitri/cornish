@@ -19,10 +19,10 @@ class ASTSkyFrame(ASTFrame):
 	self.astObject is of type starlink.Ast.SkyFrame.
 	
 	Systems available in AST:
-	    "ICRS", "J2000", "AZEL", "ECLIPTIC", "FK4", "FK4-NO-E",
-	    "FK4_NO_E", "FK5", "EQUATORIAL",
-	    "GALACTIC", "GAPPT", "GEOCENTRIC", "APPARENT",
-	    "HELIOECLIPTIC", "SUPERGALACTIC"
+	    `ICRS`, `J2000`, `AZEL`, `ECLIPTIC`, `FK4`, `FK4-NO-E`,
+	    `FK4_NO_E`, `FK5`, `EQUATORIAL`,
+	    `GALACTIC`, `GAPPT`, `GEOCENTRIC`, `APPARENT`,
+	    `HELIOECLIPTIC`, `SUPERGALACTIC`
 	
 	:param ast_object:
 	:param equinox: frame equinox, default value "2000.0"
@@ -61,7 +61,7 @@ class ASTSkyFrame(ASTFrame):
 	def equinox(self):
 		'''
 		
-		..todo :: how to evaluate a valid equinox string?
+		.. todo:: how to evaluate a valid equinox string?
 		'''
 		self.astObject.get("Equinox") 
 		
@@ -97,7 +97,7 @@ class ASTSkyFrame(ASTFrame):
 # .. todo:: make this a factory class
 class ASTICRSFrame(ASTSkyFrame):
 	'''
-	Factory class that returns an ASTSkyFrame automatically set to System=ICRS, equinox=2000.0, epoch=2000.0.
+	Factory class that returns an :class:`ASTSkyFrame` automatically set to ``System=ICRS``, ``equinox=2000.0``, ``epoch=2000.0``.
 	'''	
 	def __init__(self, equinox:str="2000.0", epoch:str="2000.0") -> ASTSkyFrame:
 

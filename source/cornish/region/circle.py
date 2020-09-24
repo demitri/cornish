@@ -27,11 +27,11 @@ CENTER_RADIUS = 1
 
 class ASTCircle(ASTRegion):
 	'''
-	ASTCircle is an ASTRegion that represents a circle.
+	ASTCircle is an :class:`ASTRegion` that represents a circle.
 	
 	Accepted signatures for creating an ASTCircle
 	
-	.. code-block:: python
+	.. code-block::python
 
 		c = ASTCircle(ast_object)     # where ast_object is a starlink.Ast.Circle object
 		c = ASTCircle(frame, center, edge)

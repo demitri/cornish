@@ -7,7 +7,7 @@ from ..ast_object import ASTObject
 class ASTMapping(ASTObject):
 	'''
 	
-	:param ast_object: is of type :py:class:``starlink.Ast.Mapping``.
+	:param ast_object: an existing :class:`starlink.Ast.Mapping` object
 	'''
 	def __init__(self, ast_object=None):
 		super().__init__(ast_object=ast_object)
@@ -54,8 +54,18 @@ class ASTMapping(ASTObject):
 		:param out:
 		:returns: numpy.ndarray
 		
-		Format of points: [ [ values on axis 1 ], [ values on axis 2], ... ]
-		e.g. sky to pixel: [ [ra1, ra2, ...], [dec1, dec2, ...] ]
+		Format of points:
+		
+		.. code-block::
+		
+		    [ [ values on axis 1 ], [ values on axis 2], ... ]
+			
+		e.g. sky to pixel:
+		
+		.. code-block::
+		
+		    [ [ra1, ra2, ...], [dec1, dec2, ...] ]
+			
 		'''
 		return self.astObject.tran(points)
 		

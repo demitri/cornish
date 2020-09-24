@@ -16,10 +16,13 @@ __all__ = ['ASTFrameSet']
 
 class ASTFrameSet(ASTFrame):
 	'''
-	A sets of inter-related coordinate systems made up of existing `Mapping`s and `Frame`s.
+	Create a new AST frame set.
+	Object can be created from an :class:`starlink.Ast.FrameSet` "primitive" 	(e.g. returned by another object).
+
+	A set of inter-related coordinate systems made up of existing mapping's and frames.
 	A FrameSet may be extended by adding a new Frame and associated Mapping.
 	
-	A `FrameSet` must have a "base" frame which represents the "native" coordinate system
+	A FrameSet must have a "base" frame which represents the "native" coordinate system
 	(for example, the pixel coordinates of an image). Similarly, one Frame is termed the
 	current Frame and represents the "currently-selected" coordinates. It might typically
 	be a celestial or spectral coordinate system and would be used during interactions
@@ -27,23 +30,17 @@ class ASTFrameSet(ASTFrame):
 	Other Frames within the FrameSet represent a library of alternative coordinate systems
 	which a software user can select by making them current.
 	
-	Accepted signatures for creating an ASTFrameSet:
+	Accepted signatures for creating an ``ASTFrameSet``:
 	
-	fs = ASTFrameSet(ast_object)
-	fs = ASTFrameSet(base_frame)
+	.. code-block::python
 	
-	:param ast_object: 
+	    fs = ASTFrameSet(ast_object)
+	    fs = ASTFrameSet(base_frame)
+	
+	:param ast_object: an :class:`Ast.astFrame` object from the `starlink-pyast` library
 	:param base_frame: base frame to create the FrameSet from
 	'''
 	def __init__(self, ast_object:starlink.Ast.FrameSet=None, base_frame:Union[starlink.Ast.FrameSet,ASTFrame]=None): #, fits_header=None):
-		'''
-		Create a new AST frame set.
-		Object can be created from an starlink.Ast.FrameSet "primitive"
-		(e.g. returned by another object).
-		
-		self.astObject is of type starlink.Ast.FrameSet
-		'''
-		
 		# validate parameters
 		if all([ast_object, base_frame]):
 			raise ValueError("Both an 'ast_object' and a 'base_frame' cannot be specified.")
@@ -163,7 +160,7 @@ class ASTFrameSet(ASTFrame):
 		#TODO validate inputs for error reporting
 		assert len(x_coordinates) == len(y_coordinates), "Coordinate arrays of unequal lengths."
 		forward = True # convert from frame1 to frame2
-#		in_coords = np.array([x_coordinates, y_coordinates]).T
+		#in_coords = np.array([x_coordinates, y_coordinates]).T
 		in_coords = np.array(list(zip(x_coordinates, y_coordinates))).T
 		print(in_coords)
 		forward = True
