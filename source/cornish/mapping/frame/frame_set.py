@@ -17,7 +17,8 @@ __all__ = ['ASTFrameSet']
 class ASTFrameSet(ASTFrame):
 	'''
 	Create a new AST frame set.
-	Object can be created from an :class:`starlink.Ast.FrameSet` "primitive" 	(e.g. returned by another object).
+	Object can be created from an :class:`starlink.Ast.FrameSet` "primitive"
+	(e.g. returned by another object).
 
 	A set of inter-related coordinate systems made up of existing mapping's and frames.
 	A FrameSet may be extended by adding a new Frame and associated Mapping.

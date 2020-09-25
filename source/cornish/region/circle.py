@@ -34,7 +34,7 @@ class ASTCircle(ASTRegion):
 	.. code-block::python
 
 		c = ASTCircle(ast_object)     # where ast_object is a starlink.Ast.Circle object
-		c = ASTCircle(frame, center, edge)
+		c = ASTCircle(frame, center, edge_point)
 		c = ASTCircle(frame, center, radius)
 	
 	:param ast_object: a circle object from the ``starlink-pyast`` module
@@ -68,7 +68,7 @@ class ASTCircle(ASTRegion):
 
 		# make sure we have a frame we can work with
 		if frame is None:
-			frame = ASTICRSFrame()
+			self.frame = ASTICRSFrame()
 			#raise Exception("ASTCircle: A frame must be specified when creating an ASTCircle.")
 		else:
 			if isinstance(frame, ASTFrame):

@@ -7,7 +7,7 @@ import starlink.Ast as Ast
 from ... import ASTObject
 from ..mapping import ASTMapping
 
-__all__ = ['ASTFrame', 'ASTCompoundFrame']
+__all__ = ['ASTFrame']
 
 class ASTFrame(ASTMapping):
 	'''
@@ -71,6 +71,7 @@ class ASTFrame(ASTMapping):
 			from .time_frame import ASTTimeFrame
 			return ASTTimeFrame(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.CmpFrame):
+			from .compound_frame import ASTCompoundFrame
 			return ASTCompoundFrame(ast_object=ast_object)
 		elif isinstance(ast_object, Ast.FluxFrame):
 			raise NotImplementedError("ASTFluxFrame not yet implemented.")
@@ -206,23 +207,10 @@ class ASTFrame(ASTMapping):
 		Returns ``None`` if no mapping can be found.
 		
 		:param template_frame: an instance of the type of frame
-		  beaing searched for
+		  being searched for
 		:returns: a frame that matches the template
 		'''
 		from .frame_set import ASTFrameSet
 		if template_frame is None:
 			raise ValueError("A template frame must be provided.")
 		return ASTFrameSet(ast_object=self.astObject.findframe(template_frame.astObject))
-		
-class ASTCompoundFrame(ASTObject):
-	'''
-	A compound frame is the merging of two existing :class:`Frame` objects.
-
-	For example, a compound frame could have celestial coordinates on two axes
-	and an unrelated coordinate (wavelength, perhaps) on a third.
-	Knowledge of the relationships between the axes is preserved internally
-	by the process of constructing the :class:`CompoundFrame` which represents them.
-	'''
-	def __init__(self, ast_object=None):
-		raise NotImplementedError()
-	

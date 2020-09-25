@@ -12,6 +12,7 @@ from .mapping.frame.frame import *
 from .mapping.frame.frame_set import *
 from .mapping.frame.sky_frame import *
 from .mapping.frame.time_frame import *
+from .mapping.frame.compound_frame import *
 
 # regions
 from .region.box import *

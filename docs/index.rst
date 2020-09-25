@@ -18,9 +18,13 @@ Cornish is currently under active development and all APIs are subject to change
 
 Many thanks to David Berry for the generous and extremely responsive help and advice in the development of the library.
 
+Examples
+--------
+
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   
+   examples_regions
 
 Cornish API
 -----------
@@ -28,8 +32,8 @@ Cornish API
 .. toctree::
    :maxdepth: 2
 
-   regions
-   mapping_and_frames
+   api_regions
+   api_mapping_and_frames
 
 Indices and tables
 ==================

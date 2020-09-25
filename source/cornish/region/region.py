@@ -200,7 +200,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]]
 		# transpose the points before returning
 		# also, normalize points to expected bounds
-		return self.astObject.norm(np.rad2deg(self.astObject.getregionpoints())).T
+		return np.rad2deg(self.astObject.norm(self.astObject.getregionpoints())).T
 
 	@property
 	def uncertainty(self):
