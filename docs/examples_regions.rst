@@ -158,3 +158,8 @@ Compound Regions
 ----------------
 
 .. todo:: Counpound regions section coming soon! (But it's pretty straightforward from the :class:`~ASTBox` API.)
+
+From FITS Files
+---------------
+
+.. todo:: Give examples here.

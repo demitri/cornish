@@ -26,9 +26,9 @@ Many thanks to David Berry for the generous and extremely responsive help and ad
     cd cornish/source
     python setup.py install
 
-## API Documentation
+## Documentation
   
-API documentation can be found here: [https://cornish.readthedocs.io/en/latest/](https://cornish.readthedocs.io/en/latest/)
+Code examples and API documentation can be found here: [https://cornish.readthedocs.io/en/latest/](https://cornish.readthedocs.io/en/latest/)
 
 ## Examples
 
