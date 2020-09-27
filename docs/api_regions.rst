@@ -1,5 +1,5 @@
-Regions
-=======
+Region APIs
+===========
 
 .. module:: cornish
 
@@ -50,5 +50,5 @@ ASTPolygon
 	:inherited-members:
 	:show-inheritance:
 
-|
+
 

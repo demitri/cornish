@@ -1,5 +1,5 @@
 
-from typing import Union
+from typing import Union, Tuple
 
 import matplotlib.pyplot as plt
 import astropy.units as u
@@ -18,8 +18,9 @@ class SkyPlot(CornishPlot):
 	A convenience class to create a sky plot in Matplotlib.
 	
 	:param extent: an ASTRegion that encompasses the full area to plot
+	:param figsize: width,height of the plot figure in inches (parameter passed directly to :class:`matplotlib.figure.Figure`) 
 	'''
-	def __init__(self, extent:ASTRegion=None, figsize=(12.0, 12.0)):
+	def __init__(self, extent:ASTRegion=None, figsize:Tuple[float,float]=(12.0, 12.0)):
 		
 		self.astPlot = None # type: Ast.Plot
 		self._figure = None # the matplotlib.figure.Figure object
@@ -135,9 +136,12 @@ class SkyPlot(CornishPlot):
 		self.imageAxes = ax_image
 		
 	def figure(self):
+		'''
+		Return the :class:`matplotlib.figure.Figure` object for plot customization outside of this API.
+		'''
 		return self._figure
 	
-	def addRegionOutline(self, region:Union[ASTRegion,Ast.Object], color:str="#4a7f7b", style:int=1):
+	def addRegionOutline(self, region:Union[ASTRegion,Ast.Region], color:str="#4a7f7b", style:int=1):
 		'''
 		Overlay the outline of the provided region to the plot.
 		
@@ -165,6 +169,6 @@ class SkyPlot(CornishPlot):
 		
 	def show(self):
 		'''
+		Display the plot (passthrough for :meth:`matplotlib.pyplot.show`).
 		'''
-		self.astPlot.Colour_Border = "black"
 		plt.show()

@@ -1,5 +1,5 @@
-Mappings and Frames
-===================
+Mappings and Frames APIs
+========================
 
 .. module:: cornish.mapping
 

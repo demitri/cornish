@@ -12,6 +12,7 @@
 #
 import os
 import sys
+from datetime import datetime
 # sys.path.insert(0, os.path.abspath('.'))
 
 # import from local files rather than an installed version:
@@ -21,8 +22,8 @@ import cornish
 
 # -- Project information -----------------------------------------------------
 
-project = 'Cornish, A Python Interface to the Starlink AST Library'
-copyright = '2020, Demitri Muna'
+project = 'Cornish, A Python Interface to the Starlink AST WCS Library'
+copyright = f'2015-{datetime.today().year}, Demitri Muna'
 author = 'Demitri Muna'
 
 # The full version, including alpha/beta/rc tags
@@ -65,7 +66,8 @@ intersphinx_cache_limit = 5
 
 intersphinx_mapping = {
 	'astropy'    : ('https://docs.astropy.org/en/stable', None),
-	'numpy'      : ('https://numpy.org/doc/stable/', None)
+	'numpy'      : ('https://numpy.org/doc/stable/', None),
+	'matplotlib' : ('http://matplotlib.sourceforge.net', None)
 }
 
 todo_include_todos = True

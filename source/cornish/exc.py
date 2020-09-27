@@ -12,3 +12,5 @@ class NotA2DRegion(Exception):
 class CoordinateSystemsCouldNotBeMapped(Exception):
 	pass
 
+class NoWCSFoumd(Exception):
+	pass

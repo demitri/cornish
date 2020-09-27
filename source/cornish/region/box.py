@@ -31,10 +31,17 @@ class ASTBox(ASTRegion):
 		b = ASTBox(frame, dimensions)
 		b = ASTBox(ast_box) (where ast_box is an Ast.Box object)
 	
-	Points and dimensions can be any two element container, e.g. (1,2), [1,2], np.array([1,2])
-	If "dimensions" is specified, a box enclosing the entire area will be defined.
+	Points and dimensions can be any two element container, e.g.
 	
-	The 'frame' parameter may either be an ASTFrame object or a starlink.Ast.frame object.
+	.. code-block:: python
+	
+		(1,2)
+		[1,2]
+		np.array([1,2])
+		
+	If ``dimensions`` is specified, a box enclosing the entire area will be defined.
+	
+	The 'frame' parameter may either be an ASTFrame object or a :class:`starlink.Ast.frame` object.
 	
 	A Box is similar to an Interval, the only real difference being that the Interval
 	class allows some axis limits to be unspecified. Note, a Box will only look like a box
@@ -42,8 +49,8 @@ class ASTBox(ASTRegion):
 	in a SkyFrame will look more like a fan than a box (the Polygon class can be used to
 	create a box-like region close to a pole).
 	
-	:param ast_box: An existing object of type starlink.Ast.Box.
-	:param frame:
+	:param ast_box: an existing object of type :class:`starlink.Ast.Box`
+	:param frame: a frame the box is to be defined in, uses :class:`~cornish.ASTICRSFrame` if `None`
 	:param cornerPoint:
 	:param cornerPoint2:
 	:param centerPoint:
@@ -187,16 +194,21 @@ class ASTBox(ASTRegion):
 	@property
 	def corner(self) -> np.ndarray:
 		'''
-		Returns the location of one of the Box's corners as a coordinate pair.
+		Returns the location of one of the box's corners as a coordinate pair, in degrees if a sky frame.
 		
 		:returns: a Numpy array of points (axis1, axis2).
 		'''
 		
 		# !! Is this off by 1 or 0.5  (or neither) due to lower left being [0.5,0.5] ?
+
+		center_point, corner_point = self.astObject.getregionpoints()
 		
-		return self.astObject.getregionpoints()[1] # returns two points as a Numpy array: (center, a corner)
+		if self.frame.isSkyFrame():
+			return np.rad2deg(self.astObject.norm(corner_point))
+		else:
+			return corner_point
 	
-	def corners(self, mapping=None):
+	def corners(self, mapping=None) -> list:
 		'''
 		Returns a list of all four corners of box.
 		
@@ -208,7 +220,7 @@ class ASTBox(ASTRegion):
 		Returns
 		-------
 		list
-			A list of points: [(p1,p2), (p3, p4), (p5, p6), (p7m p8)] in degrees
+			A list of points in degrees, e.g. ``[(p1,p2), (p3, p4), (p5, p6), (p7m p8)]``
 		'''
 		
 		if mapping is None:
@@ -240,6 +252,8 @@ class ASTBox(ASTRegion):
 		# AST returns values in radians, convert to degrees
 		corner_points = np.rad2deg(corner_points)
 		
+		#NOTE: The box may not necessary be on a sky frame!
+		
 		#logger.debug("box.corners: corner points = {}".format(corner_points))
 		
 		# normalize RA positions on [0,360)
@@ -255,6 +269,9 @@ class ASTBox(ASTRegion):
 	
 	@property
 	def area(self):
+		'''
+		The area of the box within its frame (e.g. on a Cartesian plane or sphere). [Not yet implemented.]
+		'''
 		raise NotImplementedError()
 			
 			

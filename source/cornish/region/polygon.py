@@ -1,11 +1,12 @@
 
 import math
 import logging
-from typing import Union
+from typing import Union, Iterable
 
 import starlink.Ast as Ast
 import astropy.units as u
 import astropy
+from astropy.coordinates.builtin_frames import ICRS as AstropyICRS
 import numpy as np
 
 from .box import ASTBox
@@ -40,12 +41,12 @@ class ASTPolygon(ASTRegion):
 
 		[[x1, x2, x3, ..., xn], [y1, y2, y3, ..., yn]]
 	
-	:param ast_object: Create a new ASTPolygon from an existing :class:`starlink.Ast.Polygon` object.
-	:param frame: The frame the provided points lie in, accepts either ASTFrame or starlink.Ast.Frame objects.
-	:param points: Points (in degrees if frame is a SkyFrame) that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points.
-	:returns: Returns a new ASTPolygon object.
+	:param ast_object: create a new ASTPolygon from an existing :class:`starlink.Ast.Polygon` object
+	:param frame: the frame the provided points lie in, accepts either :class:`ASTFrame` or :class:`starlink.Ast.Frame` objects
+	:param points: points in degrees that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points
+	:returns: Returns a new ``ASTPolygon`` object.
 	'''
-	def __init__(self, ast_object:Ast.Polygon=None, frame:Union[ASTFrame, Ast.Frame]=None, points=None, fits_header=None):
+	def __init__(self, ast_object:Ast.Polygon=None, frame:Union[ASTFrame, Ast.Frame, ASTRegion, Ast.Region]=None, points=None, fits_header=None):
 		
 		if ast_object:
 			if any([frame, points, fits_header]):
@@ -67,15 +68,22 @@ class ASTPolygon(ASTRegion):
 			
 			frame_set = ASTFrameSet.fromFITSHeader(fits_header=fits_header).baseFrame # raises FrameNotFoundException
 		
-		if isinstance(frame, Ast.Frame):
+		if isinstance(frame, Ast.Region):
+			# a region returns 'True' for being a frame, so catch this
+			# before testing for Ast.Frame below
+			ast_frame = frame.getregionframe()
+		elif isinstance(frame, ASTRegion):
+			ast_frame = frame.astObject.getregionframe()
+		elif isinstance(frame, Ast.Frame):
 			ast_frame = frame
 		elif isinstance(frame, ASTFrame):
 			ast_frame = frame.astObject
 		else:
 			raise Exception("ASTPolygon: The supplied 'frame' object must either be a starlink.Ast.Frame or ASTFrame object.")
 		
-		if isinstance(frame, (Ast.SkyFrame, ASTSkyFrame)):
-			points = np.deg2rad(points)
+		#if isinstance(ast_frame, (Ast.SkyFrame, ASTSkyFrame)):
+		#	points = np.deg2rad(points)
+		points = np.deg2rad(points)
 		
 		# The problem with accepting both forms is that the case of two points is ambiguous:
 		# [[x1,x2], [y1, y2]]
@@ -95,19 +103,13 @@ class ASTPolygon(ASTRegion):
 			if isinstance(points, np.ndarray):
 				self.astObject = Ast.Polygon(ast_frame, points.T)
 			else:
-				# Could be a list or lists or tuples - reshape into parallel array form
-				dim1 = np.zeros(len(points))
-				dim2 = np.zeros(len(points))
-				for idx, (x, y) in points:
-					dim1[idx] = x
-					dim2[idx] = y
-				
+				dim1, dim2 = points.T
 				self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2]))
 	
 	@staticmethod
 	def fromFITSHeader(header=None, uncertainty=4.848e-6):
 		'''
-		Creates an ASTPolygon in a sky frame from a FITS header. Header must be a 2D image and contain WCS information.
+		Creates an ASTPolygon in a sky frame from a FITS header. Header of HDU must be a 2D image and contain WCS information.
 		
 		:param header: a FITS header
 		:param uncertainty: TODO: parameter not yet used
@@ -188,23 +190,39 @@ class ASTPolygon(ASTRegion):
 		# rather than a flat Frame.
 		return sky_frame_polygon #ASTPolygon(frame=wcsFrameSet, points=downsizedPolygon.astObject.getregionpoints()) 
 		
-	
 	@staticmethod
-	def fromPointsOnSkyFrame(radec_pairs:np.ndarray=None, ra=None, dec=None, frame:ASTSkyFrame=None, expand_by=20*u.pix): # astropy.coordinates.BaseRADecFrame
+	def fromPointsOnSkyFrame(frame:ASTSkyFrame=None, points:np.ndarray=None, expand_by:astropy.units.quantity.Quantity=20*u.pix): # astropy.coordinates.BaseRADecFrame
 		'''
-		Create an ASTPolygon from an array of points. NOTE: THIS IS SPECIFICALLY FOR SKY FRAMES.
+		Create an ``ASTPolygon`` specifically in a sky frame from an array of points.
 		
-		:param radec_points: an array of pairs of points with shape (n,2), e.g. [[ra1,dec1], [ra2,dec2], ..., [ran,decn]]
-		:param ra: list of RA points, must be in degrees (or :class:`astropy.units.quantity.Quantity` objects)
-		:param dec: list of declination points, must be in degrees (or :class:`astropy.units.quantity.Quantity` objects)
-		:param frame: the frame the points lie in, specified as an ASTSkyFrame object
-		:returns: new ASTPolygon object
+		Points can be provided in degrees either as an array or coordinate pairs, e.g.
+		
+		.. code-block:: python
+		
+		    np.array([[1,2], [3,4], [5,6]])
+
+		or as parallel arrays of ra,dec:
+		
+		.. code-block:: python
+				
+		    np.array([[1,3,5], [2,4,6]])
+				
+		:param points: coordinate points, either as a list of coordinate pairs or two parallel ra,dec arrays
+		:param frame: the frame the points lie in, specified as an ``ASTSkyFrame`` object
+		:param expand_by: number of pixels to extend the polygon beyond the provided points
+		:returns: new ``ASTPolygon`` object
 		'''
-		if radec_pairs is None and (ra is None or dec is None):
-			raise ValueError("Cannot specify both 'radec_pairs' and 'ra' or 'dec'.")
-		if any([x is not None for x in [ra,dec]]) and not all([x is not None for x in [ra,dec]]):
-			raise ValueError("If one of 'ra','dec' is provided, both must be.")
+		if points is None:
+			raise ValueError("Coordinate points must be provided to create a polygon.")
 		
+		# code below requires two parallel arrays of ra, dec in radians
+		points = np.deg2rad(points)
+		if len(points[0]) == 2:
+			# data is array of coordinate pairs, convert to parallel arrays
+			ra_list, dec_list = points.T
+		else:
+			ra_list, dec_list = points
+			
 		# author: David Berry (any errors are Demitri Muna's)
 		#
 		#  This method uses astConvex to find the shortest polygon enclosing a
@@ -322,6 +340,9 @@ class ASTPolygon(ASTRegion):
 		
 		
 		if expand_by.to_value(u.pix) > 0:
+			
+			n_pixels = expand_by.to_value(u.pix)
+			
 			#  Now expand the above polygon a bit. First get the vertex positions
 			#  from the Polygon.
 			(x_list, y_list ) = pix_poly.getregionpoints()
@@ -329,7 +350,7 @@ class ASTPolygon(ASTRegion):
 			# Transform the centre position from sky to pixel coordinates.
 			( x_cen, y_cen ) = wcs.tran( [[centre[0]], [centre[1]]], False )
 			
-			#  For each vertex, extend its radial vector by 20 pixels. Create lists
+			#  For each vertex, extend its radial vector by n pixels. Create lists
 			#  of extended x and y vertex positions. [Expanding about the centroid of
 			#  the original vertices may give better results than expanding about the
 			#  centre of the bounding disc in some cases].
@@ -339,7 +360,7 @@ class ASTPolygon(ASTRegion):
 			   dx = x - x_cen[0]
 			   dy = y - y_cen[0]
 			   old_radius = math.sqrt( dx*dx + dy*dy )
-			   new_radius = old_radius + 20
+			   new_radius = old_radius + n_pixels
 			   factor = new_radius/old_radius
 			   dx *= factor
 			   dy *= factor
@@ -357,15 +378,7 @@ class ASTPolygon(ASTRegion):
 			new_ast_polygon = pix_poly.mapregion( wcs, frame )
 		
 		return ASTPolygon(ast_object=new_ast_polygon)
-	
-# 	@property
-# 	def points(self):
-# 		'''
-# 		Returns the array of points that describe this polygon as a NumPy array of shape (n,2) in degrees.
-# 		'''
-# 		#return np.rad2deg(region.getregionpoints().T)
-# 		return np.rad2deg(self.points().T)
-	
+
 	def downsize(self, maxerr=None, maxvert=0):
 		'''
 		Returns a new ASTPolygon that contains a subset of the vertices of this polygon.

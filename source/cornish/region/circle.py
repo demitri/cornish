@@ -224,14 +224,16 @@ class ASTCircle(ASTRegion):
 		Returns a new polygon region that approximates this circle in the same frame.
 		
 		The algorithm used in this method leads to the new polygon being fully inscribed by the
-		originating circle; all points generated are on the circle's circumference.
+		originating circle; all points generated are on the circle's circumference. Although the
+		default number of points is 200, typically a much smaller number (e.g. 20) is
+		sufficient.
 		
-		:param npoints: number of points to use for the resulting polygon
+		:param npoints: number of points to sample from the circle for the resulting polygon
 		'''
 		#old_mesh_size = self.meshSize
 		#self.meshSize = npoints
 		points = self.boundaryPointMesh(npoints=npoints)
-		return ASTPolygon(frame=self.astObject, points=points)
+		return ASTPolygon(frame=self.astObject, points=points) # can get the frame from the astObject
 		
 		#points = self.boundaryPointMesh(npoints=npoints)
 		#return ASTPolygon.fromPointsOnSkyFrame(radec_pairs=points, frame=self.frame)
@@ -244,6 +246,8 @@ class ASTCircle(ASTRegion):
 	
 	@property
 	def area(self):
-		''' The area of the circle on the sphere. [Not yet implemented.] '''
+		'''
+		The area of the circle within its frame (e.g. on a Cartesian plane or sphere). [Not yet implemented.]
+		'''
 		# see: https://math.stackexchange.com/questions/1832110/area-of-a-circle-on-sphere
 		raise NotImplementedError()

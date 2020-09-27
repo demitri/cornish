@@ -4,7 +4,7 @@ from __future__ import annotations # remove in Python 3.10
 # https://stackoverflow.com/a/33533514/2712652
 
 from abc import ABCMeta, abstractproperty
-from typing import Union
+from typing import Union, Iterable
 
 import math
 from math import radians as deg2rad
@@ -12,6 +12,7 @@ from math import degrees as rad2deg
 
 import numpy as np
 import astropy
+import astropy.units as u
 import starlink
 import starlink.Ast as Ast
 
@@ -70,9 +71,11 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		self._uncertainty = uncertainty
 	
 	@classmethod
-	def fromFITSHeader(cls, fits_header=None, uncertainty=4.848e-6):
+	def fromFITSHeader(cls, fits_header=None, uncertainty:float=4.848e-6):
 		'''
 		Factory method to create a region from the provided FITS header; the returned object will be as specific as possible (but probably an ASTPolygon).
+		
+		The frame is determined from the FITS header.
 		
 		:param fits_header: a FITS header (Astropy, fitsio, an array of cards)
 		:param uncertainty: defaults to 4.848e-6, an uncertainty of 1 arcsec
@@ -168,15 +171,6 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		else:
 			raise Exception(f"Unexpected region type encountered: {type(ast_object)}.")
 
-	@classmethod
-	def fromPoints(cls, points:np.ndarray) -> ASTRegion:
-		'''
-		Create a new region from a set of points.
-		
-		:points: a collection of points as vertex pairs
-		'''
-		
-
 	@property
 	def points(self) -> np.ndarray:
 		'''
@@ -222,14 +216,16 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 	@property
 	def isAdaptive(self):
-		''' Boolean attribute that indicates whether the area adapt to changes in the coordinate system. '''
-		return self.astObject.get("Adaptive")
+		'''
+		Boolean attribute that indicates whether the area adapt to changes in the coordinate system. 
+		'''
+		return self.astObject.get("Adaptive") == "1"
 	
 	@isAdaptive.setter
-	def isAdaptive(self, newValue):
-		if newValue in [True, 1]:
+	def isAdaptive(self, newValue:bool):
+		if newValue in [True, 1, "1"]:
 			self.astObject.set("Adaptive=1")
-		elif newValue in [False, 0]:
+		elif newValue in [False, 0, "0"]:
 			self.astObject.set("Adaptive=0")
 		else:
 			raise Exception("ASTRegion.adaptive property must be one of [True, False, 1, 0].")
@@ -237,27 +233,33 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	@property
 	def isNegated(self):
 		''' Boolean attribute that indicates whether the original region has been negated. '''
-		return self.astObject.get("Negated")
+		return self.astObject.get("Negated") == "1"
 	
 	@isNegated.setter
-	def isNegated(self, newValue):
-		if newValue in [True, 1]:
+	def isNegated(self, newValue:bool):
+		if newValue in [True, 1, "1"]:
 			self.astObject.set("Negated=1")
-		elif newValue in [False, 0]:
+		elif newValue in [False, 0, "0"]:
 			self.astObject.set("Negated=0")
 		else:
 			raise Exception("ASTRegion.isNegated property must be one of [True, False, 1, 0].")
 	
+	def negate(self):
+		''' Negate the region, i.e. points inside the region will be outside, and vice versa. '''
+		self.astObject.negate()
+	
 	@property
-	def isClosed(self):
-		''' Boolean attribute that indicates whether the boundary be considered to be inside the region. '''
-		return self.astObject.get("Closed")
+	def isClosed(self) -> bool:
+		'''
+		Boolean attribute that indicates whether the boundary be considered to be inside the region. 
+		'''
+		return self.astObject.get("Closed") == "1"
 
 	@isClosed.setter
-	def isClosed(self, newValue):
-		if newValue in [True, 1]:
+	def isClosed(self, newValue:bool):
+		if newValue in [True, 1, "1"]:
 			self.astObject.set("Closed=1")
-		elif newValue in [False, 0]:
+		elif newValue in [False, 0, "0"]:
 			self.astObject.set("Closed=0")
 		else:
 			raise Exception("ASTRegion.isClosed property must be one of [True, False, 1, 0].")
@@ -268,10 +270,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		return self.astObject.get("Bounded") == "1"
 
 	@isBounded.setter
-	def isBounded(self, newValue:Union[bool,int]):
-		if newValue in [True, 1]:
+	def isBounded(self, newValue:bool):
+		if newValue in [True, 1, "1"]:
 			self.astObject.set("Bounded=1")
-		elif newValue in [False, 0]:
+		elif newValue in [False, 0, "0"]:
 			self.astObject.set("Bounded=0")
 		else:
 			raise Exception("ASTRegion.isBounded property must be one of [True, False, 1, 0].")
@@ -280,7 +282,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		'''
 		Returns a copy of the frame encapsulated by this region.
 		
-		Note that the frame is not directly accessible; both this method and the underlying `starlink-pyast` function returns a copy.
+		Note that the frame is not directly accessible; both this method and the underlying ``starlink-pyast`` function returns a copy.
 		'''
 		# this is not a property since a new object is being returned.
 		ast_frame = self.astObject.getregionframe() # "A pointer to a deep copy of the Frame represented by the Region."
@@ -341,6 +343,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# [-10,5], [10,20] <- ra, dec or pixel bounds
 		
 		raise Exception("test units?")
+		# .. todo:: if SkyFrame convert from ra -> deg
 		
 		return (lower_bounds, upper_bounds)
 		
@@ -580,15 +583,15 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 		self.astObject.mapregionmesh( mapping, frame )
 
-	def boundaryPointMesh(self, npoints:int=None):
+	def boundaryPointMesh(self, npoints:int=None) -> np.ndarray:
 		'''
 		Returns an array of evenly distributed points that cover the boundary of the region.
 		For example, if the region is a box, it will generate a list of points that trace the edges of the box.
 		
 		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
 		
-		:param npoints: The approximate number of points to generate in the mesh.
-		:returns: List of points.
+		:param npoints: the approximate number of points to generate in the mesh
+		:returns: list of points in degrees
 		'''
 		# The starlink.AST object uses the attribute "MeshSize" to determine the number of points to
 		# use. This should be specified when building the mesh - the attribute doesn't seem to be used
@@ -619,9 +622,9 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			# restore original value
 			self.meshSize = old_mesh_size #self.astObject.set("MeshSize={0}".format(old_mesh_size))
 		
-		return mesh.T # returns as a list of pairs of points, not two parallel arrays
+		return np.rad2deg(mesh).T # returns as a list of pairs of points, not two parallel arrays
 		
-	def interiorPointMesh(self, npoints=None):
+	def interiorPointMesh(self, npoints:int=None):
 		'''
 		Returns an array of evenly distributed points that cover the surface of the region.
 		For example, if the region is a box, it will generate a list of points that fill the interior area of the box.
@@ -629,7 +632,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
 		
 		:param npoints: The approximate number of points to generate in the mesh.
-		:returns: List of points.
+		:returns: array of points in degrees
 		'''
 		# See discussion of "MeshSize" in method "boundaryPointMesh".
 		
@@ -655,7 +658,33 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 		# .. todo:: double check points as degrees vs radians!
 
-		return mesh.T
+		return np.rad2deg(mesh).T
+	
+	def containsPoint(self, point:Union[Iterable, astropy.coordinates.SkyCoord]=None) -> bool:
+		'''
+		Returns ``True`` if the provided point lies inside this region, ``False`` otherwise.
+
+		This method is a direct synonym for :meth:`pointInRegion`.
+		The name "containsPoint" is more appropriate for the object oriented format,
+		but the ``pointInRegion`` method is present for consistency with the AST library.
+		'''
+		return self.pointInRegion(point=point)
+	
+	def pointInRegion(self, point:Union[Iterable, astropy.coordinates.SkyCoord,np.ndarray]=None) -> bool:
+		'''
+		Returns ``True`` if the provided point lies inside this region, ``False`` otherwise.
+		
+		If no units are specified degrees are assumed.
+		'''
+		if point is None:
+			raise ValueError("A test point must be specified.")
+		
+		if isinstance(point, astropy.coordinates.SkyCoord):
+			point = [point.ra.to(u.rad).value, point.dec.to(u.rad).value]
+		else:
+			point = np.deg2rad(point)
+		
+		return self.astObject.pointinregion(point)
 		
 	@abstractproperty
 	def area(self) -> astropy.units.quantity.Quantity:

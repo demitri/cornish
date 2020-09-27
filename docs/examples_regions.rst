@@ -16,10 +16,30 @@ When creating a region, note that the frame the region to be defined in must be 
 
 Region objects are defined in the top level of the ``cornish`` namespace.
 
+All Regions
+-----------
+
+The :class:`~cornish.ASTRegion` class is the superclass for all Cornish region objects. It contains a great deal of functionality. The API reference is a worth looking at to see what is available. A short listing:
+
+* :attr:`~ASTRegion.points`: Return a list of points thatdescribe the region. The shape is dependent on the typr of region.
+* :meth:`~ASTRegion.boundingCircle`: Returns a new :class:`~cornish.ASTCircle` object that bounds the given region. 
+* :meth:`~ASTRegion.overlaps`: Check whether two regions overlap. 
+* :meth:`~ASTRegion.isIdenticalTo`: Check whether two regions are identical.
+* :meth:`~ASTRegion.isFullyWithin`: Check whether one region is fully within another.
+* :meth:`~ASTRegion.fullyEncloses`: Check whether one region is fully encloses another.
+* :meth:`~ASTRegion.boundaryPointMesh`: Returns an array of evenly distributed points that cover the boundary of the region.
+* :meth:`~ASTRegion.interiorPointMesh`: Returns an array of evenly distributed points that cover the surface of the region.
+* :meth:`~ASTRegion.containsPoint`: Determine whether a given point lies within a given region.
+
+See the API reference for more methods and properties.
+
 Circles
 -------
 
-Circles can be defined as either a center point and a radius or else a center point and another on the circumference. Coordinates can be specified an :class:`astropy.coodinates.SkyCoord` object or pairs of values in degrees.
+Creating Circles
+^^^^^^^^^^^^^^^^
+
+Circles can be defined as either a center point and a radius or else a center point and another on the circumference. Coordinates can be specified an :class:`astropy.coodinates.SkyCoord` object or pairs of values in degrees. The examples below demonstrate various ways to create circle regions.
 
 .. code-block:: python
 
@@ -50,8 +70,11 @@ Circles can be defined as either a center point and a radius or else a center po
 	gal_frame = ASTSkyFrame(system=SYSTEM_GALACTIC)
 	gal_frame.equinox = EQUINOX_J2010
 	ASTCircle(frame=gal_frame, center=center, radius=2.0*u.deg)
-		
-Circles have properties as one might expect:
+
+Circle Properties
+^^^^^^^^^^^^^^^^^
+
+Circles have :attr:`~ASTCircle.radius` and :attr:`~ASTCircle.centre` properties as one might expect, and both can be directly modified:
 
 .. code-block:: python
 
@@ -60,8 +83,23 @@ Circles have properties as one might expect:
 	
 	circle.centre # or "center" if you prefer...
 	>>> array([ 12.70611111, -32.31611111]) # output in degrees
+		
+New circles can be created by a scale factor or increased by addition from an existing circle.
+
+.. code-block:: python
 	
-For code that requires a polygon region as an input, :class:`~cornish.ASTCircle` has a method that will convert the region to an :class:`~cornish.ASTPolygon`. The default is to use 200 points for the polygon but this can be customized by using the `npoints` parameter (often even 20 are enough). Note that all of the polygon points fall on the circle's circumference, so the resulting region is fully inscribed by the original circle.
+	scaled_circle = circle * 2.0
+	scaled_circle.radius
+	>>> <Quantity 4. deg>
+	
+	larger_circle = circle + 6*u.deg
+	larger_circle.radius
+	>>> <Quantity 8. deg>
+	
+Converting to Polygons
+^^^^^^^^^^^^^^^^^^^^^^
+
+For code that requires a polygon region as an input the method :meth:`~cornish.ASTCircle.toPolygon` will convert a circle to an :class:`~cornish.ASTPolygon`. The default is to sample 200 points for the polygon but this can be customized by using the `npoints` parameter (often even 20 are sufficient). Note that all of the polygon points fall on the circle's circumference, so the resulting region is fully inscribed by the original circle.
 
 .. code-block:: python
 
@@ -73,7 +111,7 @@ All regions have a :py:meth:`~cornish.ASTRegion.boundingCircle` property that re
 Polygons
 --------
 
-A polygon is a collection of vertices on a specific frame. If no frame is specified it will default to :class:`~cornish.ASTICRSFrame`.
+A polygon is a collection of vertices that lie in a specific frame. The default frame :class:`~cornish.ASTICRSFrame` is used if none is specified.
 
 .. code-block:: python
 
@@ -100,10 +138,23 @@ A polygon is a collection of vertices on a specific frame. If no frame is specif
                        [ 10.81598897, -31.12642801],
                        [ 11.3392136 , -30.69069244],
                        [ 11.98960033, -30.41196836]])
-    polygon = ASTPolygon(frame=ASTICRSFrame(), )
+    polygon = ASTPolygon(frame=ASTICRSFrame(), points=points)
 
-	   
-	
+Points can be specified as an array of coordinate points (as above) or as parallel arrays of each dimension (which is just ``points.T`` from above):
+
+.. code-block:: python
+
+    points = np.array([[ 12.70611111,  13.42262189,  14.07300863,  14.59623325, ...],
+                       [-30.31611111, -30.41196836, -30.69069244, -31.12642801, ...]])
 
 .. todo:: Provide example of how to convert a region from one frame to another.
 
+Boxes
+-----
+
+.. todo:: Box section coming soon! (But it's pretty straightforward from the :class:`~ASTBox` API.)
+
+Compound Regions
+----------------
+
+.. todo:: Counpound regions section coming soon! (But it's pretty straightforward from the :class:`~ASTBox` API.)
