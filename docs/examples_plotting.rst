@@ -4,9 +4,9 @@
 Plotting Examples
 =================
 
-The underlying `starlink-pyast <http://starlink.github.io/starlink-pyast/pyast.html>`_ library has a rich functionality for handling plotting on multiple world coordinate systems. The interface is very extensible and provides hooks for custom plot interfaces.
+The underlying `starlink-pyast <http://starlink.github.io/starlink-pyast/pyast.html>`_ library has a rich functionality for handling plotting on multiple world coordinate systems. The interface is extensible and provides hooks for custom plot interfaces.
 
-Plotting support is not complete, but more than sufficient for checks like verifying regions.
+Plotting support in Cornish is not complete, but more than sufficient for checks like verifying regions.
 
 Matplotlib Interface
 --------------------
@@ -27,7 +27,8 @@ The following is a very simple example of how to plot a circle in an ICRS frame 
 	circle = ASTCircle(center=center, radius=2.0*u.deg)
 	
 	# define a new plot of 5x5 inches
-	# set the extent of the plot to 1.25 x the circle radius to leave some room
+	# set the extent of the plot to the size of a circle
+	# with 1.25 x the circle radius to leave some room
 	skyplot = SkyPlot(extent=circle*1.25, figsize=(5,5))
 
 	# add region to plot
@@ -54,7 +55,8 @@ Repeat the same with a polygon converted from the circle.
 	circle = ASTCircle(center=center, radius=2.0*u.deg)
 	
 	# define a new plot of 5x5 inches
-	# set the extent of the plot to 1.25 x the circle radius to leave some room
+	# set the extent of the plot to the size of a circle
+	# with 1.25 x the circle radius to leave some room
 	skyplot = SkyPlot(extent=circle*1.25, figsize=(5,5))
 
 	# add region to plot

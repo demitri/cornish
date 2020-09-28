@@ -15,7 +15,7 @@ from cornish import ASTFITSChannel, ASTFrameSet
 
 class SkyPlot(CornishPlot):
 	'''
-	A convenience class to create a sky plot in Matplotlib.
+	A convenience class providing a high level interface for creating sky plots in Matplotlib.
 	
 	:param extent: an ASTRegion that encompasses the full area to plot
 	:param figsize: width,height of the plot figure in inches (parameter passed directly to :class:`matplotlib.figure.Figure`) 

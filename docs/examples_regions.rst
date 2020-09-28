@@ -162,4 +162,15 @@ Compound Regions
 From FITS Files
 ---------------
 
-.. todo:: Give examples here.
+Cornish is able to create regions based on image FITS headers alone. The example below shows how to create a region object based on the area covered by a FITS image from the header. The example file below can be downloaded `here <https://dr12.sdss.org/sas/dr12/boss/photoObj/frames/301/6174/2/frame-g-006174-2-0094.fits.bz2>`_.
+
+.. code-block:: python
+
+    from cornish import ASTPolygon
+    from astropy.io import fits
+	
+    filename = "frame-g-006174-2-0094.fits.bz2"
+    with fits.open(filename) as hdu_list:
+        hdu1 = hdu_list[0]
+	
+    polygon = ASTPolygon.fromFITSHeader(hdu1.header)
