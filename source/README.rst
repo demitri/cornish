@@ -10,7 +10,7 @@ A `Python interface <http://starlink.github.io/starlink-pyast/pyast.html>`_ call
 
 The aim of Cornish is to be a fully Pythonic interface to the library. It doesn't replace the existing ``starlink-ast`` Python interface; rather, it is a wrapper around that. The current development focus is defining and working with regions on the sky. It accepts and returns `Astropy <https://www.astropy.org>`_ objects where possible.
 
-Cornish is currently under active development and all APIs are subject to change. It is not recommended to be used in a pipeline yet, but it is becoming increasingly mature and particularly useful for interactive use. The project is being released in this state as it is a dependency of the Trillian and SciID projects.
+Cornish is currently under active development and all APIs are subject to change. It is not recommended to be used in a pipeline yet, but it is becoming increasingly mature and particularly useful for interactive use. The project is being released in this state as it is a dependency of the Trillian and SciDD projects.
 
 Many thanks to David Berry for the generous and extremely responsive help and advice in the development of the library.
 

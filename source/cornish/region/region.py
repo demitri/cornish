@@ -70,6 +70,11 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		super().__init__(ast_object=ast_object)
 		self._uncertainty = uncertainty
 	
+	def __add__(self, other_region):
+		# TODO: check data type, handle both ASTRegion and the ast_object region?
+		from .compound_region import ASTCompoundRegion # forward import to avoid circular import error
+		return ASTCompoundRegion(regions=[self, other_region], operation=Ast.AND)
+	
 	@classmethod
 	def fromFITSHeader(cls, fits_header=None, uncertainty:float=4.848e-6):
 		'''
