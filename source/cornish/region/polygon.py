@@ -174,7 +174,7 @@ class ASTPolygon(ASTRegion):
 		downsizedpoly = flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon
 		
 		#  Create a polygon with the same vertices but defined in a SkyFrame rather than a flat Frame.
-		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet, points=downsizedpoly.astObject.getregionpoints())
+		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet, points=np.rad2deg(downsizedpoly.astObject.getregionpoints()))
 		
 		#  The order in which the vertices are supplied to the polygon constructor above
 		#  defines which side of the polygon boundary is the inside and which is the
@@ -186,7 +186,7 @@ class ASTPolygon(ASTRegion):
 		if not sky_frame_polygon.astObject.pointinregion( [a[0], b[0]] ):
 			 sky_frame_polygon.astObject.negate()
 		
-		# Return a polygon with the same vertices bu defined in a SkyFrame
+		# Return a polygon with the same vertices but defined in a SkyFrame
 		# rather than a flat Frame.
 		return sky_frame_polygon #ASTPolygon(frame=wcsFrameSet, points=downsizedPolygon.astObject.getregionpoints()) 
 		
