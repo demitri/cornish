@@ -183,30 +183,46 @@ class ASTBox(ASTRegion):
 		self._uncertainty = unc
 	
 	@property
-	def center(self) -> np.ndarray:
+	def centre(self) -> np.ndarray:
 		'''
-		Returns the location of the Box's center as a coordinate pair (tuple).
+		Returns the location of the Box's center as a coordinate pair, in degrees if a sky frame.
 		
 		:returns: a Numpy array of points (axis1, axis2)
 		'''
-		return self.astObject.getregionpoints()[0] # returns two points as a Numpy array: (center, a corner)
+		# 'getregionpoints' returns two points as a Numpy array: (center, a corner)
+		#center_rad, a_corner_rad = rad2deg(box.astObject.norm(box.astObject.getregionpoints())).T
+		#return np.rad2deg(center_rad)
+		
+		center_point, a_corner_point = self.astObject.getregionpoints().T
+		if self.frame().isSkyFrame:
+			return np.rad2deg(self.astObject.norm(center_point))
+		else:
+			return center_point
+		
+	@property
+	def center(self) -> np.ndarray:
+		'''
+		Returns "self.centre". This is a British library, after all.
+		'''
+		return self.centre
+		
 	
 	@property
 	def corner(self) -> np.ndarray:
 		'''
 		Returns the location of one of the box's corners as a coordinate pair, in degrees if a sky frame.
 		
-		:returns: a Numpy array of points (axis1, axis2).
+		:returns: a Numpy array of points (axis1, axis2)
 		'''
 		
 		# !! Is this off by 1 or 0.5  (or neither) due to lower left being [0.5,0.5] ?
-
-		center_point, corner_point = self.astObject.getregionpoints()
 		
-		if self.frame.isSkyFrame():
-			return np.rad2deg(self.astObject.norm(corner_point))
+		center_point, a_corner_point = self.astObject.getregionpoints().T
+		
+		if self.frame().isSkyFrame:
+			return np.rad2deg(self.astObject.norm(a_corner_point))
 		else:
-			return corner_point
+			return a_corner_point
 	
 	def corners(self, mapping=None) -> list:
 		'''
