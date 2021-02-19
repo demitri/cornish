@@ -78,7 +78,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	@classmethod
 	def fromFITSHeader(cls, fits_header=None, uncertainty:float=4.848e-6):
 		'''
-		Factory method to create a region from the provided FITS header; the returned object will be as specific as possible (but probably an ASTPolygon).
+		Factory method to create a region from the provided FITS header; the returned object will be as specific as possible (but probably an :py:class:`ASTPolygon`).
 		
 		The frame is determined from the FITS header.
 		

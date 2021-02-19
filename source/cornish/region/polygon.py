@@ -168,7 +168,7 @@ class ASTPolygon(ASTRegion):
 		flatpoly = ASTPolygon(frame=degFlatFrame, points=mesh)
 
 		#  Remove mesh points where the polygon is close to a Cartesian straight
-		#  line, and retain them where it deviates from a stright line, in order
+		#  line, and retain them where it deviates from a straight line, in order
 		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
 		#
 		downsizedpoly = flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon
@@ -335,7 +335,7 @@ class ASTPolygon(ASTRegion):
 		      ar[ iy - 1, ix - 1 ] = 1
 		
 		#  Create a Polygon representing the convex hull that encloses the
-		#  positions. This Polygon is defined in pixel coordinaates within the
+		#  positions. This Polygon is defined in pixel coordinates within the
 		#  grid defined by the above FITS headers.
 		pix_poly = Ast.convex( 1, Ast.EQ, ar, [1,1], [M,M], False )
 		

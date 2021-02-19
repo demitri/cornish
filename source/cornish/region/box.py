@@ -5,6 +5,8 @@ import logging
 
 import starlink
 import starlink.Ast as Ast
+import astropy
+import astropy.units as u
 
 from .region import ASTRegion
 from ..mapping import ASTMapping
@@ -283,6 +285,30 @@ class ASTBox(ASTRegion):
 		
 		return corner_points
 	
+	def toPolygon(self, npoints:int=200, maxerr:astropy.units.Quantity=1.0*u.arcsec):
+		'''
+		Return an ASTPolygon that approximates the provided region in the same frame.
+		
+		This method works by creating a boundary mesh of points of the region and creating
+		an ASTPolygon from that. Points are removed from the mesh where they are close to a
+		Cartesian straight line, keeping to a maximum error of `maxerr`. The maximum deviation
+		defaults to 1 arc-second (4.8E-6 rads).
+		
+		In most use cases it is sufficient to defer to the default parameters.
+	
+		If the region already is an ASTPolygon, it is directly returned.
+		
+		:param npoints: number of boundary mesh points to generate
+		:param maxerr: maximum error of line approximation, defaults to 1 arc-second (4.8E-6 rads)
+		'''
+		from .polygon import ASTPolygon # avoid circular import
+		if isinstance(self, ASTPolygon):
+			return self
+		
+		boundary_mesh_points = self.boundaryPointMesh(npoints=npoints)
+		new_polygon = ASTPolygon(frame=self.frame(), points=boundary_mesh_points).downsize(maxerr=maxerr.to(u.rad).value)
+		return new_polygon
+
 	@property
 	def area(self):
 		'''
