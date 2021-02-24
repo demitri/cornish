@@ -7,11 +7,29 @@ import starlink.Grf as Grf
 import starlink.Ast as Ast
 #import starlink.Atl as Atl
 
+import numpy as np
+import astropy.units as u
+from astropy.units import Quantity
+from astropy.coordinates import SkyCoord
+
 from .cornish import CornishPlot
 from ..region.region import ASTRegion
 from ..region.circle import ASTCircle
 
 from cornish import ASTFITSChannel, ASTFrameSet
+
+markerstr2value = {
+	"circle" : 1,
+	"cross" : 2,
+	"star" : 3,
+	"circle" : 4,
+	"x" : 5,
+	"dot" : 6,
+	"triangle" : 7,
+	"triangle down" : 7,
+	"triangle left" : 7,
+	"triangle right" : 7
+}
 
 class SkyPlot(CornishPlot):
 	'''
@@ -166,7 +184,82 @@ class SkyPlot(CornishPlot):
 		
 		self.astPlot.Colour_Border = original_color
 		self.astPlot.Style = original_style
+	
+	def addPoint(self, point, marker_style:int=1, colour:str=None):
+		'''
+		Draw a point onto an existing plot.
 		
+		.. list-table:: Marker Styles
+           :widths 20 25 25
+		   :header-rows: 1
+		   
+		   * - marker_style value
+		     - style
+			 - string equivalent
+		   * - 1
+		     - small circle
+			 - circle
+           * - 2
+            - cross
+			- cross
+           * - 3
+            - star
+			- star
+           * - 4
+            - larger circle
+			- circle
+           * - 5
+            - x
+			- x
+           * - 6
+            - pixel dot
+			- dot
+           * - 7
+            - triangle pointing up
+			- triangle
+           * - 8
+            - triangle pointing down
+			- triangle down
+           * - 9
+            - triangle pointing left
+			- triangle left
+           * - 10
+            - triangle pointing right
+			- triangle right
+           * - 11
+            - ...
+		
+		:param point: point should be in degrees (e.g. list or numpy.ndarray, or a pair (list/tuple) of astropy.units.Quantity values, or a SkyCoord
+		:param marker_style: an integer corresponding to one of the built-in marker styles
+		:param colour: marker plot colour
+		'''
+		if isinstance(marker_style, str):
+			try:
+				marker_style = markerstr2value[marker_style]
+			except KeyError:
+				raise ValueError(f"The provided marker style value '{marker_style}' is unknown.")
+		
+		if isinstance(point, SkyCoord):
+			point = [point.ra.to(u.rad).value, point.dec.to(u.rad).value]
+			print(point)
+		elif isinstance(point, (np.ndarray, list, tuple)):
+			point = np.deg2rad(point)
+		elif len(point) == 2 and isinstance(point[0], Quantity):
+			point = [point[0].to(u.rad).value, point[1].to(u.rad).value]
+		else:
+			raise ValueError("Unhandled point type.")
+		
+		if colour:
+			# save current colour
+			current_marker_colour = self.astPlot.Colour_Markers
+			self.astPlot.Colour_Markers = colour
+		
+		self.astPlot.mark(point, marker_style)
+		
+		if colour:
+			# restore colour
+			self.astPlot.Colour_Markers = current_marker_colour
+	
 	def show(self):
 		'''
 		Display the plot (passthrough for :meth:`matplotlib.pyplot.show`).

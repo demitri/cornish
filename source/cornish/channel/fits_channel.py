@@ -37,7 +37,7 @@ class ASTFITSChannel(ASTChannel):
 	
 	:param ast_object: an existing `starlink.Ast.FitsChan` object
 	:param hdu: a FITS HDU of type `astropy.io.fits.hdu.base.ExtensionHDU` or `fitsio.fitslib.HDUBase`
-	:param header: a FITS header, type `astropy.io.fits.header.Header` or `fitsio.fitslib.FITSHDR`, a list of tuples/arrays (keyword,value), or a single string
+	:param header: a FITS header, type `astropy.io.fits.header.Header` or `fitsio.fitslib.FITSHDR`, a list of tuples/arrays (keyword,value), a list of strings, or a single string
 	'''
 	# note: quote 'fitsio.hdu.base.HDUBase' as is it an optional package
 	def __init__(self, ast_object:Ast.FitsChan=None, hdu:Union[astropy.io.fits.hdu.base.ExtensionHDU,'fitsio.hdu.base.HDUBase']=None, header=None):
@@ -48,7 +48,7 @@ class ASTFITSChannel(ASTChannel):
 		----------
 		header : astropy.io.fits.header.Header or fitsio.fitslib.FITSHDR or list of tuples/arrays (keyword,value)
 		
-		@param header FITS header as a dictionary of strings (keyword,value) or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, or a plain string divisible by 80 characters.
+		:param header: FITS header as a dictionary of strings (keyword,value) or one of these types: astropy.io.fits.header.Header, fitsio.fitslib.FITSHDR, or a plain string divisible by 80 characters.
 		'''
 		self._frameSet = None
 
