@@ -54,7 +54,7 @@ Region-specific methods:
 class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	'''
 	Represents a region within a coordinate system.
-	This is an abstract superclass - there is no means to create an ASTRegion object directly
+	This is an abstract superclass - there is no supported means to create an ASTRegion object directly
 	(see :py:class:`ASTBox`, :py:class:`ASTPolygon`, etc.).
 	
 	Accepted signatures for creating an ASTRegion:
@@ -199,7 +199,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]]
 		# transpose the points before returning
 		# also, normalize points to expected bounds
-		return np.rad2deg(self.astObject.norm(self.astObject.getregionpoints())).T
+		if self.frame().isSkyFrame:
+			return np.rad2deg(self.astObject.norm(self.astObject.getregionpoints())).T
+		else:
+			return self.astObject.getregionpoints().T
 
 	@property
 	def uncertainty(self):
@@ -627,7 +630,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			# restore original value
 			self.meshSize = old_mesh_size #self.astObject.set("MeshSize={0}".format(old_mesh_size))
 		
-		return np.rad2deg(mesh).T # returns as a list of pairs of points, not two parallel arrays
+		if self.frame().isSkyFrame:
+				return np.rad2deg(mesh).T # returns as a list of pairs of points, not two parallel arrays
+		else:
+			return mesh.T
 		
 	def interiorPointMesh(self, npoints:int=None):
 		'''
@@ -636,7 +642,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
 		
-		:param npoints: The approximate number of points to generate in the mesh.
+		:param npoints: the approximate number of points to generate in the mesh
 		:returns: array of points in degrees
 		'''
 		# See discussion of "MeshSize" in method "boundaryPointMesh".
@@ -672,6 +678,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		This method is a direct synonym for :meth:`pointInRegion`.
 		The name "containsPoint" is more appropriate for the object oriented format,
 		but the ``pointInRegion`` method is present for consistency with the AST library.
+		
+		:param point: a coordinate point in the same frame as this region
 		'''
 		return self.pointInRegion(point=point)
 	
@@ -693,7 +701,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 	@abstractproperty
 	def area(self) -> astropy.units.quantity.Quantity:
-		# subclasses  must implement
+		# subclasses must implement
 		raise NotImplementedError()
 
 

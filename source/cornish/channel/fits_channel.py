@@ -77,7 +77,7 @@ class ASTFITSChannel(ASTChannel):
 				raise Exception(f"ASTFITSChannel: unknown HDU type specified ('{0}').".format(type(hdu)))
 		# ----------
 		
-		self._dimensions = None
+		self._dimensions = None # pixel dimensions
 		self.astObject = Ast.FitsChan() # sink=self
 		
 		if header is not None:
@@ -302,7 +302,7 @@ class ASTFITSChannel(ASTChannel):
 			#raise Exception()
 			if ast_frame_set is None:
 				raise FrameNotFoundException("Could not create frame set from FITS header.")
-			self._frameSet =  ASTFrameSet(ast_object=ast_frame_set)
+			self._frameSet = ASTFrameSet(ast_object=ast_frame_set)
 			
 			# .. todo:: the result could be:
 			# 	* NULL : wasn't able to create any AST object from the headers
@@ -312,7 +312,7 @@ class ASTFITSChannel(ASTChannel):
 	
 	@property
 	def dimensions(self):
-		''' Returns a list of dimensions as a NumPy array. '''
+		''' Returns pixel dimensions as a NumPy array. '''
 		if self._dimensions is None:
 			dims = list()
 			try:

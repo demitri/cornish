@@ -172,6 +172,16 @@ class ASTCircle(ASTRegion):
 		else:
 			raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
 	
+	def __truediv__(self, value):
+		'''
+		Return a new ASTCircle with a radius divided by a multiple of the value provided.
+		:param value: numeric value to decrease the radius by, e.g. 2 decreases the radius by 50%
+		'''
+		if value:
+			return ASTCircle(frame=self.frame, center=self.center, radius=self.radius.unit * self.radius.to(u.deg).value / value)
+		else:
+			raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
+	
 	@property
 	def radius(self) -> astropy.units.quantity.Quantity:
 		'''
@@ -219,7 +229,7 @@ class ASTCircle(ASTRegion):
 		
 		return np.rad2deg(center)
 			
-	def toPolygon(self, npoints=200):
+	def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec):
 		'''
 		Returns a new polygon region that approximates this circle in the same frame.
 		

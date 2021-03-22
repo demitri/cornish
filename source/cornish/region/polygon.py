@@ -1,4 +1,6 @@
 
+from __future__ import annotations # remove in Python 3.10
+
 import math
 import logging
 from typing import Union, Iterable
@@ -46,7 +48,10 @@ class ASTPolygon(ASTRegion):
 	:param points: points in degrees that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points
 	:returns: Returns a new ``ASTPolygon`` object.
 	'''
-	def __init__(self, ast_object:Ast.Polygon=None, frame:Union[ASTFrame, Ast.Frame, ASTRegion, Ast.Region]=None, points=None, fits_header=None):
+	def __init__(self, ast_object:Ast.Polygon=None,
+				 frame:Union[ASTFrame, Ast.Frame, ASTRegion, Ast.Region]=None,
+				 points=None,
+				 fits_header=None):
 		
 		if ast_object:
 			if any([frame, points, fits_header]):
@@ -79,11 +84,13 @@ class ASTPolygon(ASTRegion):
 		elif isinstance(frame, ASTFrame):
 			ast_frame = frame.astObject
 		else:
-			raise Exception("ASTPolygon: The supplied 'frame' object must either be a starlink.Ast.Frame or ASTFrame object.")
+			raise Exception(f"ASTPolygon: The supplied 'frame' object must either be a starlink.Ast.Frame or ASTFrame object (got '{type(frame)}').")
 		
 		#if isinstance(ast_frame, (Ast.SkyFrame, ASTSkyFrame)):
 		#	points = np.deg2rad(points)
-		points = np.deg2rad(points)
+		if (isinstance(frame, ASTFrame) and frame.isSkyFrame) or \
+		   (isinstance(frame, Ast.Frame) and frame.isaskyframe()):
+			points = np.deg2rad(points)
 		
 		# The problem with accepting both forms is that the case of two points is ambiguous:
 		# [[x1,x2], [y1, y2]]
@@ -418,5 +425,35 @@ class ASTPolygon(ASTRegion):
 		# Multiple useful answers on that page.
 		# see also: https://github.com/anutkk/sphericalgeometry/blob/master/sphericalgeometry/highlevel.py#L145
 		#           https://github.com/spacetelescope/spherical_geometry/blob/fbdc54aa5e5953c5b22723c0982a5f0b45ab2d39/spherical_geometry/polygon.py#L525
-		raise NotImplementedError()
-
+		
+		frame = self.frame() # create variable here as frame() creates a copy
+		
+		if frame.isSkyFrame:
+			
+			angles = list()
+			points = self.points
+			n = len(points)
+			
+			for idx, v in enumerate(points):
+				if idx == 0:
+					p1 = points[-1]
+				else:
+					p1 = points[idx-1]
+				if idx == n-1:
+					p2 = points[0]
+				else:
+					p2 = points[idx+1]
+				
+				angle = frame.angle(vertex=v, points=(p1,p2)) # -> Quantity
+				angles.append(angle.to(u.deg).value)
+				
+			print(angles)
+			sum_of_polygon_angles = sum(angles)
+			area = math.pi/180 * (sum_of_polygon_angles - (n-2) * 180)
+			return area * u.deg * u.deg
+		
+		else:
+			
+			# Ref: https://mathworld.wolfram.com/PolygonArea.html
+			raise NotImplementedError("The area calculation for a polygon in a non-sky frame has not been immplemented.")
+						

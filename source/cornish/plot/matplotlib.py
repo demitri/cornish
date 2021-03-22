@@ -26,9 +26,9 @@ markerstr2value = {
 	"x" : 5,
 	"dot" : 6,
 	"triangle" : 7,
-	"triangle down" : 7,
-	"triangle left" : 7,
-	"triangle right" : 7
+	"triangle down" : 8,
+	"triangle left" : 9,
+	"triangle right" : 10
 }
 
 class SkyPlot(CornishPlot):
@@ -159,12 +159,13 @@ class SkyPlot(CornishPlot):
 		'''
 		return self._figure
 	
-	def addRegionOutline(self, region:Union[ASTRegion,Ast.Region], color:str="#4a7f7b", style:int=1):
+	def addRegionOutline(self, region:Union[ASTRegion,Ast.Region], colour:str="#4a7f7b", color=None, style:int=1):
 		'''
 		Overlay the outline of the provided region to the plot.
 		
 		:param region: the region to draw
-		:param color: a color name (e.g. ``black``) or hex code (e.g. ``#4a7f7b``)
+		:param colour: a color name (e.g. ``black``) or hex code (e.g. ``#4a7f7b``)
+		:param color: synonym for 'colour'
 		:param style: line style: 1=solid, 2=solid, 3=dashes, 4=short dashes, 5=long dashes
 		'''
 		if isinstance(region, ASTRegion):
@@ -174,18 +175,21 @@ class SkyPlot(CornishPlot):
 		else:
 			raise ValueError(f"Region provided must either be an ASTRegion or starlink.Ast.Object; was given '{type(region)}'.")
 		
-		original_color = self.astPlot.Colour_Border
+		if color:
+			colour = color
+		
+		original_colour = self.astPlot.Colour_Border
 		original_style = self.astPlot.Style
 
 		self.astPlot.Style = style
-		self.astPlot.Colour_Border = color
+		self.astPlot.Colour_Border = colour
 
 		self.astPlot.regionoutline(region)
 		
-		self.astPlot.Colour_Border = original_color
+		self.astPlot.Colour_Border = original_colour
 		self.astPlot.Style = original_style
 	
-	def addPoint(self, point, marker_style:int=1, colour:str=None):
+	def addPoint(self, point, marker_style:int=1, colour:str=None, color:str=None):
 		'''
 		Draw a point onto an existing plot.
 		
@@ -232,6 +236,7 @@ class SkyPlot(CornishPlot):
 		:param point: point should be in degrees (e.g. list or numpy.ndarray, or a pair (list/tuple) of astropy.units.Quantity values, or a SkyCoord
 		:param marker_style: an integer corresponding to one of the built-in marker styles
 		:param colour: marker plot colour
+		:param color: synonym for 'colour'
 		'''
 		if isinstance(marker_style, str):
 			try:
@@ -249,6 +254,8 @@ class SkyPlot(CornishPlot):
 		else:
 			raise ValueError("Unhandled point type.")
 		
+		if color and not colour:
+			colour = color
 		if colour:
 			# save current colour
 			current_marker_colour = self.astPlot.Colour_Markers
@@ -259,6 +266,12 @@ class SkyPlot(CornishPlot):
 		if colour:
 			# restore colour
 			self.astPlot.Colour_Markers = current_marker_colour
+	
+	# def addCurve(self, start, finish):
+	# 	'''
+	# 	
+	# 	'''
+	# 	self.astPlot.
 	
 	def show(self):
 		'''

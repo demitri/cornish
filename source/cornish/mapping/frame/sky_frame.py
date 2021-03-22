@@ -110,7 +110,7 @@ class ASTSkyFrame(ASTFrame):
 				except ValueError as e:
 					raise ValueError("'epoch' much be a numeric value (or a string that can be converted to a numeric value")
 		self.astObject.set(f"Epoch={epoch}")
-
+		
 # .. todo:: make this a factory class
 class ASTICRSFrame(ASTSkyFrame):
 	'''

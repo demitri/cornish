@@ -16,7 +16,7 @@ class ASTMapping(ASTObject):
 		super().__init__(ast_object=ast_object)
 	
 	@property
-	def number_of_input_coordinates(self):
+	def numberOfInputCoordinates(self):
 		'''
 		Number of dimensions of the space in which the Mapping’s input points reside.
 		This property gives the number of coordinate values required to specify an input point for a Mapping.
@@ -26,7 +26,7 @@ class ASTMapping(ASTObject):
 		return self.astObject.get("Nin")
 
 	@property
-	def number_of_output_coordinates(self):
+	def numberOfOutputCoordinates(self):
 		'''
 		Number of dimensions of the space in which the Mapping’s output points reside.
 		This property gives the number of coordinate values required to specify an output point for a Mapping.
@@ -34,6 +34,20 @@ class ASTMapping(ASTObject):
 		:returns: number of output dimensions described by this mapper
 		'''
 		return self.astObject.get("Nout")
+
+	@property
+	def isLinear(self) -> bool:
+		'''
+		Returns True if the mapping is linear
+		'''
+		return self.astObject.get("IsLinear") == 1
+
+	@property
+	def isSimple(self) -> bool:
+		'''
+		Returns True if the mapping has been simplified.
+		'''
+		return self.astObject.get("IsSimple") == 1
 
 	def inverseMapping(self):
 		'''
@@ -60,7 +74,7 @@ class ASTMapping(ASTObject):
 		
 		.. code-block::
 		
-		    [ [ values on axis 1 ], [ values on axis 2], ... ]
+		    [ [ values on axis 1 ], [ values on axis 2 ], ... ]
 			
 		e.g. sky to pixel:
 		

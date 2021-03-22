@@ -1,11 +1,17 @@
 #/usr/bin/env python
 
-from typing import Union, Iterable
+from typing import Union, Iterable, Container
 
 import starlink.Ast as Ast
 
 from ... import ASTObject
 from ..mapping import ASTMapping
+
+import numpy as np
+import astropy
+import astropy.units as u
+from astropy.units import Quantity
+from astropy.coordinates import SkyCoord
 
 __all__ = ['ASTFrame']
 
@@ -84,6 +90,15 @@ class ASTFrame(ASTMapping):
 			return ASTTimeFrame(ast_object=ast_object)
 		else:
 			return ASTFrame(ast_object=ast_object)
+	
+	@staticmethod
+	def frameFromFITSHeader(header):
+		'''
+		Factory method that returns a new ASTFrame from the provided FITS header.
+		'''
+		from ...channel import ASTFITSChannel
+		fitschannel = ASTFITSChannel(header=header)
+		return fitschannel.frameSet
 	
 	@property
 	def naxes(self) -> int:
@@ -188,15 +203,156 @@ class ASTFrame(ASTMapping):
 			raise Exception("The domain value must be set to a string.")
 		self.astObject.set("Domain={0}".format(newDomain))
 		
-	def distance(self, point1:Iterable, point2:Iterable) -> float:
+	def distance(self, point1:Union[Iterable, SkyCoord], point2:Union[Iterable,SkyCoord]) -> Quantity:
 		'''
 		Distance between two points in this frame.
 		
-		:param point1: a two element list/tuple/Numpy array of the first point coordinates
-		:param point2: a two element list/tuple/Numpy array of the second point coordinates
+		:param point1: a two element list/tuple/Numpy array or a SkyCoord of the first point coordinates
+		:param point2: a two element list/tuple/Numpy array or a SkyCoord of the second point coordinates
 		'''
-		return self.astObject.distance(point1, point2)
+		if self.astObject.isaskyframe():
+			
+			# convert degrees to radians
+			if isinstance(point1, SkyCoord):
+				point1_rad = np.array([point1.ra.to(u.rad).value, point1.dec.to(u.rad).value])
+			elif isinstance(point1, Quantity):
+				point1_rad = point1.to(u.rad).value
+			else:
+				point1_rad = np.deg2rad(point1)
+
+			if isinstance(point2, SkyCoord):
+				point2_rad = np.array([point2.ra.to(u.rad).value, point2.dec.to(u.rad).value])
+			elif isinstance(point2, Quantity):
+				point2_rad = point2.to(u.rad).value
+			else:
+				point2_rad = np.deg2rad(point2)
+			
+			#point2_rad = np.array( [ [point2_rad[0]], [point2_rad[1]] ] )
+			distance_rad = self.astObject.distance(point1_rad, point2_rad)
+			distance = np.rad2deg(distance_rad) * u.deg
 		
+		else:
+			
+			if isinstance(point1, SkyCoord):
+				raise ValueError(f"'point1' is a {type(point1)} object, but this frame is not a sky frame.") 
+			if isinstance(point2, SkyCoord):
+				raise ValueError(f"'point2' is a {type(point2)} object, but this frame is not a sky frame.") 
+				
+			distance = self.astObject.distance(point1, point2)
+
+			# try to add Quantity if it can be deduced
+			if self.system == 'Cartesian' and self.domain == "GRID":
+				distance = distance * u.pixel
+		
+		return distance
+	
+	def angle(self, vertex:Iterable=None, points:Container[Union[SkyCoord,Iterable]]=None) -> Quantity:
+		'''
+		Calculate the angle in this frame between two line segments connected by a point.
+		
+		Let A = point1, C = point2, and B = the vertex point. This method calculates the
+		angle between the line segments AB and CB.
+		
+		If the frame is a sky frame, lines are drawn on great circles.
+		
+		:param vertex: a two element list/tuple/Numpy array or a SkyCoord of the vertex
+		:param points: a two element list/tuple/etc. containing two points in this frame
+		'''
+		
+		point1, point2 = points
+		
+		if self.astObject.isaskyframe():
+			# convert degrees to radians
+			if isinstance(point1, SkyCoord):
+				point1_rad = np.array([point1.ra.to(u.rad).value, point1.dec.to(u.rad).value])
+			elif isinstance(point1, Quantity):
+				point1_rad = point1.to(u.rad).value
+			else:
+				point1_rad = np.deg2rad(point1)
+			
+			if isinstance(point2, SkyCoord):
+				point2_rad = np.array([point2.ra.to(u.rad).value, point2.dec.to(u.rad).value])
+			elif isinstance(point2, Quantity):
+				point2_rad = point2.to(u.rad).value
+			else:
+				point2_rad = np.deg2rad(point2)
+
+			if isinstance(vertex, SkyCoord):
+				vertex_rad = np.array([vertex.ra.to(u.rad).value, vertex.dec.to(u.rad).value])
+			elif isinstance(vertex, Quantity):
+				vertex_rad = vertex.to(u.rad).value
+			else:
+				vertex_rad = np.deg2rad(vertex)
+		
+			angle_rad = self.astObject.angle(point1_rad, vertex_rad, point2_rad)
+		
+		else:
+			
+			angle_rad = self.astObject.angle(point1, vertex, point2)
+			
+		angle = np.rad2deg(angle_rad) * u.deg
+		return angle
+	
+	def offsetAlongGeodesicCurve(self, point1:Iterable, point2:Iterable, offset:u.Quantity):
+		'''
+		
+		Coordinates and offset value should be in the units of the frame, e.g. pixels, degrees.
+		
+		In a sky frame, the line will be curved. In a basic frame, the line will be straight.
+		
+		:param point1: a two element list/tuple/NumPy array of the first point coordinates
+		:param point2: a two element list/tuple/NumPy array of the second point coordinates
+		:param offset: a distance along the geodesic sphere connecting the two points
+		'''
+		
+		if self.isSkyFrame:
+			if isinstance(point1, SkyCoord):
+				point1_rad = np.array([point1.ra.to(u.rad).value, point1.dec.to(u.rad).value])
+			elif isinstance(point1, astropy.units.Quantity):
+				point1_rad = point1.to(u.rad).value
+			else:
+				# assume array in degrees
+				point1_rad = np.deg2rad(point1)
+				
+			if isinstance(point2, SkyCoord):
+				point2_rad = np.array([point2.ra.to(u.rad).value, point2.dec.to(u.rad).value])
+			elif isinstance(point2, astropy.units.Quantity):
+				point2_rad = point2.to(u.rad).value
+			else:
+				# assume array in degrees
+				point2_rad = np.deg2rad(point2)
+				
+			out_point_rad = self.astObject.offset(point1_rad, point2_rad, offset.to(u.rad).value)
+			result = np.rad2deg(self.astObject.norm(out_point_rad)) * u.deg
+
+		else:
+			
+			result = self.astObject.offset(point1, point2, offset.value)
+			if self.system == "Cartesian" and self.domain == "GRID":
+				result = result * u.pixel
+		
+		# if isinstance(point1, SkyCoord) and self.isSkyFrame:
+		# 	point1_rad = np.array([point1.ra.to(u.rad).value, point1.dec.to(u.rad).value])
+		# elif isinstance(point1, astropy.units.Quantity) and self.isSkyFrame:
+		# 	point1_rad = point1.to(u.rad).value
+		# else:
+		# 	point1_rad = np.deg2rad(point1)
+		# 	
+		# if isinstance(point2, SkyCoord) and self.isSkyFrame:
+		# 	point2_rad = np.array([point2.ra.to(u.rad).value, point2.dec.to(u.rad).value])
+		# elif isinstance(point2, astropy.units.Quantity) and self.isSkyFrame:
+		# 	point2_rad = point2.to(u.rad).value
+		# else:
+		# 	point2_rad = np.deg2rad(point2)
+		# 
+		# if self.isSkyFrame:
+		# 	out_point = self.astObject.offset(point1_rad, point2_rad, offset.to(u.rad).value)
+		# 	return np.rad2deg(self.astObject.norm(out_point))
+		# else:
+		# 	return self.astObject.offset(point1, point2, offset.to(u.rad).value)
+			
+		return result
+	
 	def framesetWithMappingTo(self, template_frame:"ASTFrame"=None) -> Union["ASTFrame", None]: # maybe think of better name?!
 		'''
 		Search this frame (or set) to identify a frame that shares the same coordinate system as the provided template frame.

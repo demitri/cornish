@@ -1,7 +1,9 @@
 
 from ... import ASTObject
+
+from .frame import ASTFrame
 		
-class ASTCompoundFrame(ASTObject):
+class ASTCompoundFrame(ASTFrame):
 	'''
 	A compound frame is the merging of two existing :class:`ASTFrame` objects.
 
@@ -10,6 +12,8 @@ class ASTCompoundFrame(ASTObject):
 	Knowledge of the relationships between the axes is preserved internally
 	by the process of constructing the frames which represents them.
 	'''
-	def __init__(self, ast_object=None):
-		raise NotImplementedError()
+	pass # no specific behaviour is yet defined for this subclass
+	#def __init__(self, ast_object=None):
+		
+		
 	
