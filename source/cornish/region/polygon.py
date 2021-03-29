@@ -144,9 +144,11 @@ class ASTPolygon(ASTRegion):
 		#       This results in the Box covering the whole image area."
 		#
 		dims = fitsChannel.dimensions
-		pixelbox = ASTBox(frame=wcsFrameSet.baseFrame,
-						  cornerPoint=[0.5,0.5], # center of lower left pixel
-						  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
+		corner1 = [0.5,0.5] # center of lower left pixel
+		corner2 = [dims[0]+0.5, dims[1]+0.5]
+		pixelbox = ASTBox.fromCorners(frame=wcsFrameSet.baseFrame, corners=(corner1, corner2))
+						  #cornerPoint=[0.5,0.5], # center of lower left pixel
+						  #cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
 		
 		#  Map this box into (RA,Dec)
 		#
