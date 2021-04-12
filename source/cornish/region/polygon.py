@@ -1,6 +1,7 @@
 
 from __future__ import annotations # remove in Python 3.10
 
+import os
 import math
 import logging
 from typing import Union, Iterable
@@ -52,7 +53,7 @@ class ASTPolygon(ASTRegion):
 				 frame:Union[ASTFrame, Ast.Frame, ASTRegion, Ast.Region]=None,
 				 points=None,
 				 fits_header=None):
-		
+
 		if ast_object:
 			if any([frame, points, fits_header]):
 				raise ValueError("ASTPolygon: Cannot specify 'ast_object' along with any other parameter.")
@@ -86,10 +87,7 @@ class ASTPolygon(ASTRegion):
 		else:
 			raise Exception(f"ASTPolygon: The supplied 'frame' object must either be a starlink.Ast.Frame or ASTFrame object (got '{type(frame)}').")
 		
-		#if isinstance(ast_frame, (Ast.SkyFrame, ASTSkyFrame)):
-		#	points = np.deg2rad(points)
-		if (isinstance(frame, ASTFrame) and frame.isSkyFrame) or \
-		   (isinstance(frame, Ast.Frame) and frame.isaskyframe()):
+		if ast_frame.isaskyframe():
 			points = np.deg2rad(points)
 		
 		# The problem with accepting both forms is that the case of two points is ambiguous:
@@ -113,6 +111,18 @@ class ASTPolygon(ASTRegion):
 				dim1, dim2 = points.T
 				self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2]))
 	
+	@staticmethod
+	def fromFITSFilepath(path:Union[str,os.PathLike]=None, hdu:int=1):
+		'''
+		Create a polygon bounding the region of a 2D image.
+		
+		:param path: the path to the FITS file
+		:param hdu: the HDU to open, first HDU = 1
+		'''
+		with astropy.io.fits.open(path) as hdu_list:
+			polygon = ASTPolygon.fromFITSHeader(hdu_list[hdu-1].header)
+		return polygon
+
 	@staticmethod
 	def fromFITSHeader(header=None, uncertainty=4.848e-6):
 		'''
@@ -152,14 +162,14 @@ class ASTPolygon(ASTRegion):
 		
 		#  Map this box into (RA,Dec)
 		#
-		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTRegion
+		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTBox
 
 		#  Get the (RA,Dec) at a large number of points evenly distributed around
 		#  the polygon. The number of points created is controlled by the
 		#  MeshSize attribute of the polygon.
 		#
-		mesh = skybox.boundaryPointMesh() # np.array of points
-
+		mesh_deg = skybox.boundaryPointMesh() # np.array of points in degrees
+		
 		#  Create a polygon using the vertices in the mesh. This polygon is
 		#  defined in a basic Frame (flat geometry) - not a SkyFrame (spherical
 		#  geometry). If we used a SkyFrame, then all the mesh points along each
@@ -174,17 +184,22 @@ class ASTPolygon(ASTRegion):
 		degFlatFrame.setUnitForAxis(axis=1, unit="deg")
 		degFlatFrame.setUnitForAxis(axis=2, unit="deg")
 
-		flatpoly = ASTPolygon(frame=degFlatFrame, points=mesh)
+		flatpoly = ASTPolygon(frame=degFlatFrame, points=np.deg2rad(mesh_deg))
 
 		#  Remove mesh points where the polygon is close to a Cartesian straight
 		#  line, and retain them where it deviates from a straight line, in order
 		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
 		#
-		downsizedpoly = flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon
+		downsizedpoly = flatpoly.downsize(maxerr=4.848e-6, maxvert=200) # -> ASTPolygon
+		
+		# "downsizedpoly" is a polygon in a frame with axes in degrees, but is not a sky frame.
+
+		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet, points=downsizedpoly.points)
 		
 		#  Create a polygon with the same vertices but defined in a SkyFrame rather than a flat Frame.
-		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet,
-			                           points=np.rad2deg(downsizedpoly.astObject.getregionpoints()))
+		#downsized_points = downsizedpoly.astObject.norm(downsizedpoly.astObject.getregionpoints())
+#		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet,
+#			                           points=np.rad2deg(downsizedpoly.astObject.getregionpoints()))
 		
 		#  The order in which the vertices are supplied to the polygon constructor above
 		#  defines which side of the polygon boundary is the inside and which is the
@@ -193,7 +208,10 @@ class ASTPolygon(ASTRegion):
 		#  central pixel in the FITS image is "inside" the polygon, and negate
 		#  the polygon if it is not.
 		(a, b) = wcsFrameSet.astObject.tran( [[dims[0]/2], [dims[1]/2]] )
-		if not sky_frame_polygon.astObject.pointinregion( [a[0], b[0]] ):
+		center = wcsFrameSet.astObject.norm(np.array([a,b]))
+		
+		#if not sky_frame_polygon.astObject.pointinregion( [a[0], b[0]] ):
+		if not sky_frame_polygon.astObject.pointinregion( center ):
 			 sky_frame_polygon.astObject.negate()
 		
 		# Return a polygon with the same vertices but defined in a SkyFrame
@@ -403,7 +421,7 @@ class ASTPolygon(ASTRegion):
 		
 		The 'maxvert' parameter set the maximum number of vertices the new polygon can have. If this is
 		less than 3, the number of vertices in the returned polygon will be the minimum needed
-		to achieve the maximum discrepancy specified by "maxerr". The unardoned value is in radians,
+		to achieve the maximum discrepancy specified by "maxerr". The unadorned value is in radians,
 		but accepts Astropy unit objects.
 		
 		:param maxerr: maximum allowed discrepancy in radians between the original and new polygons as a geodesic distance within the polygon's coordinate frame

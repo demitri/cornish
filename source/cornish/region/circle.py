@@ -3,6 +3,7 @@ from __future__ import annotations # remove in Python 3.10
 # Needed for forward references, see:
 # https://stackoverflow.com/a/33533514/2712652
 
+import logging
 from typing import Union, Iterator
 
 from math import radians as deg2rad
@@ -24,6 +25,8 @@ __all__ = ["ASTCircle"]
 
 CENTER_EDGE = 0
 CENTER_RADIUS = 1
+
+logger = logging.getLogger("cornish")
 
 class ASTCircle(ASTRegion):
 	'''
@@ -68,15 +71,15 @@ class ASTCircle(ASTRegion):
 
 		# make sure we have a frame we can work with
 		if frame is None:
-			self.frame = ASTICRSFrame()
+			ast_frame = ASTICRSFrame().astObject
 			#raise Exception("ASTCircle: A frame must be specified when creating an ASTCircle.")
 		else:
 			if isinstance(frame, ASTFrame):
-				self.frame = frame
+				ast_frame = frame.astObject
 			elif isinstance(frame, starlink.Ast.Frame):
-				self.frame = ASTFrame.frameFromAstObject(frame)
+				ast_frame = frame #ASTFrame.frameFromAstObject(frame)
 			elif isinstance(frame, astropy.coordinates.ICRS):
-				self.frame = ASTICRSFrame()
+				ast_frame = ASTICRSFrame().astObject
 			else:
 				raise Exception(f"ASTCircle: unexpected frame type specified ('{type(frame)}').")
 			
@@ -136,7 +139,7 @@ class ASTCircle(ASTRegion):
 			else:
 				p2 = [deg2rad(radius)]
 		
-		self.astObject = Ast.Circle( self.frame.astObject, input_form, p1, p2, unc=self.uncertainty )
+		self.astObject = Ast.Circle( ast_frame, input_form, p1, p2, unc=self.uncertainty )
 	
 	def __repr__(self):
 		return "<{0}.{1} {2}: center={3} deg, r={4:0.6}>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
@@ -153,7 +156,7 @@ class ASTCircle(ASTRegion):
 			pass
 		
 		if value:
-			return ASTCircle(frame=self.frame, center=self.center, radius=self.radius + value)
+			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius + value)
 		else:
 			raise ValueError(f"Could not interpret provided value as a number.")
 	
@@ -168,7 +171,7 @@ class ASTCircle(ASTRegion):
 		# 	raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
 			
 		if value:
-			return ASTCircle(frame=self.frame, center=self.center, radius=self.radius.unit * self.radius.to(u.deg).value * value)
+			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius.unit * self.radius.to(u.deg).value * value)
 		else:
 			raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
 	
@@ -178,7 +181,7 @@ class ASTCircle(ASTRegion):
 		:param value: numeric value to decrease the radius by, e.g. 2 decreases the radius by 50%
 		'''
 		if value:
-			return ASTCircle(frame=self.frame, center=self.center, radius=self.radius.unit * self.radius.to(u.deg).value / value)
+			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius.unit * self.radius.to(u.deg).value / value)
 		else:
 			raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
 	
@@ -243,7 +246,9 @@ class ASTCircle(ASTRegion):
 		#old_mesh_size = self.meshSize
 		#self.meshSize = npoints
 		points = self.boundaryPointMesh(npoints=npoints)
-		return ASTPolygon(frame=self.astObject, points=points) # can get the frame from the astObject
+
+		#logger.debug(points)
+		return ASTPolygon(frame=self, points=points) # can get the frame from the astObject
 		
 		#points = self.boundaryPointMesh(npoints=npoints)
 		#return ASTPolygon.fromPointsOnSkyFrame(radec_pairs=points, frame=self.frame)

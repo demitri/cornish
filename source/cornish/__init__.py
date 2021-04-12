@@ -25,14 +25,14 @@ from .version import __version__
 
 # Set up logger
 # =============
-try:
-	cornish_logger
-except NameError:
-	cornish_logger = logging.getLogger('cornish')
-	cornish_logger.setLevel(logging.CRITICAL)       # set log level for logger
-	
-	# define console logger
-	console_handler = logging.StreamHandler()
-	console_handler.setLevel(logging.CRITICAL)		# set log level for THIS handler
-	cornish_logger.addHandler(console_handler)
+# try:
+# 	cornish_logger
+# except NameError:
+# 	cornish_logger = logging.getLogger('cornish')
+# 	cornish_logger.setLevel(logging.CRITICAL)       # set log level for logger
+# 	
+# 	# define console logger
+# 	console_handler = logging.StreamHandler()
+# 	console_handler.setLevel(logging.CRITICAL)		# set log level for THIS handler
+# 	cornish_logger.addHandler(console_handler)
 

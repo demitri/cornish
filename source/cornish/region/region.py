@@ -3,8 +3,9 @@ from __future__ import annotations # remove in Python 3.10
 # Needed for forward references, see:
 # https://stackoverflow.com/a/33533514/2712652
 
+import logging
 from abc import ABCMeta, abstractproperty
-from typing import Union, Iterable
+from typing import Union, Iterable, Tuple
 
 import math
 from math import radians as deg2rad
@@ -19,8 +20,11 @@ import starlink.Ast as Ast
 import cornish.region # to avoid circular imports below - better way?
 from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
 from ..exc import NotA2DRegion, CoordinateSystemsCouldNotBeMapped
+from ..constants import AST_SURFACE_MESH, AST_BOUNDARY_MESH
 
 __all__ = ['ASTRegion']
+
+logger = logging.getLogger("cornish")
 
 '''
 Copied from documentation, to be implemented.
@@ -339,27 +343,31 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	def fillFactor(self, newValue):
 		raise Exception("TODO: document and implement")
 
-	def bounds(self):
+	@property
+	def bounds(self) -> Tuple:
 		'''
-		Return the upper and lower bounds of a box that contains this regions.
+		Returns lower and upper coordinate points that bound this region.
 		'''
 		
 		lower_bounds, upper_bounds = self.astObject.getregionbounds()
 		
 		# lower_bounds and upper_bounds are n-dimensional arrays
 		# e.g. for a 2D image,
-		# [-10,5], [10,20] <- ra, dec or pixel bounds
+		# [-10,5], [10,20] <- (ra, dec) or pixel bounds
 		
-		raise Exception("test units?")
-		# .. todo:: if SkyFrame convert from ra -> deg
-		
+		if self.frame().isSkyFrame:
+			lower_bounds = np.rad2deg(self.astObject.norm(lower_bounds))
+			upper_bounds = np.rad2deg(self.astObject.norm(upper_bounds))
+			
 		return (lower_bounds, upper_bounds)
 		
-	def boundingBox(self):
+	def boundingBox(self) -> ASTBox:
 		'''
-		
+		Returns an ASTBox region that bounds this region where the box sides align with RA, dec.
 		'''
-		raise NotImplementedError()
+		from cornish import ASTBox # import here to avoid circular import
+		return ASTBox.fromCorners(frame=self.frame(), corners=self.bounds)
+		#raise NotImplementedError()
 		# use the "bounds" method above to create a bounding box
 
 	def boundingCircle(self) -> ASTCircle:
@@ -518,8 +526,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		
 		Corresponds to the ``astMapRegion`` C function (``starlink.Ast.mapregion``).
 		
-		:param frame: A frame containing the coordinate system for the new region.
 		:param map: A mapping that can convert coordinates from the system of the current region to that of the supplied frame.
+		:param frame: A frame containing the coordinate system for the new region.
 		:returns: new ASTRegion with a new coordinate system
 		'''
 		if frame is None:
@@ -619,11 +627,11 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			self.meshSize = npoints
 				
 		try:
-			mesh = self.astObject.getregionmesh(1) # surface=1, here "surface" means the boundary
+			mesh = self.astObject.getregionmesh(AST_BOUNDARY_MESH) # here "surface" means the boundary
 			# if a basic frame is used instead of a sky frame, the points need to be normalized on [0,360)
 			mesh = self.astObject.norm(mesh)
 		except Ast.MBBNF as e:
-			print("AST error: Mapping bounding box not found. ({0})".format(e))
+			print(f"AST error: Mapping bounding box not found. ({e})")
 			raise e
 		
 		if npoints is not None:
@@ -631,7 +639,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			self.meshSize = old_mesh_size #self.astObject.set("MeshSize={0}".format(old_mesh_size))
 		
 		if self.frame().isSkyFrame:
-				return np.rad2deg(mesh).T # returns as a list of pairs of points, not two parallel arrays
+			return np.rad2deg(mesh).T # returns as a list of pairs of points, not two parallel arrays
 		else:
 			return mesh.T
 		
@@ -660,16 +668,17 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# The returned "points" array from getregionmesh() will be a 2-dimensional array with shape (ncoord,npoint),
 		# where "ncoord" is the number of axes within the Frame represented by the Region,
 		# and "npoint" is the number of points in the mesh (see attribute "MeshSize").
-		mesh = self.astObject.getregionmesh(0) # surface=0, here "surface" means the interior
+		mesh = self.astObject.getregionmesh(AST_SURFACE_MESH) # here "surface" means the interior
 		mesh = self.astObject.norm(mesh)
 		
 		if npoints is not None:
 			# restore original value
 			self.astObject.set("MeshSize={0}".format(old_mesh_size))
 
-		# .. todo:: double check points as degrees vs radians!
+		if self.frame().isSkyFrame:
+			mesh = np.rad2deg(mesh)
 
-		return np.rad2deg(mesh).T
+		return mesh.T
 	
 	def containsPoint(self, point:Union[Iterable, astropy.coordinates.SkyCoord]=None) -> bool:
 		'''
@@ -702,7 +711,4 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	@abstractproperty
 	def area(self) -> astropy.units.quantity.Quantity:
 		# subclasses must implement
-		raise NotImplementedError()
-
-
-
+		raise

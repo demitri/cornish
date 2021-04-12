@@ -144,7 +144,7 @@ class ASTFrame(ASTMapping):
 			raise Exception("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
 		elif axis > self.naxes:
 			raise Exception("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
-		self.astObject.get("Unit({0})".format(axis))
+		return self.astObject.get("Unit({0})".format(axis))
 
 	def setUnitForAxis(self, axis=None, unit=None):
 		''' Set the unit as a string value for the specified axis. '''

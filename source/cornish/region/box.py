@@ -5,8 +5,6 @@ Notes.
 From the AST documentation: "The Box class does not define any new attributes beyond those
 which are applicable to all Regions.", i.e. for AST, there is nothing special about a box
 beyond a specific means to define it, i.e. a corner and center or two corner points.
-The ASTBox class saves the original points used to define the box to be used later in other
-methods (e.g. 'toPolygon()').
 '''
 
 from __future__ import annotations # remove in Python 3.10
@@ -308,7 +306,9 @@ class ASTBox(ASTRegion):
 
 		c1 = corners[0]
 		c2 = corners[1]
-
+		
+		#print(corners)
+		
 		if frame is None:
 			raise ValueError("A frame the region is defined in must be provided.")
 		elif not all([x is not None for x in [c1, c2]]):
@@ -527,7 +527,7 @@ class ASTBox(ASTRegion):
 				angle = frame.angle(vertex=c, points=(p1,p2)) # -> Quantity
 				angles.append(angle.to(u.deg).value)
 			
-			print(angles)
+			#print(angles)
 			sum_of_polygon_angles = sum(angles)
 			area = math.pi / 180 * (sum_of_polygon_angles - (n - 2) * 180)
 			return area * u.deg * u.deg

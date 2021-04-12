@@ -189,7 +189,7 @@ class SkyPlot(CornishPlot):
 		self.astPlot.Colour_Border = original_colour
 		self.astPlot.Style = original_style
 	
-	def addPoint(self, point, marker_style:int=1, colour:str=None, color:str=None):
+	def addPoints(self, points, style:int=1, size:float=None, colour:str=None, color:str=None):
 		'''
 		Draw a point onto an existing plot.
 		
@@ -233,26 +233,27 @@ class SkyPlot(CornishPlot):
            * - 11
             - ...
 		
-		:param point: point should be in degrees (e.g. list or numpy.ndarray, or a pair (list/tuple) of astropy.units.Quantity values, or a SkyCoord
-		:param marker_style: an integer corresponding to one of the built-in marker styles
+		:param points: point should be in degrees (e.g. list or numpy.ndarray, or a pair (list/tuple) of astropy.units.Quantity values, or a SkyCoord, or a container of these (all in the same form)
+		:param style: an integer corresponding to one of the built-in marker styles
 		:param colour: marker plot colour
 		:param color: synonym for 'colour'
+		:param size: scale point size by this value
 		'''
-		if isinstance(marker_style, str):
+		if isinstance(style, str):
 			try:
-				marker_style = markerstr2value[marker_style]
+				marker_style = markerstr2value[style]
 			except KeyError:
-				raise ValueError(f"The provided marker style value '{marker_style}' is unknown.")
-		
-		if isinstance(point, SkyCoord):
-			point = [point.ra.to(u.rad).value, point.dec.to(u.rad).value]
-			print(point)
-		elif isinstance(point, (np.ndarray, list, tuple)):
-			point = np.deg2rad(point)
-		elif len(point) == 2 and isinstance(point[0], Quantity):
-			point = [point[0].to(u.rad).value, point[1].to(u.rad).value]
+				raise ValueError(f"The provided marker style value '{style}' is unknown.")
 		else:
-			raise ValueError("Unhandled point type.")
+			# check for integer?
+			marker_style = style
+			
+		if len(points) == 0:
+			raise Exception("No points were provided to plot.")
+		
+		if size:
+			current_marker_size = self.astPlot.Size_Markers
+			self.astPlot.Size_Markers = size
 		
 		if color and not colour:
 			colour = color
@@ -260,11 +261,32 @@ class SkyPlot(CornishPlot):
 			# save current colour
 			current_marker_colour = self.astPlot.Colour_Markers
 			self.astPlot.Colour_Markers = colour
+
+		# use first point to determine type
 		
-		self.astPlot.mark(point, marker_style)
+		if isinstance(points[0], SkyCoord):
+			for p in points:
+				point = [p.ra.to(u.rad).value, p.dec.to(u.rad).value]
+				self.astPlot.mark(point, marker_style)
+		elif isinstance(points[0], (np.ndarray, list, tuple)):
+			for p in points:
+				point = np.deg2rad(p)
+				self.astPlot.mark(point, marker_style)
+		elif len(points[0]) == 2 and isinstance(point[0], Quantity):
+			for p in points:
+				point = [p[0].to(u.rad).value, p[1].to(u.rad).value]
+				self.astPlot.mark(point, marker_style)
+		else:
+			raise ValueError("Unhandled point type.")
+				
+		#self.astPlot.mark(point, marker_style)
+		
+		# restore plot values
+		# -------------------
+		if size:
+			self.astPlot.Size_Markers = current_marker_size
 		
 		if colour:
-			# restore colour
 			self.astPlot.Colour_Markers = current_marker_colour
 	
 	# def addCurve(self, start, finish):
