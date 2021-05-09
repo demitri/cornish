@@ -697,6 +697,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		Returns ``True`` if the provided point lies inside this region, ``False`` otherwise.
 		
 		If no units are specified degrees are assumed.
+		
+		:param point: a coordinate point in the same frame as this region
 		'''
 		if point is None:
 			raise ValueError("A test point must be specified.")
@@ -711,4 +713,4 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	@abstractproperty
 	def area(self) -> astropy.units.quantity.Quantity:
 		# subclasses must implement
-		raise
+		raise NotImplementedError()

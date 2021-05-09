@@ -1,7 +1,10 @@
 
+import pytest
 import numpy as np
+from numpy.testing import assert_approx_equal
 
 from cornish import ASTPolygon, ASTICRSFrame
+import astropy.units as u
 
 # points generated from:
 #center = SkyCoord(ra="12d42m22s", dec="-32d18m58s")
@@ -31,12 +34,17 @@ points = np.array([[ 12.70611111, -30.31611111],
 				   [ 11.3392136 , -30.69069244],
 				   [ 11.98960033, -30.41196836]])
 
+# polygon_points, area (sr)
+sky_polygon_area_tests = [
+	("((0,0), (90,0), (90,90))", 1.5707963267948966)
+]
+
 def test_polygon_creation_coordinate_pairs():
 	'''
 	Test the creation of a polygon using points as coordinate pairs.
 	'''
 	polygon = ASTPolygon(frame=ASTICRSFrame(), points=points)
-	
+
 def test_polygon_creation_parallel_arrays():
 	'''
 	Test the creation of a polygon using parallel arrays of ra,dec.
@@ -48,8 +56,15 @@ def test_polygon_correct_boundedness():
 	Check that a newly created polygon is not unbounded.
 	'''
 	polygon = ASTPolygon(frame=ASTICRSFrame(), points=points)
-	
+
 	assert polygon.isBounded == True, "Polygon is not bounded."
-	
+
 	assert polygon.containsPoint([12.70611111, -32.31611111]), "Center point of polygon not inside polygon."
-	
+
+@pytest.mark.parametrize("polygon_points, area", sky_polygon_area_tests)
+def test_polygon_area(polygon_points, area):
+	'''
+	Test the area of a polygon on the sky.
+	'''
+	polygon = ASTPolygon(frame=ASTICRSFrame(), points=polygon_points)
+	assert_approx_equal(polygon.area.to(u.sr).value, area)
