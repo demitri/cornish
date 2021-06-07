@@ -489,7 +489,7 @@ class ASTPolygon(ASTRegion):
 					p2 = points[idx+1]
 
 				angle = frame.angle(vertex=v, points=(p1,p2)) # -> Quantity
-				angles.append(abs(angle.to(u.rad).value))
+				angles.append(angle.to(u.rad).value)
 
 				print(p1,v, p2, angle)
 
