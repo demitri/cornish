@@ -34,20 +34,20 @@ markerstr2value = {
 class SkyPlot(CornishPlot):
 	'''
 	A convenience class providing a high level interface for creating sky plots in Matplotlib.
-	
+
 	:param extent: an ASTRegion that encompasses the full area to plot
-	:param figsize: width,height of the plot figure in inches (parameter passed directly to :class:`matplotlib.figure.Figure`) 
+	:param figsize: width,height of the plot figure in inches (parameter passed directly to :class:`matplotlib.figure.Figure`)
 	'''
 	def __init__(self, extent:ASTRegion=None, figsize:Tuple[float,float]=(12.0, 12.0)):
-		
+
 		self.astPlot = None # type: Ast.Plot
 		self._figure = None # the matplotlib.figure.Figure object
-		
+
 		# -------------------------------------------------------
 		# Create frame set that will map the position in the plot
 		# (i.e. pixel coordinates) to the sky (i.e. WCS)
 		#fits_chan = ASTFITSChannel()
-		
+
 		naxis1 = 100
 		naxis2 = 100
 
@@ -58,7 +58,7 @@ class SkyPlot(CornishPlot):
 			#center = circle_extent.center
 		else:
 			raise ValueError("Could not determine a center point for the provided extent. Hint: provide an ASTRegion object.")
-				
+
 
 		# The NAXIS values are arbitrary; this object is used for mapping.
 		cards = {
@@ -78,19 +78,19 @@ class SkyPlot(CornishPlot):
 		#naxis2 = cards['NAXIS2']
 		pix2sky_mapping = ASTFrameSet.fromFITSHeader(fits_header=cards)
 		# -------------------------------------------------------
-		
+
 		#  Create a matplotlib figure, 12x12 inches in size.
 		#dx = figsize[0] # 12.0
 		#dy = figsize[1] # 12.0
 		dx, dy = figsize
 		self._figure = plt.figure( figsize=(dx,dy) ) # -> matplotlib.figure.Figure Ref: https://matplotlib.org/3.2.1/api/_as_gen/matplotlib.pyplot.figure.html
 		fig_aspect_ratio = dy/dx
-		
+
 		#  Set up the bounding box of the image in pixel coordinates, and get
 		#  the aspect ratio of the image.
 		bbox = (0.5, 0.5, naxis1 + 0.5, naxis2 + 0.5)
 		fits_aspect_ratio = ( bbox[3] - bbox[1] )/( bbox[2] - bbox[0] )
-		
+
 		#  Set up the bounding box of the image as fractional offsets within the
 		#  figure. The hx and hy variables hold the horizontal and vertical half
 		#  widths of the image, as fractions of the width and height of the figure.
@@ -101,11 +101,11 @@ class SkyPlot(CornishPlot):
 		else:
 		  hx = 0.5*fig_aspect_ratio/fits_aspect_ratio
 		  hy = 0.5
-		
+
 		hx *= 0.7
 		hy *= 0.7
 		gbox = ( 0.5 - hx, 0.5 - hy, 0.5 + hx, 0.5 + hy )
-		
+
 		#  Add an Axes structure to the figure and display the image within it,
 		#  scaled between data values zero and 100. Suppress the axes as we will
 		#  be using AST to create axes.
@@ -115,7 +115,7 @@ class SkyPlot(CornishPlot):
 		ax_image.yaxis.set_visible( False )
 		#ax_image.imshow( hdu_list[0].data, vmin=0, vmax=200, cmap=plt.cm.gist_heat,
 		#				origin='lower', aspect='auto')
-		
+
 		#  Add another Axes structure to the figure to hold the annotated axes
 		#  produced by AST. It is displayed on top of the previous Axes
 		#  structure. Make it transparent so that the image will show through.
@@ -123,46 +123,46 @@ class SkyPlot(CornishPlot):
 		ax_plot.xaxis.set_visible(False)
 		ax_plot.yaxis.set_visible(False)
 		ax_plot.patch.set_alpha(0.0)
-		
+
 		#  Create a drawing object that knows how to draw primitives (lines,
 		#  marks and strings) into this second Axes structure.
 		grf = Grf.grf_matplotlib( ax_plot )
-		
+
 		#print(f"gbox: {gbox}")
 		#print(f"bbox: {bbox}")
-		
+
 		# box in graphics coordinates (area to draw on, dim of plot)
 		#plot = Ast.Plot( frameset.astObject, gbox, bbox, grf )
 		self.astPlot = Ast.Plot( pix2sky_mapping.astObject, gbox, bbox, grf, options="Uni1=ddd:mm:ss" )
 		 #, options="Grid=1" )
 		#plot.set( "Colour(border)=2, Font(textlab)=3" );
-		
+
 		self.astPlot.Grid = True # can change the line properties
 		self.astPlot.Format_1 = "dms"
-		
+
 		# colors:
 		# 1 = black
 		# 2 = red
 		# 3 = lime
 		# 4 = blue
-		# 5 = 
+		# 5 =
 		# 6 = pink
-		
+
 		self.astPlot.grid()
 		self.astPlot.Width_Border = 2
-		
+
 		self.imageAxes = ax_image
-		
+
 	def figure(self):
 		'''
 		Return the :class:`matplotlib.figure.Figure` object for plot customization outside of this API.
 		'''
 		return self._figure
-	
+
 	def addRegionOutline(self, region:Union[ASTRegion,Ast.Region], colour:str="#4a7f7b", color=None, style:int=1):
 		'''
 		Overlay the outline of the provided region to the plot.
-		
+
 		:param region: the region to draw
 		:param colour: a color name (e.g. ``black``) or hex code (e.g. ``#4a7f7b``)
 		:param color: synonym for 'colour'
@@ -174,10 +174,10 @@ class SkyPlot(CornishPlot):
 			pass
 		else:
 			raise ValueError(f"Region provided must either be an ASTRegion or starlink.Ast.Object; was given '{type(region)}'.")
-		
+
 		if color:
 			colour = color
-		
+
 		original_colour = self.astPlot.Colour_Border
 		original_style = self.astPlot.Style
 
@@ -185,18 +185,18 @@ class SkyPlot(CornishPlot):
 		self.astPlot.Colour_Border = colour
 
 		self.astPlot.regionoutline(region)
-		
+
 		self.astPlot.Colour_Border = original_colour
 		self.astPlot.Style = original_style
-	
+
 	def addPoints(self, points, style:int=1, size:float=None, colour:str=None, color:str=None):
 		'''
 		Draw a point onto an existing plot.
-		
+
 		.. list-table:: Marker Styles
            :widths 20 25 25
 		   :header-rows: 1
-		   
+
 		   * - marker_style value
 		     - style
 			 - string equivalent
@@ -232,7 +232,7 @@ class SkyPlot(CornishPlot):
 			- triangle right
            * - 11
             - ...
-		
+
 		:param points: point should be in degrees (e.g. list or numpy.ndarray, or a pair (list/tuple) of astropy.units.Quantity values, or a SkyCoord, or a container of these (all in the same form)
 		:param style: an integer corresponding to one of the built-in marker styles
 		:param colour: marker plot colour
@@ -247,14 +247,14 @@ class SkyPlot(CornishPlot):
 		else:
 			# check for integer?
 			marker_style = style
-			
+
 		if len(points) == 0:
 			raise Exception("No points were provided to plot.")
-		
+
 		if size:
 			current_marker_size = self.astPlot.Size_Markers
 			self.astPlot.Size_Markers = size
-		
+
 		if color and not colour:
 			colour = color
 		if colour:
@@ -263,38 +263,58 @@ class SkyPlot(CornishPlot):
 			self.astPlot.Colour_Markers = colour
 
 		# use first point to determine type
-		
+
 		if isinstance(points[0], SkyCoord):
 			for p in points:
 				point = [p.ra.to(u.rad).value, p.dec.to(u.rad).value]
 				self.astPlot.mark(point, marker_style)
-		elif isinstance(points[0], (np.ndarray, list, tuple)):
-			for p in points:
-				point = np.deg2rad(p)
-				self.astPlot.mark(point, marker_style)
-		elif len(points[0]) == 2 and isinstance(point[0], Quantity):
+		elif isinstance(points, (np.ndarray, list, tuple)):
+			if len(points) == 2:
+				# single point
+				#for p in points:
+				if True:
+					if isinstance(points[0], Quantity):
+						point = [x.to(u.rad).value for x in points]
+					else:
+						point = np.deg2rad(points)
+					self.astPlot.mark(point, marker_style)
+				#if isinstance(points[0], Quantity):
+				#	points = [x.to(u.rad) for x in points]
+				#	self.astPlot.mark(point, marker_style)
+				#else:
+				#	for p in points:
+				#		point = np.deg2rad(p)
+				#	self.astPlot.mark(point, marker_style)
+			elif points.shape[1] == 2:
+				if isinstance(points[0][0], Quantity):
+					for p in points:
+						self.astPlot.mark([x.to(rad).value for x in p], marker_style)
+				else:
+					for p in points:
+						self.astPlot.mark(np.deg2rad(p), marker_style)
+		elif len(points[0]) == 2 and isinstance(points[0], Quantity):
 			for p in points:
 				point = [p[0].to(u.rad).value, p[1].to(u.rad).value]
 				self.astPlot.mark(point, marker_style)
 		else:
 			raise ValueError("Unhandled point type.")
-				
+
 		#self.astPlot.mark(point, marker_style)
-		
+
 		# restore plot values
 		# -------------------
 		if size:
 			self.astPlot.Size_Markers = current_marker_size
-		
+
 		if colour:
 			self.astPlot.Colour_Markers = current_marker_colour
-	
+
 	# def addCurve(self, start, finish):
 	# 	'''
-	# 	
+	#
 	# 	'''
 	# 	self.astPlot.
-	
+
 	def show(self):
 		'''
 		Display the plot (passthrough for :meth:`matplotlib.pyplot.show`).
