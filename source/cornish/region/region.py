@@ -4,7 +4,7 @@ from __future__ import annotations # remove in Python 3.10
 # https://stackoverflow.com/a/33533514/2712652
 
 import logging
-from abc import ABCMeta, abstractproperty
+from abc import ABCMeta, abstractproperty, abstractmethod
 from typing import Union, Iterable, Tuple
 
 import math
