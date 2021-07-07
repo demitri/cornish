@@ -10,15 +10,15 @@ __all__ = ["ASTCompoundRegion"]
 class ASTCompoundRegion(ASTRegion):
 	'''
 	A region that is created as the composite of multiple regions.
-	
+
 	Regions are composited two at a time in the order they are supplied,
 	e.g. if regions=[r1, r2, r3, r4]
 	the result would be
-	
+
 	    region = compound( compound( compound(r1, r2), r3 ) r4 )
-	
+
 	all using the same operator as specified.
-	
+
 	:param regions: a list of regions to compound
 	:param operation: one of `starlink.Ast.AND, `starlink.Ast.OR`, `starlink.Ast.XOR`
 	'''
@@ -29,17 +29,17 @@ class ASTCompoundRegion(ASTRegion):
 			else:
 				super().__init__(ast_object=ast_object)
 				return
-				
+
 		if regions is None or len(regions) < 2:
 			raise ValueError("The 'regions' parameter must contain at least two regions.")
 		for r in regions:
 			if not isinstance(r, (ASTRegion, Ast.Region)):
 				raise ValueError("The regions provided must be of type ASTRegion or starlink.Ast.Region.")
-		
+
 		r1 = None
 		r2 = None
 		compound_region = None
-		
+
 		while len(regions) > 0:
 			if r1 is None:
 				r1 = regions.pop(0) # get first item
@@ -47,7 +47,7 @@ class ASTCompoundRegion(ASTRegion):
 			else:
 				r1 = compound_region
 				r2 = regions.pop(0)
-				
+
 			if isinstance(r1, ASTRegion):
 				r1 = r1.astObject
 			if isinstance(r2, ASTRegion):
@@ -57,7 +57,7 @@ class ASTCompoundRegion(ASTRegion):
 			if compound_region is None:
 				# an error occurred
 				return None
-		
+
 		super().__init__(ast_object=compound_region)
 
 	@property
@@ -66,3 +66,7 @@ class ASTCompoundRegion(ASTRegion):
 		The area of the compound region on the sphere. [Not yet implemented.]
 		'''
 		raise NotImplementedError()
+
+	#def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
+	#	'''
+	#	'''

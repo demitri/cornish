@@ -506,3 +506,10 @@ class ASTPolygon(ASTRegion):
 			# Ref: https://mathworld.wolfram.com/PolygonArea.html
 			raise NotImplementedError("The area calculation for a polygon in a non-sky frame has not been immplemented.")
 
+	def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
+		'''
+		Common interface to return a polygon from a region; here 'self' is returned.
+
+		The parameters 'npoints' and 'maxerr' are ignored.
+		'''
+		return self

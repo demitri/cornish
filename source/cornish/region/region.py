@@ -723,3 +723,19 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	def area(self) -> astropy.units.quantity.Quantity:
 		# subclasses must implement
 		raise NotImplementedError()
+
+	@abstractmethod
+	def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
+		'''
+		Method that guarantees returning a polygon that describes or approximates this region.
+
+		This method provides a common interface to create polygons from different region types.
+		Calling this on an ASTPolygon will return itself; calling it on an ASTCircle
+		will return a polygon that approximates the circle. The parameters 'npoints' and
+		'maxerr' will be used only when appropriate.
+
+		:param npoints: number of points to sample from the region's boundary for the resulting polygon
+		:param maxerr:
+		'''
+		pass
+
