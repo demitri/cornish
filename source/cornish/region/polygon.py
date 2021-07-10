@@ -265,6 +265,8 @@ class ASTPolygon(ASTRegion):
 		if points is None:
 			raise ValueError("Coordinate points must be provided to create a polygon.")
 
+		# .. todo:: handle various input types (e.g. Quantity) (also see below)
+
 		# code below requires two parallel arrays of ra, dec in radians
 		points = np.deg2rad(points)
 		if len(points[0]) == 2:
@@ -316,14 +318,14 @@ class ASTPolygon(ASTRegion):
 # 		             0.7087136, 0.7211723, 0.7199059, 0.7268493, 0.7119532 ]
 
 		# .. todo:: handle various input types (e.g. Quantity)
-		if isinstance(radec_pairs, np.ndarray):
-			if len(radec_pairs.shape) != 2 or radec_pairs.shape[1] != 2:
-				raise ValueError("The shape of the array provided should be (n,2).")
-			ra_list, dec_list = np.deg2rad(radec_pairs.T)
-		elif isinstance(frame, (ASTSkyFrame, Ast.SkyFrame)):
-			# if it's a sky frame of some kind, we will expect degrees
-			ra_list  = np.deg2rad(ra)
-			dec_list = np.deg2rad(dec)
+		# if isinstance(points, np.ndarray):
+		# 	if len(points.shape) != 2 or points.shape[1] != 2:
+		# 		raise ValueError("The shape of the array provided should be (n,2).")
+		# 	ra_list, dec_list = np.deg2rad(points.T)
+		# elif isinstance(frame, (ASTSkyFrame, Ast.SkyFrame)):
+		# 	# if it's a sky frame of some kind, we will expect degrees
+		# 	ra_list  = np.deg2rad(ra)
+		# 	dec_list = np.deg2rad(dec)
 
 		# convert frame parameter to an Ast.Frame object
 		if isinstance(frame, ASTFrame):
@@ -427,7 +429,14 @@ class ASTPolygon(ASTRegion):
 			# Transform the Polygon into (RA,Dec)
 			new_ast_polygon = pix_poly.mapregion( wcs, frame )
 
-		return ASTPolygon(ast_object=new_ast_polygon)
+		polygon = ASTPolygon(ast_object=new_ast_polygon)
+
+		# check if we need to negate polygon
+		if not polygon.containsPoint(np.rad2deg(centre)):
+			polygon.negate()
+
+		return polygon
+
 
 	def downsize(self, maxerr=None, maxvert=0):
 		'''
