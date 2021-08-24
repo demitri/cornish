@@ -3,7 +3,7 @@ Working With Regions
 
 .. py:module:: cornish
 
-Starlink AST is primarily a library for working with world coordinate systems (WCS) for astronomical data. It has extensive functionality related to coordiate system translations, platting, and more. One of the primary tools of the library (and the initial focus of the Cornish Python interface) is the handling of regions. Regions can be Cartesian, e.g. a pixel grid on a CCD, or else in a celestial sphere frame, e.g. a region on an :py:class:`~cornish.mapping.frame.ASTSkyFrame`. For the latter, all lines connecting vertices are great circles.
+Starlink AST is primarily a library for working with world coordinate systems (WCS) for astronomical data. It has extensive functionality related to coordinate system translations, platting, and more. One of the primary tools of the library (and the initial focus of the Cornish Python interface) is the handling of regions. Regions can be Cartesian, e.g. a pixel grid on a CCD, or else in a celestial sphere frame, e.g. a region on an :py:class:`~cornish.mapping.frame.ASTSkyFrame`. For the latter, all lines connecting vertices are great circles.
 
 All region objects are all subclassed from :class:`~ASTRegion`. See the `C library reference documentation <http://starlink.eao.hawaii.edu/devdocs/sun211.htx/sun211.html>`_ for the full details of the objects. Region classes include:
 
@@ -21,9 +21,9 @@ All Regions
 
 The :class:`~cornish.ASTRegion` class is the superclass for all Cornish region objects. It contains a great deal of functionality. The API reference is a worth looking at to see what is available. A short listing:
 
-* :attr:`~ASTRegion.points`: Return a list of points thatdescribe the region. The shape is dependent on the typr of region.
-* :meth:`~ASTRegion.boundingCircle`: Returns a new :class:`~cornish.ASTCircle` object that bounds the given region. 
-* :meth:`~ASTRegion.overlaps`: Check whether two regions overlap. 
+* :attr:`~ASTRegion.points`: Return a list of points that describe the region. The shape is dependent on the type of region.
+* :meth:`~ASTRegion.boundingCircle`: Returns a new :class:`~cornish.ASTCircle` object that bounds the given region.
+* :meth:`~ASTRegion.overlaps`: Check whether two regions overlap.
 * :meth:`~ASTRegion.isIdenticalTo`: Check whether two regions are identical.
 * :meth:`~ASTRegion.isFullyWithin`: Check whether one region is fully within another.
 * :meth:`~ASTRegion.fullyEncloses`: Check whether one region is fully encloses another.
@@ -47,24 +47,24 @@ Circles can be defined as either a center point and a radius or else a center po
 	from cornish.constants import SYSTEM_GALACTIC, EQUINOX_J2010
 	from astropy.coordinates import SkyCoord
 	import astropy.units as u
-	
+
 	# note that the default frame is ICRS, epoch=2000.0, equinox=2000.0
-	
+
 	# defined as center + radius
-	# --------------------------	
-	
+	# --------------------------
+
 	# using Astropy objects
 	center = SkyCoord(ra="12d42m22s", dec="-32d18m58s")
 	circle = ASTCircle(center=center, radius=2.0*u.deg)
-	
+
 	# using float values, defaults to degrees
 	circle = ASTCircle(center=[12.7061, -31.6839], radius=2.0) # assumes degrees
 	circle = ASTCircle(center=[12.7061*u.deg, -31.6839*u.deg], radius=2.0*u.deg) # Quanitites also accepted
-	
+
 	# defined as center + circumference point
 	# ---------------------------------------
 	circle = ASTCircle(center=center, edge_point=[12.7061, -32.6839]) # edge_point also takes SkyCoord
-	
+
 	# define the circle in another frame
 	# ----------------------------------
 	gal_frame = ASTSkyFrame(system=SYSTEM_GALACTIC)
@@ -80,22 +80,22 @@ Circles have :attr:`~ASTCircle.radius` and :attr:`~ASTCircle.centre` properties 
 
 	circle.radius
 	>>> <Quantity 2. deg>
-	
+
 	circle.centre # or "center" if you prefer...
 	>>> array([ 12.70611111, -32.31611111]) # output in degrees
-		
+
 New circles can be created by a scale factor or increased by addition from an existing circle.
 
 .. code-block:: python
-	
+
 	scaled_circle = circle * 2.0
 	scaled_circle.radius
 	>>> <Quantity 4. deg>
-	
+
 	larger_circle = circle + 6*u.deg
 	larger_circle.radius
 	>>> <Quantity 8. deg>
-	
+
 Converting to Polygons
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -105,7 +105,7 @@ For code that requires a polygon region as an input the method :meth:`~cornish.A
 
 	polygon = circle.toPolygon()
 	finer_polygon = circle(toPolygon(npoints=200))
-	
+
 All regions have a :py:meth:`~cornish.ASTRegion.boundingCircle` property that returns an :class:`~cornish.ASTCircle` that bounds the region. In the case of :class:`~cornish.ASTCircle` objects, this method returns the original circle.
 
 Polygons
@@ -117,7 +117,7 @@ A polygon is a collection of vertices that lie in a specific frame. The default 
 
     from cornish import ASTPolygon, ASTICRSFrame
     import numpy as np
-    
+
     points = np.array([[ 12.70611111, -30.31611111],
                        [ 13.42262189, -30.41196836],
                        [ 14.07300863, -30.69069244],
@@ -157,7 +157,7 @@ Boxes
 Compound Regions
 ----------------
 
-.. todo:: Counpound regions section coming soon! (But it's pretty straightforward from the :class:`~ASTBox` API.)
+.. todo:: Compound regions section coming soon! (But it's pretty straightforward from the :class:`~ASTBox` API.)
 
 From FITS Files
 ---------------
@@ -168,9 +168,9 @@ Cornish is able to create regions based on image FITS headers alone. The example
 
     from cornish import ASTPolygon
     from astropy.io import fits
-	
+
     filename = "frame-g-006174-2-0094.fits.bz2"
     with fits.open(filename) as hdu_list:
         hdu1 = hdu_list[0]
-	
+
     polygon = ASTPolygon.fromFITSHeader(hdu1.header)

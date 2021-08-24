@@ -701,7 +701,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		'''
 		return self.pointInRegion(point=point)
 
-	def pointInRegion(self, point:Union[Iterable, astropy.coordinates.SkyCoord,np.ndarray]=None) -> bool:
+	def pointInRegion(self, point:Union[Iterable, astropy.coordinates.SkyCoord, np.ndarray]) -> bool:
 		'''
 		Returns ``True`` if the provided point lies inside this region, ``False`` otherwise.
 

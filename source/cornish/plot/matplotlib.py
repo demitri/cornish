@@ -1,5 +1,5 @@
 
-from typing import Union, Tuple
+from typing import Union, Tuple, Iterable
 
 import matplotlib.pyplot as plt
 import astropy.units as u
@@ -189,7 +189,7 @@ class SkyPlot(CornishPlot):
 		self.astPlot.Colour_Border = original_colour
 		self.astPlot.Style = original_style
 
-	def addPoints(self, points, style:int=1, size:float=None, colour:str=None, color:str=None):
+	def addPoints(self, ra:Iterable=None, dec:Iterable=None, points:Iterable[Tuple]=None, style:int=1, size:float=None, colour:str=None, color:str=None):
 		'''
 		Draw a point onto an existing plot.
 
@@ -248,8 +248,17 @@ class SkyPlot(CornishPlot):
 			# check for integer?
 			marker_style = style
 
-		if len(points) == 0:
+		if all([x is None for x in [ra,dec,points]]):
+			raise ValueError("'ra','dec' OR 'points' must be specified.")
+		if all([x is True for x in [ra, dec, points]]):
+			raise ValueError("Only 'ra','dec' OR 'points' can be specified.")
+		elif points is None and any([x is None for x in [ra,dec]]):
+			raise ValueError("If 'ra' or dec' is given, then other parameter must also be provided.")
+
+		if points is not None and len(points) == 0:
 			raise Exception("No points were provided to plot.")
+		if ra is not None:
+			points = np.transpose([ra,dec])
 
 		if size:
 			current_marker_size = self.astPlot.Size_Markers

@@ -1,3 +1,4 @@
+
 # Configuration file for the Sphinx documentation builder.
 #
 # This file only contains a selection of the most common options. For a full
@@ -23,8 +24,8 @@ import cornish
 # -- Project information -----------------------------------------------------
 
 project = 'Cornish, A Python Interface to the Starlink AST WCS Library'
-copyright = f'2015-{datetime.today().year}, Demitri Muna'
 author = 'Demitri Muna'
+copyright = f'2015-{datetime.today().year}, {author}'
 
 # The full version, including alpha/beta/rc tags
 release = cornish.__version__
@@ -39,11 +40,11 @@ extensions = [
 	'sphinx.ext.autodoc',
 	'sphinx.ext.intersphinx',
 	'sphinx.ext.graphviz',
- 	'sphinx.ext.inheritance_diagram',
- 	'sphinx.ext.viewcode',
- 	'sphinx.ext.todo',
- 	'sphinx.ext.napoleon', # must appear before 'sphinx-autodoc-typehints'
- 	'sphinx_autodoc_typehints'
+	'sphinx.ext.inheritance_diagram',
+	'sphinx.ext.viewcode',
+	'sphinx.ext.todo',
+	'sphinx.ext.napoleon', # must appear before 'sphinx-autodoc-typehints'
+	'sphinx_autodoc_typehints'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -97,4 +98,3 @@ html_theme_options = {
 	'includehidden': True,
 	'titles_only': False
 }
-
