@@ -1,4 +1,7 @@
-numpy>=1.18
+numpy>=1.20
 starlink-pyast>=3.15
-astropy
-sphinx-autodoc-typehints
+astropy>=4.2.1
+astropy>=4.2.1
+fitsio>=1.1.4
+
+#sphinx-autodoc-typehints
