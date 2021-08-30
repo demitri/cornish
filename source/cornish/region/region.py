@@ -20,7 +20,8 @@ import starlink.Ast as Ast
 import cornish.region # to avoid circular imports below - better way?
 from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
 from ..exc import NotA2DRegion, CoordinateSystemsCouldNotBeMapped
-from ..constants import AST_SURFACE_MESH, AST_BOUNDARY_MESH
+from ..constants import AST_SURFACE_MESH, AST_BOUNDARY_MESH, CENTER_CORNER, CORNER_CORNER
+
 
 __all__ = ['ASTRegion']
 
@@ -89,6 +90,12 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		:param fits_header: a FITS header (Astropy, fitsio, an array of cards)
 		:param uncertainty: defaults to 4.848e-6, an uncertainty of 1 arcsec
 		'''
+
+		# See if anything needs to be saved from here.
+		# See if it's possible that ast_object.mapregion would ever return anything other than a polygon.
+		# Could be interesting to return a circle for a GALEX image, for example?
+		raise Exception("This method is deprecated; use ASTPolygon.fromFITSHeader.")
+
 		if fits_header is None:
 			raise ValueError("This method requires a 'fits_header' to be set.")
 
@@ -113,8 +120,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# define needed parameters for region creation below
 		dimensions = fits_channel.dimensions
 		n_dim = len(dimensions)
-		cornerPoint = [0.5 for x in range(n_dim)]
-		cornerPoint2 = [dimensions[x] + 0.5 for x in range(n_dim)]
+		cornerPoint = [0.5 for x in range(n_dim)] # -> pixels
+		cornerPoint2 = [dimensions[x] + 0.5 for x in range(n_dim)] # -> pixel
 		#cornerPoint=[0.5,0.5], # center of lower left pixel
 		#cornerPoint2=[dimensions[0]+0.5, dimensions[1]+0.5])
 
@@ -145,10 +152,6 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		#		p2 = [cornerPoint[0], cornerPoint[1]]
 		#		dimensions = [2.0 * math.fabs(centerPoint[0] - cornerPoint[0]),
 		#					  2.0 * math.fabs(centerPoint[1] - cornerPoint[1])]
-
-		# input_form constants (define properly elsewhere?)
-		CENTER_CORNER = 0
-		CORNER_CORNER = 1
 
 		input_form = CORNER_CORNER
 		p1 = [cornerPoint[0], cornerPoint[1]]
