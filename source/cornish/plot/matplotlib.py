@@ -249,11 +249,17 @@ class SkyPlot(CornishPlot):
 			marker_style = style
 
 		if all([x is None for x in [ra,dec,points]]):
-			raise ValueError("'ra','dec' OR 'points' must be specified.")
+			raise ValueError("'ra','dec' OR 'points' must be specified (if any values were provided, they were 'None').")
 		if all([x is True for x in [ra, dec, points]]):
 			raise ValueError("Only 'ra','dec' OR 'points' can be specified.")
-		elif points is None and any([x is None for x in [ra,dec]]):
-			raise ValueError("If 'ra' or dec' is given, then other parameter must also be provided.")
+		if ra is None and dec is not None:
+		#elif points is None and any([x is None for x in [ra,dec]]):
+#			if ra is None:
+			raise ValueError("If 'ra' or dec' is given, then other parameter must also be provided ('ra' was 'None').")
+		if dec is None and ra is not None:
+			raise ValueError("If 'ra' or dec' is given, then other parameter must also be provided ('dec' was 'None').")
+
+
 
 		if points is not None and len(points) == 0:
 			raise Exception("No points were provided to plot.")
