@@ -8,6 +8,9 @@ Classes that describe regions are documented here.
 ASTRegion
 ---------
 
+.. inheritance-diagram:: ASTRegion
+   :parts: 1
+
 .. autoclass:: ASTRegion
 	:members:
 	:undoc-members:
@@ -16,6 +19,9 @@ ASTRegion
 
 ASTBox
 ------
+
+.. inheritance-diagram:: ASTBox
+   :parts: 1
 
 .. autoclass:: ASTBox
 	:members:
@@ -26,6 +32,9 @@ ASTBox
 ASTCircle
 ---------
 
+.. inheritance-diagram:: ASTCircle
+   :parts: 1
+
 .. autoclass:: ASTCircle
 	:members:
 	:undoc-members:
@@ -35,6 +44,9 @@ ASTCircle
 ASTCompoundRegion
 -----------------
 
+.. inheritance-diagram:: ASTCompoundRegion
+   :parts: 1
+
 .. autoclass:: ASTCompoundRegion
 	:members:
 	:undoc-members:
@@ -43,6 +55,9 @@ ASTCompoundRegion
 
 ASTPolygon
 ----------
+
+.. inheritance-diagram:: ASTPolygon
+   :parts: 1
 
 .. autoclass:: ASTPolygon
 	:members:

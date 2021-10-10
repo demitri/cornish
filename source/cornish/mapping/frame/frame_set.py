@@ -8,6 +8,7 @@ import starlink
 import starlink.Ast as Ast
 import astropy
 import astropy.units as u
+from astropy.units import Quantity
 from astropy.coordinates import SkyCoord
 
 from ... import ASTObject
@@ -205,10 +206,117 @@ class ASTFrameSet(ASTFrame):
 		'''
 		return ASTMapping(ast_object=self.astObject.getmapping()) # default is from base to current
 
-	def convert(self, points, forward=True): #x_coordinates=None, y_coordinates=None):
+	def convertPoints(self, points:Iterable, forward:bool=True):
+		'''
+		Convert the provided coordinate points using the mapping defined in this object from one frame to another.
+
+		:param points:
+		:param forward:
+		'''
+		if isinstance(points[0], SkyCoord):
+			# handle SkyCoord objects
+			ra_rad = [c.ra.to(u.rad).value for c in points]
+			dec_rad = [c.dec.to(u.rad).value for c in points]
+			out = self.astObject.tran(np.array([ra_rad, dec_rad]), forward)
+			return_points = list()
+			for p in out.T:
+				return_points.append(  SkyCoord(ra=p[0]*u.rad, dec=p[1]*u.rad)  )
+			return return_points
+
+		else:
+			# handle arrays
+
+			if points.shape[0] == 2:
+				#
+				# check the form [ [ra1, ra2, ...], [dec1, dec2, ...] ]
+
+				#if len(points[0]) == 1:
+				#	raise ValueError("")
+				ra_rad = np.deg2rad(points[0])
+				dec_rad = np.deg2rad(points[1])
+				out = self.astObject.tran(np.array([ra_rad, dec_rad]), forward)
+				return np.rad2deg(out)
+			elif points.shape[1] == 2:
+				#
+				# check the form [ [ra1, dec1], [ra2, dec2], ... ]
+
+				points = points.T
+				ra_rad = np.deg2rad(points[0])
+				dec_rad = np.deg2rad(points[1])
+				out = self.astObject.tran(np.array([ra_rad, dec_rad]), forward)
+				return np.rad2deg(out.T)
+
+
+
+		# elif isinstance(points, np.ndarray):
+		# 	raise NotImplementedError("handle numpy arrays")
+		# else:
+		# 	# handle other iterables
+		# 	#TODO validate inputs for error reporting
+		# 	assert len(x_coordinates) == len(y_coordinates), "Coordinate arrays of unequal lengths."
+		# 	#forward = True # convert from frame1 to frame2
+		# 	#in_coords = np.array([x_coordinates, y_coordinates]).T
+		# 	in_coords = np.array(list(zip(x_coordinates, y_coordinates))).T
+		# 	print(in_coords)
+		# 	forward = True
+		# 	return self.astObject.tran(in_coords, forward)
+
+	def convertRaDec(self, ra, dec, forward:bool=True):
+		'''
+		Convert the provided ra,dec values using the mapping defined in this object from one frame to another.
+
+		:param ra: right ascension value in degrees or astropy.units.Quantity
+		:param dec: declination value in degrees or astropy.units.Quantity
+		:param forward:
 		'''
 
+		provided_quantity = False # return the same type as provided
+		if isinstance(ra, Quantity):
+			ra = ra.to(u.deg).value
+			provided_quantity = True
+		if isinstance(dec, Quantity):
+			dec = dec.to(u.deg).value
+			provided_quantity = True
+
+		try:
+			# when ra,dec single values
+			out = self.astObject.tran(np.array(np.deg2rad([[ra], [dec]])), forward)
+		except ValueError as e:
+			# when ra, dec are already arrays
+			out = self.astObject.tran(np.array(np.deg2rad([ra, dec])), forward)
+
+		if provided_quantity:
+			return out[0]*u.deg, out[1]*u.deg
+		else:
+			return np.rad2deg(out[0]), np.rad2deg(out[1])
+
+
+	def convert(self, points=None, ra:Iterable=None, dec:Iterable=None, forward:bool=True): #x_coordinates=None, y_coordinates=None):
 		'''
+		Convert the provided points using the mapping defined in this object from one frame to another.
+
+		If no units are provided (e.g. a bare NumPy array), degrees are assumed.
+
+		:param points:
+		:param ra:
+		:param dec:
+		:param forward:
+		'''
+
+		# # parameter validation
+		# if all([x is None in [points, ra, dec]):
+		# 	raise ValueError(f"Either 'points' must be provided, or both 'ra' and 'dec' parameters.")
+#
+		# if points is None:
+		# 	# specify ra & dec?
+		# 	if any([x is None in [ra,dec]]):
+		# 		raise ValueError("If one of 'ra' or 'dec' is specified, both must be provided.")
+		# 	elif all(
+		# else:
+		# 	# specifying points?
+		# 	if any([x is not None for x in [ra,dec]]):
+		# 		raise ValueError("'ra' and 'dec' should not be provided")
+
 
 		# handle SkyCoords
 		if isinstance(points, SkyCoord) or \
@@ -219,8 +327,10 @@ class ASTFrameSet(ASTFrame):
 				return SkyCoord(ra=out[0]*u.rad, dec=out[1]*u.rad)
 			else:
 				raise NotImplementedError("Need to implement arrays of SkyCoord objects.")
-
+		elif isinstance(points, np.ndarray):
+			raise NotImplementedError("handle numpy arrays")
 		else:
+			# handle other iterables
 			#TODO validate inputs for error reporting
 			assert len(x_coordinates) == len(y_coordinates), "Coordinate arrays of unequal lengths."
 			#forward = True # convert from frame1 to frame2

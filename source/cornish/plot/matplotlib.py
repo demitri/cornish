@@ -1,4 +1,6 @@
 
+import math
+import logging
 from typing import Union, Tuple, Iterable
 
 import matplotlib.pyplot as plt
@@ -13,10 +15,13 @@ from astropy.units import Quantity
 from astropy.coordinates import SkyCoord
 
 from .cornish import CornishPlot
+from ..mapping import ASTMapping
 from ..region.region import ASTRegion
 from ..region.circle import ASTCircle
 
 from cornish import ASTFITSChannel, ASTFrameSet
+
+logger = logging.getLogger("cornish")
 
 markerstr2value = {
 	"circle" : 1,
@@ -59,6 +64,8 @@ class SkyPlot(CornishPlot):
 		else:
 			raise ValueError("Could not determine a center point for the provided extent. Hint: provide an ASTRegion object.")
 
+		if any([math.isfinite(x) is False for x in [circle_extent.center[0], circle_extent.center[1], circle_extent.radius.value]]):
+			logger.warning(f"Plotting will fail as the bounding circle returned contains NaNs. (centre={circle_extent.centre}, radius={circle_extent.radius})")
 
 		# The NAXIS values are arbitrary; this object is used for mapping.
 		cards = {
@@ -191,49 +198,53 @@ class SkyPlot(CornishPlot):
 
 	def addPoints(self, ra:Iterable=None, dec:Iterable=None, points:Iterable[Tuple]=None, style:int=1, size:float=None, colour:str=None, color:str=None):
 		'''
-		Draw a point onto an existing plot.
+		Draw provided points onto an existing plot.
 
-		.. list-table:: Marker Styles
-           :widths 20 25 25
-		   :header-rows: 1
+	        .. list-table:: **Marker Styles**
+	           :widths: 20 25 25
+	           :header-rows: 1
 
-		   * - marker_style value
-		     - style
-			 - string equivalent
-		   * - 1
-		     - small circle
-			 - circle
-           * - 2
-            - cross
-			- cross
-           * - 3
-            - star
-			- star
-           * - 4
-            - larger circle
-			- circle
-           * - 5
-            - x
-			- x
-           * - 6
-            - pixel dot
-			- dot
-           * - 7
-            - triangle pointing up
-			- triangle
-           * - 8
-            - triangle pointing down
-			- triangle down
-           * - 9
-            - triangle pointing left
-			- triangle left
-           * - 10
-            - triangle pointing right
-			- triangle right
-           * - 11
-            - ...
+	           * - ``marker_style`` value
+	             - style
+	             - string equivalent
+	           * - 1
+	             - small circle
+	             - circle
+	           * - 2
+	             - cross
+	             - cross
+	           * - 3
+	             - star
+	             - star
+	           * - 4
+	             - larger circle
+	             - circle
+	           * - 5
+	             - x
+	             - x
+	           * - 6
+	             - pixel dot
+	             - dot
+	           * - 7
+	             - triangle pointing up
+	             - triangle
+	           * - 8
+	             - triangle pointing down
+	             - triangle down
+	           * - 9
+	             - triangle pointing left
+	             - triangle left
+	           * - 10
+	             - triangle pointing right
+	             - triangle right
+	           * - 11
+	             - ...
+	             - ...
 
-		:param points: point should be in degrees (e.g. list or numpy.ndarray, or a pair (list/tuple) of astropy.units.Quantity values, or a SkyCoord, or a container of these (all in the same form)
+
+
+
+		:param points: points should be in degrees (e.g. list or numpy.ndarray, or a pair (list/tuple) of astropy.units.Quantity values, or a list of SkyCoord objects, or a container of these (all in the same form)
 		:param style: an integer corresponding to one of the built-in marker styles
 		:param colour: marker plot colour
 		:param color: synonym for 'colour'

@@ -4,7 +4,7 @@ from __future__ import annotations # remove in Python 3.10
 # https://stackoverflow.com/a/33533514/2712652
 
 import logging
-from typing import Union, Iterator
+from typing import Union, Iterator, Tuple
 
 from math import radians as deg2rad
 from math import degrees as rad2deg
@@ -202,24 +202,24 @@ class ASTCircle(ASTRegion):
 		# TODO: possibly cache this
 
 	@property
-	def center(self):
+	def center(self) -> Tuple[float]:
 		'''
 		The center of this circle region in degrees (a synonym for :func:`self.centre`" for the Americans).
 
 		Returns
 		-------
-		:returns: a list of points [x,y] that describe the centre of the circle in degrees
+		:returns: a tuple of points (x,y) that describe the centre of the circle in degrees
 		'''
 		return self.centre
 
 	@property
-	def centre(self):
+	def centre(self) -> Tuple[float]:
 		'''
 		The centre of this circle region in degrees.
 
 		Returns
 		-------
-		:returns: a list of points [x,y] that describe the centre of the circle in degrees
+		:returns: a tuple of points (x,y) that describe the centre of the circle in degrees
 		'''
 		center = None
 		radius = None
@@ -230,7 +230,7 @@ class ASTCircle(ASTRegion):
 		# ..todo:: create another method (e.g. centerCoord) that returns an astropy.coordinates.SkyCoordinate object; would need to check if it's a sky object
 		#          example use is from boundingCircle, but that does is not a SkyFrame.
 
-		return np.rad2deg(center)
+		return tuple(np.rad2deg(center))
 
 	def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec):
 		'''

@@ -1,9 +1,12 @@
 
 from typing import Iterable, Union
 
+import astropy
+import astropy.units as u
 import starlink.Ast as Ast
 
 from .region import ASTRegion
+from .polygon import ASTPolygon
 
 __all__ = ["ASTCompoundRegion"]
 
@@ -67,6 +70,19 @@ class ASTCompoundRegion(ASTRegion):
 		'''
 		raise NotImplementedError()
 
-	#def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
-	#	'''
-	#	'''
+	def componentRegions(self):
+		'''
+		Returns a list of region objects that comprise this component region.
+		'''
+		(map1, map2, series, invert1, invert2) = self.astObject.decompose()
+		regions = list()
+		for r in [map1, map2]:
+
+
+	def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
+		'''
+		Return a single polygon that bounds the total of the regions that make up this compound region.
+		'''
+
+
+

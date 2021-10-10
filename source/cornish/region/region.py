@@ -188,15 +188,39 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		'''
 		The array of points that define the region. The interpretation of the points is dependent on the type of shape in question.
 
-		Box: returns two points; the center and a box corner.
-		Circle: returns two points; the center and a point on the circumference.
-		CmpRegion: no points returned; to get points that define a compound region, call this method on each of the component regions via the method "decompose".
-		Ellipse: three points: 1) center, 2) end of one axis, 3) end of the other axis
-		Interval: two points: 1) lower bounds position, 2) upper bounds position (reversed when interval is an excluded interval)
-		NullRegion: no points
-		PointList: positions that the list was constructed with
-		Polygon: vertex positions used to construct the polygon
-		Prism: no points (see CmpRegion)
+		* :class:`ASTBox`: returns two points; the center and a box corner.
+		* :class:`Circle`: returns two points; the center and a point on the circumference.
+		* :class:`CmpRegion`: no points returned; to get points that define a compound region, call this method on each of the component regions via the method "decompose".
+		* :class:`Ellipse`: three points: 1) center, 2) end of one axis, 3) end of the other axis
+		* :class:`Interval`: two points: 1) lower bounds position, 2) upper bounds position (reversed when interval is an excluded interval)
+		* :class:`NullRegion`: no points
+		* :class:`PointList`: positions that the list was constructed with
+		* :class:`Polygon`: vertex positions used to construct the polygon
+		* :class:`Prism`: no points (see CmpRegion)
+
+		+-----------------------+--------------------------------------------------------------------------------+
+		| Class                 | Return Value                                                                   |
+		+=======================+================================================================================+
+		| :class:`ASTBox`       | returns two points; the center and a box corner.                               |
+		+-----------------------+--------------------------------------------------------------------------------+
+		| :class:`ASTCircle`    | returns two points; the center and a point on the circumference.               |
+		+-----------------------+--------------------------------------------------------------------------------+
+		| :class:`ASTCmpRegion` | no points returned; to get points that define a compound region,               |
+		|                       | call this method on each of the component regions via the method "decompose".  |
+		+-----------------------+--------------------------------------------------------------------------------+
+		| :class:`ASTEllipse`   | three points: 1) center, 2) end of one axis, 3) end of the other axis          |
+		+-----------------------+--------------------------------------------------------------------------------+
+		| :class:`ASTInterval`  | two points: 1) lower bounds position                                           |
+		|                       | 2) upper bounds position (reversed when interval is an excluded interval)      |
+		+-----------------------+--------------------------------------------------------------------------------+
+		| :class:`ASTNullRegion`| no points                                                                      |
+		+-----------------------+--------------------------------------------------------------------------------+
+		| :class:`ASTPointList` | positions that the list was constructed with                                   |
+		+-----------------------+--------------------------------------------------------------------------------+
+		| :class:`ASTPolygon`   | vertex positions used to construct the polygon                                 |
+		+-----------------------+--------------------------------------------------------------------------------+
+		| :class:`ASTPrism`     | no points (see CmpRegion)                                                      |
+		+-----------------------+--------------------------------------------------------------------------------+
 
 		NOTE: points returned reflect the current coordinate system and may be different from the initial construction
 

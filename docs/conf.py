@@ -71,6 +71,8 @@ intersphinx_mapping = {
 	'matplotlib' : ('http://matplotlib.sourceforge.net', None)
 }
 
+graphviz_output_format = 'svg'
+
 todo_include_todos = True
 
 # -- Options for HTML output -------------------------------------------------

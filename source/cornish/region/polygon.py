@@ -214,6 +214,8 @@ class ASTPolygon(ASTRegion):
 		#
 		downsizedpoly = flatpoly.downsize(maxerr=4.848e-6, maxvert=200) # -> ASTPolygon
 
+		logger.debug(f"{flatpoly=}")
+
 		# "downsizedpoly" is a polygon in a frame with axes in degrees, but is not a sky frame.
 
 		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet, points=downsizedpoly.points)

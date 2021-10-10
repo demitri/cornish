@@ -252,7 +252,7 @@ class ASTFrame(ASTMapping):
 		Calculate the angle in this frame between two line segments connected by a point.
 
 		Let A = point1, C = point2, and B = the vertex point. This method calculates the
-		angle between the line segments AB and CB.
+		angle between the line segments :math:`\\overline{AB}` and :math:`\\overline{CB}`.
 
 		If the frame is a sky frame, lines are drawn on great circles.
 		Units are assumed to be degrees if not provided with units,
