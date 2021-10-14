@@ -1,14 +1,19 @@
 
-from typing import Iterable, Union
+import logging
+from typing import Iterable, Union, List
 
 import astropy
 import astropy.units as u
 import starlink.Ast as Ast
 
+from .box import ASTBox
+from .circle import ASTCircle
 from .region import ASTRegion
 from .polygon import ASTPolygon
 
 __all__ = ["ASTCompoundRegion"]
+
+logger = logging.getLogger("cornish")
 
 class ASTCompoundRegion(ASTRegion):
 	'''
@@ -39,6 +44,11 @@ class ASTCompoundRegion(ASTRegion):
 			if not isinstance(r, (ASTRegion, Ast.Region)):
 				raise ValueError("The regions provided must be of type ASTRegion or starlink.Ast.Region.")
 
+		# Maintain a list of regions that make up the compound region.
+		# How will this work with different types of chained operations?
+		# Postpone: too much effort for an initial version...
+		#self._regions = list()
+
 		r1 = None
 		r2 = None
 		compound_region = None
@@ -64,25 +74,72 @@ class ASTCompoundRegion(ASTRegion):
 		super().__init__(ast_object=compound_region)
 
 	@property
+	def points(self):
+		logger.warning(f"Compund regions do not currently return points (as Ast.CmpRegion objects do not).")
+		return None
+
+	@property
 	def area(self):
 		'''
 		The area of the compound region on the sphere. [Not yet implemented.]
 		'''
 		raise NotImplementedError()
 
-	def componentRegions(self):
+	def componentRegions(self) -> List[ASTRegion]:
 		'''
 		Returns a list of region objects that comprise this component region.
 		'''
 		(map1, map2, series, invert1, invert2) = self.astObject.decompose()
 		regions = list()
 		for r in [map1, map2]:
+			if r.isapolygon():
+				regions.append(ASTPolygon(r))
+			elif r.isabox():
+				regions.append(ASTBox(r))
+			elif r.isacircle():
+				regions.append(ASTCircle(r))
+			elif r.isacmpregion():
+				regions.append(ASTCompoundRegion(r))
+			#elif r.isaellipse():
+			#	regions.append(ASTEllipse(r))
+			#elif r.isanullregion():
+			#	regions.append( ... ?)
+			else:
+				raise NotImplementedError(f"A region type was found that is not yet handled: {type(r)}")
+		return regions()
 
-
-	def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
+	def toPolygon(self) -> ASTPolygon: #, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
 		'''
 		Return a single polygon that bounds the total of the regions that make up this compound region.
 		'''
 
+		# TODO: check that frame match; deal with otherwise!!
+		logging.warning("ASTCompoundRegion currently doesn't check that component regions are in the same frame!")
 
+		region1, region2 = self.componentRegions()
+		if region1.overlaps(region2):
+			raise NotImplementedError("")
+		else:
 
+			# this doesn't have to be ra/dec; it's the first and second axis
+			r1_ra  = region1.points.T[0]
+			r1_dec = region1.points.T[1]
+			r2_ra  = region2.points.T[0]
+			r2_dec = region2.points.T[1]
+
+			points = np.array([np.concatenate((r1_ra,r2_ra)), np.concatenate((r1_dec,r2_dec))])
+
+			# .. todo:: convert points from one frame to the other
+
+			# create bounding polygon
+			polygon = ASTPolygon(frame=region1.frame, points=np.array([
+			    [min(points[0]), min(points[1])],
+			    [min(points[0]), max(points[1])],
+			    [max(points[0]), max(points[1])],
+			    [max(points[0]), min(points[1])]
+			]))
+
+			if not polygon.pointInRegion(region1.points[0]):
+				polygon.negate()
+
+			return polygon

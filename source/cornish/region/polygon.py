@@ -214,7 +214,7 @@ class ASTPolygon(ASTRegion):
 		#
 		downsizedpoly = flatpoly.downsize(maxerr=4.848e-6, maxvert=200) # -> ASTPolygon
 
-		logger.debug(f"{flatpoly=}")
+		#logger.debug(f"{flatpoly=}")
 
 		# "downsizedpoly" is a polygon in a frame with axes in degrees, but is not a sky frame.
 
@@ -234,9 +234,18 @@ class ASTPolygon(ASTRegion):
 		(a, b) = wcsFrameSet.astObject.tran( [[dims[0]/2], [dims[1]/2]] )
 		center = wcsFrameSet.astObject.norm(np.array([a,b]))
 
+		#logger.debug(f"before: {sky_frame_polygon.isBounded=}, {center=}, {a=}, {b=}")
+
 		#if not sky_frame_polygon.astObject.pointinregion( [a[0], b[0]] ):
 		if not sky_frame_polygon.astObject.pointinregion( center ):
-			 sky_frame_polygon.astObject.negate()
+			# sky_frame_polygon.astObject.negate()
+			# The region is all points *outside* of the FITS area.
+			# In this case the region is unbounded. One option is to call .negate(),
+			# but this only flips a boolean flag in the object and leaves the region unbounded.
+			# Instead, just recreate the region by reversing the order of the points.
+			sky_frame_polygon = ASTPolygon(frame=wcsFrameSet, points=np.flip(downsizedpoly.points, axis=0))
+
+		#logger.debug(f"after: {sky_frame_polygon.isBounded=}")
 
 		# Return a polygon with the same vertices but defined in a SkyFrame
 		# rather than a flat Frame.
