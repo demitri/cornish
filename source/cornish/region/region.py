@@ -44,7 +44,7 @@ Region-specific methods:
   * astGetRegionBounds: Get the bounds of a Region
   * astGetRegionFrame: Get a copy of the Frame represent by a Region
   * astGetRegionFrameSet: Get a copy of the Frameset encapsulated by a Region
-  * astGetRegionMesh: Get a mesh of points covering a Region
+  * astGetRegionMesh: Get a mesh of points covering a Region (points returned are normalized)
   * astGetRegionPoints: Get the positions that define a Region
   * astGetUnc: Obtain uncertainty information from a Region
   * astMapRegion: Transform a Region into a new coordinate system
@@ -238,7 +238,6 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			region_points = np.fliplr(region_points)
 
 		if self.frame().isSkyFrame:
-			#return np.rad2deg(self.astObject.norm(self.astObject.getregionpoints())).T
 			return np.rad2deg(self.astObject.norm(region_points)).T
 		else:
 			#return self.astObject.getregionpoints().T
@@ -665,7 +664,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		try:
 			mesh = self.astObject.getregionmesh(AST_BOUNDARY_MESH) # here "surface" means the boundary
 			# if a basic frame is used instead of a sky frame, the points need to be normalized on [0,360)
-			mesh = self.astObject.norm(mesh)
+			# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points; do not call norm again.
+			#mesh = self.astObject.norm(mesh)
 		except Ast.MBBNF as e:
 			print(f"AST error: Mapping bounding box not found. ({e})")
 			raise e
@@ -705,7 +705,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# where "ncoord" is the number of axes within the Frame represented by the Region,
 		# and "npoint" is the number of points in the mesh (see attribute "MeshSize").
 		mesh = self.astObject.getregionmesh(AST_SURFACE_MESH) # here "surface" means the interior
-		mesh = self.astObject.norm(mesh)
+		# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points; do not call norm again.
+		#mesh = self.astObject.norm(mesh)
 
 		if npoints is not None:
 			# restore original value
