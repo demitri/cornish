@@ -196,7 +196,7 @@ class SkyPlot(CornishPlot):
 		self.astPlot.Colour_Border = original_colour
 		self.astPlot.Style = original_style
 
-	def addPoints(self, ra:Iterable=None, dec:Iterable=None, points:Iterable[Tuple]=None, style:int=1, size:float=None, colour:str=None, color:str=None):
+	def addPoints(self, points:Iterable[Tuple]=None, ra:Iterable=None, dec:Iterable=None, style:int=1, size:float=None, colour:str=None, color:str=None):
 		'''
 		Draw provided points onto an existing plot.
 
