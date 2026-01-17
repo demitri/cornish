@@ -67,8 +67,8 @@ setup(
     install_requires=[
         'starlink-pyast>=3.15.3'
     ],
-    packages=['cornish'],
-    #packages=setuptools.find_packages(include=["cornish", "cornish.*"]),#exclude=["tests"]), # https://setuptools.readthedocs.io/en/latest/setuptools.html#id15
+    #packages=['cornish'],
+    packages=setuptools.find_packages(include=["cornish", "cornish.*"]),#exclude=["tests"]), # https://setuptools.readthedocs.io/en/latest/setuptools.html#id15
     data_files=data_files,
     #ext_package="cornish", # will compile the methods from the extension to the namespace "cornish"
     #ext_modules=[c_extension], # alternative: cythonize(etc), needs "from Cython.Build import cythonize"
