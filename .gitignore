@@ -60,3 +60,6 @@ target/
 
 # Editors
 .nova
+
+# Private development notes (not for public repo)
+local_development/
