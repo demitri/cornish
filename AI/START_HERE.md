@@ -9,9 +9,11 @@ Cornish wraps the C-flavored `starlink-pyast` interface to the Starlink AST libr
 ## Current state
 
 - Regions (box, circle, polygon) are fairly mature and the primary use case so far.
-- Compound regions are actively in progress — not recommended to use yet (see recent commits and `AST+Cornish Wish List.md`).
+- Compound regions are actively in progress — not recommended to use yet (see recent commits and `AST+Cornish Wish List.md`). Note: several wish-list blockers are fixed upstream in AST 9.3 (`getregiondisc` and boundary meshes now work on compound regions — verified 2026-07-09); converting to a MOC (`region.toMoc()`) is the recommended way to get bounding circles/areas for compound geometry.
+- `ASTMoc` (IVOA Multi-Order Coverage maps) and STC-S serialization (`region.toSTCS()` / `ASTRegion.fromSTCS()`) added 2026-07-09, with tests in `source/tests/test_moc_stcs.py`.
 - `addPoints` API is in flux — still being reworked, not settled.
-- FITS header handling (`ASTRegion.fromFITSHeader`, `channel/fits_channel.py`) is in active use.
+- FITS header handling (`ASTRegion.fromFITSHeader`, `channel/fits_channel.py`) is in active use. (`ASTRegion.fromFITSHeader` itself raises "deprecated" — use `ASTPolygon.fromFITSHeader`; the README's first example needs updating.)
+- A full project evaluation + implementation-ready spec corpus (API gaps, C-vs-pyast verdict, recipes, plotting/`cornish-view` design) lives in `local_development/2026-07-09 Claude Fable project review/` (gitignored; machine-local). **Resuming that effort? Read its `ORCHESTRATION.md` first** — it tracks what's done and the next action.
 - Version: see `source/cornish/version.py` (currently 1.1).
 
 ## Where things are

@@ -183,6 +183,88 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		else:
 			raise Exception(f"Unexpected region type encountered: {type(ast_object)}.")
 
+	@classmethod
+	def fromSTCS(cls, stcs:str) -> ASTRegion:
+		'''
+		Factory method that creates a region from an STC-S description string.
+
+		STC-S is the IVOA standard string serialization of sky regions, e.g. the
+		``s_region`` column of ObsCore tables:
+
+		.. code-block::
+
+		    Circle ICRS 30.0 45.0 2.0
+		    Polygon ICRS 10 20 10 21 11 21 11 20
+		    Union ICRS ( Circle 30 45 2 Circle 32 44 1 )
+
+		:param stcs: an STC-S region description
+		:returns: an :class:`ASTRegion` subclass instance matching the description
+		'''
+		from ..channel.channel_io import ListSource # avoid circular import
+		import cornish.region as cr
+
+		if not isinstance(stcs, str):
+			raise TypeError(f"ASTRegion.fromSTCS expects a string (got '{type(stcs).__name__}').")
+
+		stcs_channel = Ast.StcsChan(ListSource(stcs), None)
+		try:
+			ast_object = stcs_channel.read()
+		except Ast.AstError as e:
+			# pyast raises library-specific errors (e.g. Ast.BADIN) for malformed input;
+			# surface them as a ValueError with the original error chained
+			raise ValueError(f"The provided string could not be parsed as an STC-S region: '{stcs}'") from e
+		if ast_object is None or not isinstance(ast_object, Ast.Region):
+			raise ValueError(f"The provided string could not be read as an STC-S region: '{stcs}'")
+
+		# wrap in the appropriate cornish class
+		if isinstance(ast_object, Ast.Polygon):
+			return cr.ASTPolygon(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.Circle):
+			return cr.ASTCircle(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.Box):
+			return cr.ASTBox(ast_object=ast_object)
+		elif isinstance(ast_object, Ast.CmpRegion):
+			return cr.ASTCompoundRegion(ast_object=ast_object)
+		else:
+			raise NotImplementedError(f"STC-S produced a region class not yet wrapped by cornish: '{ast_object.Class}'")
+
+	def toMoc(self, max_order:int=10) -> "cornish.region.ASTMoc":
+		'''
+		Return an IVOA Multi-Order Coverage map (:class:`ASTMoc`) covering this region.
+
+		This region must be defined in a sky frame. A MOC is often the most robust
+		way to work with complicated geometry (e.g. compound regions): it has a
+		well-defined area, bounding circle, and standard serializations.
+
+		:param max_order: HEALPix order of the finest MOC cells (order 10 ≈ 3.4', order 15 ≈ 6.4")
+		'''
+		from .moc import ASTMoc # avoid circular import
+		return ASTMoc.fromRegion(self, max_order=max_order)
+
+	def toSTCS(self) -> str:
+		'''
+		Return the IVOA STC-S string description of this region, e.g. ``Circle ICRS 30 45 2``.
+
+		This is the format used by the ``s_region`` column of IVOA ObsCore tables
+		and is understood by TAP services, Aladin, and (via ``regions``) DS9.
+		Compound regions serialize as, e.g., ``Union ICRS ( Circle ... Circle ... )``.
+
+		Known limitation (AST 9.3): a box serializes to STC-S ``PositionInterval``,
+		which the AST STC-S *reader* fails to parse back — a box's STC-S output is
+		valid for external services but does not round-trip through
+		:meth:`fromSTCS`. Convert with :meth:`toPolygon` first if a round-trip is needed.
+
+		:raises ValueError: if AST cannot represent this region in STC-S
+		'''
+		from ..channel.channel_io import ListSink # avoid circular import
+
+		sink = ListSink()
+		stcs_channel = Ast.StcsChan(None, sink)
+		n_written = stcs_channel.write(self.astObject)
+		if n_written == 0 or len(sink.lines) == 0:
+			raise ValueError(f"This region ({self.__class__.__name__}) could not be serialized to STC-S.")
+		return " ".join(line.strip() for line in sink.lines).strip()
+
 	@property
 	def points(self) -> np.ndarray:
 		'''
@@ -418,6 +500,12 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 		from .circle import ASTCircle
 		centre, radius = self.astObject.getregiondisc() # returns radians
+		# note that AST signals "no disc" with Ast.BAD (a large *finite* float), not NaN
+		if (Ast.BAD in centre) or (radius == Ast.BAD) or \
+		   not (np.all(np.isfinite(centre)) and math.isfinite(radius)):
+			# e.g. an empty region (such as a MOC of the AND of disjoint regions);
+			# fail here rather than let bad values propagate
+			raise ValueError(f"No bounding circle could be determined for this region (AST returned centre={centre}, radius={radius}); the region may be empty or unbounded.")
 		return ASTCircle(frame=self, center=np.rad2deg(centre), radius=rad2deg(radius))
 
 	def overlaps(self, region) -> bool:

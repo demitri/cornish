@@ -53,6 +53,18 @@ ASTCompoundRegion
 	:inherited-members:
 	:show-inheritance:
 
+ASTMoc
+------
+
+.. inheritance-diagram:: ASTMoc
+   :parts: 1
+
+.. autoclass:: ASTMoc
+	:members:
+	:undoc-members:
+	:inherited-members:
+	:show-inheritance:
+
 ASTPolygon
 ----------
 

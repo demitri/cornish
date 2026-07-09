@@ -20,6 +20,7 @@ from .region.circle import *
 from .region.compound_region import *
 from .region.polygon import *
 from .region.region import *
+from .region.moc import *
 
 from .version import __version__
 
