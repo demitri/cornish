@@ -59,7 +59,7 @@ class ASTFrameSet(ASTFrame):
 			if isinstance(ast_object, starlink.Ast.FrameSet):
 				super().__init__(ast_object=ast_object)
 			else:
-				Exception("ASTFrameSet: Unhandled ast_object type ('{0}')".format(ast_object))
+				raise Exception("ASTFrameSet: Unhandled ast_object type ('{0}')".format(ast_object))
 		else:
 			# construct from provided base_frame
 			if isinstance(base_frame, starlink.Ast.Frame):
@@ -67,7 +67,7 @@ class ASTFrameSet(ASTFrame):
 			elif isinstance(base_frame, ASTFrame):
 				fs = Ast.FrameSet(frame=base_frame.astObject, options=None)
 			else:
-				Exception("ASTFrameSet: Unhandled base_frame type ('{0}')".format(base_frame))
+				raise Exception("ASTFrameSet: Unhandled base_frame type ('{0}')".format(base_frame))
 
 			super().__init__(ast_object=fs)
 
@@ -88,7 +88,7 @@ class ASTFrameSet(ASTFrame):
 		for frame in [frame1,frame2]:
 			if isinstance(frame, ASTFrame):
 				ast_frames.append(frame.astObject)
-			elif isinstance(frame, starlink.Ast.AstFrame):
+			elif isinstance(frame, starlink.Ast.Frame):
 				ast_frames.append(frame)
 			else:
 				raise ValueError(f"The provided frames must either be of type ASTFrame or starlink.Ast.Frame (got '{type(frame)}'.")

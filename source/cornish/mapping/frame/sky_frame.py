@@ -63,16 +63,23 @@ class ASTSkyFrame(ASTFrame):
 		'''
 		Returns a SkyFrame built from the WCS in the provided header, if found.
 		Creates a sky frame from the provided FITS header.
-		:raises: exc.NoWCSFound: if no sky frame WCS found
+		:raises: cornish.exc.NoWCSFound: if no sky frame WCS found
 		'''
-		frame = ASTFrameSet.fromFITSHeader(fits_header=header).currentFrame # -> ASTFrame
+		from .frame_set import ASTFrameSet # avoid circular import
+		from ...exc import NoWCSFound, FrameNotFoundException
+
+		try:
+			frame = ASTFrameSet.fromFITSHeader(fits_header=header).currentFrame # -> ASTFrame
+		except FrameNotFoundException as e:
+			# no WCS of any kind could be read from the header
+			raise NoWCSFound("A WCS corresponding to a sky frame was not found.") from e
 
 		# double check it's the right frame
 		if frame.isSkyFrame:
 			return frame
 		else:
-			# .. todo:: could perform a more rigorous to find a sky frame
-			raise exc.NoWCSFoumd("A WCS corresponding to a sky frame was not be found.")
+			# .. todo:: could perform a more rigorous search to find a sky frame
+			raise NoWCSFound("A WCS corresponding to a sky frame was not found.")
 
 	@property
 	def equinox(self):

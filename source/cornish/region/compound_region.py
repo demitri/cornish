@@ -38,7 +38,10 @@ class ASTCompoundRegion(ASTRegion):
 				super().__init__(ast_object=ast_object)
 				return
 
-		if regions is None or len(regions) < 2:
+		if regions is None:
+			raise ValueError("The 'regions' parameter must contain at least two regions.")
+		regions = list(regions) # accept any iterable; the loop below consumes this copy
+		if len(regions) < 2:
 			raise ValueError("The 'regions' parameter must contain at least two regions.")
 		for r in regions:
 			if not isinstance(r, (ASTRegion, Ast.Region)):
@@ -93,20 +96,20 @@ class ASTCompoundRegion(ASTRegion):
 		regions = list()
 		for r in [map1, map2]:
 			if r.isapolygon():
-				regions.append(ASTPolygon(r))
+				regions.append(ASTPolygon(ast_object=r))
 			elif r.isabox():
-				regions.append(ASTBox(r))
+				regions.append(ASTBox(ast_object=r))
 			elif r.isacircle():
-				regions.append(ASTCircle(r))
+				regions.append(ASTCircle(ast_object=r))
 			elif r.isacmpregion():
-				regions.append(ASTCompoundRegion(r))
+				regions.append(ASTCompoundRegion(ast_object=r))
 			#elif r.isaellipse():
 			#	regions.append(ASTEllipse(r))
 			#elif r.isanullregion():
 			#	regions.append( ... ?)
 			else:
 				raise NotImplementedError(f"A region type was found that is not yet handled: {type(r)}")
-		return regions()
+		return regions
 
 	def toPolygon(self) -> ASTPolygon: #, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
 		'''

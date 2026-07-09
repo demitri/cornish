@@ -140,7 +140,10 @@ class SkyPlot(CornishPlot):
 
 		# box in graphics coordinates (area to draw on, dim of plot)
 		#plot = Ast.Plot( frameset.astObject, gbox, bbox, grf )
-		self.astPlot = Ast.Plot( pix2sky_mapping.astObject, gbox, bbox, grf, options="Uni1=ddd:mm:ss" )
+		# Note: earlier versions of AST accepted the abbreviation "Uni1" for "Unit(1)";
+		# AST 9.x rejects it ("BADAT: invalid for a SkyFrame"), which made this class
+		# unusable. The format is set explicitly below instead.
+		self.astPlot = Ast.Plot( pix2sky_mapping.astObject, gbox, bbox, grf )
 		 #, options="Grid=1" )
 		#plot.set( "Colour(border)=2, Font(textlab)=3" );
 

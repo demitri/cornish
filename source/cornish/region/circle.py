@@ -56,7 +56,7 @@ class ASTCircle(ASTRegion):
 		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
 
 		if ast_object:
-			if any([x is None for x in [frame, center, edge_point, radius]]):
+			if any([x is not None for x in [frame, center, edge_point, radius]]):
 				raise Exception("ASTCircle: cannot specify both 'ast_object' and any other parameter.")
 
 			if isinstance(ast_object, Ast.Circle):

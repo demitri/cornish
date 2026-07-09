@@ -58,7 +58,8 @@ class ASTMapping(ASTObject):
 		will be sky to pixel.
 		'''
 		inv_mapping = self.astObject.copy() # creates a new mapping
-		return ASTMapping(ast_object=inv_mapping.invert())
+		inv_mapping.invert() # inverts in place (returns None)
+		return ASTMapping(ast_object=inv_mapping)
 
 	# TODO, test "out" param, out:Iterable=None): # ? use forward=T/F
 	def transform(self, points:Iterable=None) -> np.ndarray:

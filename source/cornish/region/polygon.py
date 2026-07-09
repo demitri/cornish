@@ -511,8 +511,6 @@ class ASTPolygon(ASTRegion):
 				angle = frame.angle(vertex=v, points=(p1,p2)) # -> Quantity
 				angles.append(angle.to(u.rad).value)
 
-				print(p1,v, p2, angle)
-
 			#print(angles)
 			sum_of_polygon_angles = sum(angles) # radians
 			#area = math.pi/180 * (sum_of_polygon_angles - (n-2) * 180)

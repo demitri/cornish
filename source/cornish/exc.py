@@ -12,5 +12,11 @@ class NotA2DRegion(Exception):
 class CoordinateSystemsCouldNotBeMapped(Exception):
 	pass
 
-class NoWCSFoumd(Exception):
+class NoWCSFound(Exception):
 	pass
+
+class NotASkyRegion(Exception):
+	''' Raised when a sky region is required, e.g. converting a region to a MOC. '''
+	pass
+
+NoWCSFoumd = NoWCSFound # deprecated alias (original misspelling), kept for compatibility
