@@ -54,7 +54,7 @@ class ASTFITSChannel(ASTChannel):
 		# (it exposes a card-count length), and truthiness here silently
 		# discarded a provided empty channel (found by review round 3)
 		if ast_object is not None:
-			if any([hdu, header]):
+			if hdu is not None or header is not None:
 				raise ValueError("If 'ast_object' is provided, 'hdu' or 'header' should not be set.")
 			if isinstance(ast_object, starlink.Ast.FitsChan):
 				self._dimensions = None # pixel dimensions

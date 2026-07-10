@@ -337,8 +337,11 @@ def test_no_kwargs_into_pyast_constructors():
 	here only with a comment citing empirical verification that the kwarg
 	is honored.
 
-	Blind spot: cannot see calls built dynamically (getattr) or kwargs
-	splatted from dicts; none exist today.
+	Blind spots: cannot see calls built dynamically (getattr) or kwargs
+	splatted from dicts, and relies on the project-wide `import starlink.Ast
+	as Ast` convention — if pyast is ever imported under another name or its
+	classes imported directly, extend this gate to resolve imports. None of
+	these shapes exist today.
 	'''
 	import ast as python_ast
 	import glob, os

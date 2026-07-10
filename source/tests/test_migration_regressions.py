@@ -389,6 +389,11 @@ def test_fits_channel_ast_object_constructor():
 	# is-not-None fix: truthiness silently discarded the provided object
 	channel = ASTFITSChannel(ast_object=raw)
 	assert channel.astObject is raw
+	# mutually-exclusive args must be rejected even when the header is EMPTY
+	# (an empty astropy Header is falsy too — same class)
+	import astropy.io.fits
+	with pytest.raises(ValueError):
+		ASTFITSChannel(ast_object=raw, header=astropy.io.fits.Header())
 
 
 def test_fits_channel_boundingCircle():
