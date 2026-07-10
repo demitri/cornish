@@ -115,6 +115,7 @@ class ASTSkyFrame(ASTFrame):
 	def epoch(self, epoch=None):
 		'''	Set the epoch for the frame. '''
 		import math
+		import numbers
 		if epoch is None:
 			raise ValueError("An 'epoch' parameter must be specified.")
 		if isinstance(epoch, str):
@@ -122,7 +123,8 @@ class ASTSkyFrame(ASTFrame):
 				epoch_value = float(epoch)
 			except ValueError as e:
 				raise ValueError("'epoch' must be a numeric value (or a string that can be converted to a numeric value).") from e
-		elif isinstance(epoch, bool) or not isinstance(epoch, (int, float)):
+		elif isinstance(epoch, bool) or not isinstance(epoch, numbers.Real):
+			# numbers.Real admits NumPy scalars (np.int64/np.float32/...) too
 			raise TypeError(f"'epoch' must be a number or a numeric string (got '{type(epoch).__name__}').")
 		else:
 			epoch_value = float(epoch)

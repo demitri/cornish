@@ -437,6 +437,11 @@ def test_epoch_rejects_nonfinite():
 			frame.epoch = bad
 	with pytest.raises(TypeError):
 		frame.epoch = True
+	# NumPy scalars are numbers (codex follow-up)
+	frame.epoch = np.int64(1975)
+	assert frame.epoch == pytest.approx(1975.0)
+	frame.epoch = np.float32(1980.0)
+	assert frame.epoch == pytest.approx(1980.0)
 
 
 def test_frame_both_ast_object_and_naxes_zero():
