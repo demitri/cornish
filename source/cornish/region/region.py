@@ -19,6 +19,7 @@ import cornish.region # to avoid circular imports below - better way?
 from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
 from ..exc import NotA2DRegion, CoordinateSystemsCouldNotBeMapped
 from ..enums import MeshType, OverlapType
+from .._validation import as_integer
 from .. import _pyast_bridge as bridge
 
 #: Module-level default for region constructors' ``uncertainty`` parameter.
@@ -199,13 +200,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		'''
 		from ..channel.channel_io import ListSink # avoid circular import
 
-		import operator
-		if isinstance(digits, bool):
-			raise TypeError("'digits' must be an integer, not a bool.")
-		try:
-			digits = operator.index(digits) # accepts NumPy ints; rejects floats
-		except TypeError:
-			raise TypeError(f"'digits' must be an integer (got '{type(digits).__name__}').") from None
+		digits = as_integer(digits, "digits")
 		if not (1 <= digits <= 17):
 			raise ValueError(f"'digits' must be between 1 and 17 (got {digits}).")
 
@@ -405,13 +400,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 	@meshSize.setter
 	def meshSize(self, newValue:int):
-		import operator
-		if isinstance(newValue, bool):
-			raise TypeError("An integer value of at least 5 is required for 'meshSize' (got a bool).")
-		try:
-			newValue = operator.index(newValue) # accepts NumPy ints; rejects floats — no silent truncation
-		except TypeError:
-			raise TypeError(f"An integer value of at least 5 is required for 'meshSize' (got '{type(newValue).__name__}').") from None
+		newValue = as_integer(newValue, "meshSize")
 		if newValue < 5:
 			# raise rather than silently clamp: a rewritten value is a hidden surprise
 			raise ValueError(f"'meshSize' must be at least 5 (got {newValue}).")

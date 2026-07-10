@@ -2,7 +2,6 @@
 from __future__ import annotations # remove in Python 3.10
 
 import logging
-import operator
 from typing import Iterable, Union
 
 import numpy as np
@@ -12,6 +11,7 @@ import starlink.Ast as Ast
 
 from .region import ASTRegion
 from ..exc import NotASkyRegion
+from .._validation import as_integer
 
 __all__ = ['ASTMoc']
 
@@ -60,9 +60,7 @@ class ASTMoc(ASTRegion):
 		if max_order is None:
 			super().__init__(ast_object=Ast.Moc())
 		else:
-			if isinstance(max_order, bool):
-				raise TypeError("'max_order' must be an integer, not a bool.")
-			max_order = operator.index(max_order) # requires an integer; no silent float truncation
+			max_order = as_integer(max_order, "max_order")
 			if not (0 <= max_order <= 27):
 				raise ValueError(f"'max_order' must be in the range 0..27 (got {max_order}).")
 			super().__init__(ast_object=Ast.Moc(f"MaxOrder={max_order}"))

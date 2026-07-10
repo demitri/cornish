@@ -17,6 +17,7 @@ from .frame import ASTFrame
 from ..mapping import ASTMapping
 from ...exc import FrameNotFoundException
 from ... import _pyast_bridge as bridge
+from ..._validation import as_integer
 
 __all__ = ['ASTFrameSet']
 
@@ -133,13 +134,7 @@ class ASTFrameSet(ASTFrame):
 		than leaking a raw Ast.FRMIN (or, worse, silently reading 0/-1 as a
 		Python-style index).
 		'''
-		import operator
-		if isinstance(frame_index, bool):
-			raise TypeError("The frame index must be an integer, not a bool.")
-		try:
-			frame_index = operator.index(frame_index) # accepts NumPy ints; rejects floats
-		except TypeError:
-			raise TypeError(f"The frame index must be an integer (got '{type(frame_index).__name__}').") from None
+		frame_index = as_integer(frame_index, "frame_index")
 		number_of_frames = int(self.astObject.get("Nframe"))
 		if frame_index in (Ast.BASE, Ast.CURRENT):
 			return frame_index

@@ -7,6 +7,7 @@ import starlink.Ast as Ast
 from ... import ASTObject
 from ..mapping import ASTMapping
 from ... import _pyast_bridge as bridge
+from ..._validation import as_integer
 
 import numpy as np
 import astropy
@@ -106,15 +107,9 @@ class ASTFrame(ASTMapping):
 
 	def _validate_axis(self, axis) -> int:
 		''' Shared validation for the per-axis accessors below; returns the normalized axis. '''
-		import operator
 		if axis is None:
 			raise ValueError("An axis number must be specified.")
-		if isinstance(axis, bool):
-			raise TypeError("The parameter 'axis' must be an integer, not a bool.")
-		try:
-			axis = operator.index(axis) # accepts NumPy ints; rejects floats
-		except TypeError:
-			raise TypeError("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis))) from None
+		axis = as_integer(axis, "axis")
 		if not (1 <= axis <= self.naxes):
 			# axes are 1-based; out-of-range values would leak a raw Ast.AXIIN
 			raise ValueError("The axis provided ({0}) must be between 1 and the number of axes ({1}).".format(axis, self.naxes))
