@@ -131,7 +131,9 @@ class ASTSkyFrame(ASTFrame):
 		if not math.isfinite(epoch_value):
 			# AST silently accepts Epoch=nan/inf — the gate must live here
 			raise ValueError(f"'epoch' must be finite (got {epoch!r}).")
-		self._setAttribute("Epoch", epoch)
+		# the normalized float, not the original object: exotic Reals (e.g.
+		# Fraction) have str() forms AST cannot parse
+		self._setAttribute("Epoch", epoch_value)
 
 # .. todo:: make this a factory class
 class ASTICRSFrame(ASTSkyFrame):

@@ -442,6 +442,10 @@ def test_epoch_rejects_nonfinite():
 	assert frame.epoch == pytest.approx(1975.0)
 	frame.epoch = np.float32(1980.0)
 	assert frame.epoch == pytest.approx(1980.0)
+	# exotic Reals normalize through float() before reaching AST
+	from fractions import Fraction
+	frame.epoch = Fraction(3961, 2)
+	assert frame.epoch == pytest.approx(1980.5)
 
 
 def test_frame_both_ast_object_and_naxes_zero():
