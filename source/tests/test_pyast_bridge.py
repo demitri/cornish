@@ -589,33 +589,38 @@ class TestT5DumpValue:
 		radius_deg = np.rad2deg(read_back.circlepars()[1])
 		assert 0.0009 <= radius_deg <= 0.0012
 
-	def test_dump_value_object_component_loses_shared_frame(self, sky):
+	@pytest.mark.parametrize("component,dec", [("RegionA", 45.0), ("RegionB", 44.0)])
+	def test_dump_value_object_component_loses_shared_frame(self, sky, component, dec):
 		'''
 		Pin (sonnet implementation-review finding, 2026-07-10): AST elides a
 		frame the component shares with its enclosing object from the dump, so
 		an object-valued block read back through a bare Channel carries a
-		generic Cartesian frame, NOT the original sky frame. Frame-independent
-		values (circlepars radii) survive; frame semantics (isaskyframe,
-		overlap) silently degrade. If this test ever fails because the frame
-		IS preserved, AST changed its dump behavior: update dump_value's
-		docstring and SPEC-04A Appendix B accordingly.
+		generic Cartesian frame, NOT the original sky frame. Frame semantics
+		(isaskyframe, overlap) silently degrade, and even circlepars() geometry
+		distorts (radius inflated by exactly 1/cos(dec)); only raw stored axis
+		values survive. If this test ever fails because the frame IS preserved,
+		AST changed its dump behavior: update dump_value's docstring and
+		SPEC-04A Appendix B accordingly.
 		'''
 		from cornish.channel.channel_io import ListSource
 		c1 = Ast.Circle(sky, 1, np.deg2rad([30.0, 45.0]), [np.deg2rad(1.0)])
 		c2 = Ast.Circle(sky, 1, np.deg2rad([32.0, 44.0]), [np.deg2rad(1.0)])
+		original = {"RegionA": c1, "RegionB": c2}[component]
 		compound = Ast.CmpRegion(c1, c2, Ast.OR)
-		block = bridge.dump_value(compound, "RegionA")
+		block = bridge.dump_value(compound, component)
 		read_back = Ast.Channel(ListSource(block), None).read()
 		assert isinstance(read_back, Ast.Circle)
 		# the shared frame was elided: the read-back is NOT a sky region
 		assert read_back.getregionframe().isaskyframe() == False
 		# frame-semantic operations degrade (same circle no longer IDENTICAL)
-		assert read_back.overlap(c1) != 5
+		assert read_back.overlap(original) != 5
 		# and even circlepars() geometry is distorted: without the sky frame the
 		# stored circumference point (whose RA offset is scaled by cos(dec)) is
 		# measured with Cartesian distance -> radius inflated by exactly 1/cos(dec)
 		radius_deg = np.rad2deg(read_back.circlepars()[1])
-		assert radius_deg == pytest.approx(1.0 / np.cos(np.deg2rad(45.0)), rel=1e-3)
+		assert radius_deg == pytest.approx(1.0 / np.cos(np.deg2rad(dec)), rel=1e-3)
+		# raw stored axis values are the one thing that survives unchanged
+		assert np.array_equal(read_back.getregionpoints(), original.getregionpoints())
 
 	def test_unc_missing_without_positional_unc(self, sky):
 		'''
