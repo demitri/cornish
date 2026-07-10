@@ -131,36 +131,19 @@ class ASTCompoundRegion(ASTRegion):
 
 	def toPolygon(self) -> ASTPolygon: #, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
 		'''
-		Return a single polygon that bounds the total of the regions that make up this compound region.
+		Not yet implemented for compound regions (SPEC-03 repairs this class).
+
+		The previous implementation was triply broken (missing import, a bound
+		method passed as a frame, and — fundamentally — a "bounding box" built
+		from the component regions' DEFINING points, e.g. a circle's centre and
+		one circumference point, yielding a degenerate sliver). No output it
+		ever produced was correct, so it raises loudly until SPEC-03 rebuilds
+		it. For compound geometry today, convert to a MOC instead:
+		``region.toMoc()`` has well-defined area/containment/bounding-circle support
+		(to the resolution of its ``max_order``).
 		'''
-
-		# TODO: check that frame match; deal with otherwise!!
-		logging.warning("ASTCompoundRegion currently doesn't check that component regions are in the same frame!")
-
-		region1, region2 = self.componentRegions()
-		if region1.overlaps(region2):
-			raise NotImplementedError("")
-		else:
-
-			# this doesn't have to be ra/dec; it's the first and second axis
-			r1_ra  = region1.points.T[0]
-			r1_dec = region1.points.T[1]
-			r2_ra  = region2.points.T[0]
-			r2_dec = region2.points.T[1]
-
-			points = np.array([np.concatenate((r1_ra,r2_ra)), np.concatenate((r1_dec,r2_dec))])
-
-			# .. todo:: convert points from one frame to the other
-
-			# create bounding polygon
-			polygon = ASTPolygon(frame=region1.frame(), points=np.array([
-			    [min(points[0]), min(points[1])],
-			    [min(points[0]), max(points[1])],
-			    [max(points[0]), max(points[1])],
-			    [max(points[0]), min(points[1])]
-			]))
-
-			if not polygon.pointInRegion(region1.points[0]):
-				polygon.negate()
-
-			return polygon
+		raise NotImplementedError(
+			"ASTCompoundRegion.toPolygon is not yet implemented (its previous algorithm was "
+			"incorrect); use toMoc() for compound-geometry coverage, or take componentRegions() "
+			"and combine their polygons yourself. SPEC-03 rebuilds this method."
+		)

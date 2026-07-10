@@ -782,3 +782,21 @@ def test_readHeader_unrecognized_list_raises():
 		ASTFITSChannel(header=[(1, 2, 3), (4, 5, 6)])
 	with pytest.raises(TypeError):
 		ASTFITSChannel(header=[42, 43])
+
+
+def test_compound_toPolygon_raises():
+	'''
+	opus/codex rounds: fixing toPolygon's bound-method bug exposed that its
+	algorithm was wrong by design (a "bounding box" from the components'
+	DEFINING points — a degenerate sliver for circles). It raises loudly
+	until SPEC-03 rebuilds it; toMoc() is the working alternative.
+	'''
+	c1 = ASTCircle(center=[30.0, 45.0], radius=1.0)
+	c2 = ASTCircle(center=[35.0, 45.0], radius=1.0)
+	compound = ASTCompoundRegion(regions=[c1, c2], operation=Ast.OR)
+	with pytest.raises(NotImplementedError):
+		compound.toPolygon()
+	# the recommended route works
+	moc = compound.toMoc(max_order=8)
+	assert moc.astObject.pointinregion(np.deg2rad([30.0, 45.0]))
+	assert moc.astObject.pointinregion(np.deg2rad([35.0, 45.0]))
