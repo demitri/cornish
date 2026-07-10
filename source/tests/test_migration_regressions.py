@@ -733,3 +733,19 @@ def test_toSTCS_unserializable_raises_serialization_not_possible():
 	moc = ASTCircle(center=[30, 45], radius=2.0).toMoc(max_order=8)
 	with pytest.raises(SerializationNotPossible):
 		moc.toSTCS()
+
+
+def test_fits_channel_empty_header_valueerror():
+	''' delta-round P3: an empty header container was a raw IndexError; now a loud ValueError '''
+	for empty in ([], "", {}):
+		with pytest.raises(ValueError):
+			ASTFITSChannel(header=empty)
+
+
+def test_compound_region_ast_object_exclusivity():
+	''' delta-round P3: ast_object + falsy other params (regions=[]) must still be rejected '''
+	c1 = ASTCircle(center=[30, 45], radius=2.0)
+	c2 = ASTCircle(center=[32, 45], radius=2.0)
+	compound = ASTCompoundRegion(regions=[c1, c2], operation=Ast.OR)
+	with pytest.raises(ValueError):
+		ASTCompoundRegion(ast_object=compound.astObject, regions=[])

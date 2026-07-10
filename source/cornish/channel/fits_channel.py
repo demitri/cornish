@@ -79,13 +79,18 @@ class ASTFITSChannel(ASTChannel):
 			elif _fitsio_available and isinstance(hdu, fitsio.hdu.base.HDUBase):
 				header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
 			else:
-				raise TypeError("ASTFITSChannel: unknown HDU type specified ('{0}').".format(type(hdu)))
+				raise TypeError("Unknown HDU type specified ('{0}').".format(type(hdu)))
 		# ----------
 
 		self._dimensions = None # pixel dimensions
 		self.astObject = Ast.FitsChan() # sink=self
 
 		if header is not None:
+			if isinstance(header, (list, str, dict)) and len(header) == 0:
+				# an empty container can't describe a header — refuse loudly
+				# rather than fall into the type probes below (an empty list
+				# previously crashed with a raw IndexError)
+				raise ValueError("An empty header was provided; pass header content or omit the parameter.")
 			# Note that the starlink.Ast.Channel.read() operation is destructive.
 			# Save the header so it can be restored/reused.
 			self.header = header
@@ -153,7 +158,7 @@ class ASTFITSChannel(ASTChannel):
 					self.addHeader(keyword=keyword, value=value)
 
 		else:
-			raise TypeError("ASTFITSChannel: unable to parse header.")
+			raise TypeError("Unable to parse the provided header.")
 
 	def cardForKeyword(self, keyword=None):
 		'''
@@ -364,7 +369,7 @@ class ASTFITSChannel(ASTChannel):
 		polygon), replacing the earlier hand-rolled corner heuristics (SPEC-04A M32).
 		'''
 		if len(self.dimensions) != 2:
-			raise ValueError("ASTFITSChannel: Requesting bounding circle on an HDU that is not 2D.")
+			raise ValueError("Requesting bounding circle on an HDU that is not 2D.")
 
 		return self.boundingPolygon().boundingCircle()
 

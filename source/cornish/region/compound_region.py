@@ -35,7 +35,9 @@ class ASTCompoundRegion(ASTRegion):
 	'''
 	def __init__(self, ast_object=None, regions:Iterable[Union[ASTRegion, Ast.Region]]=None, operation:int=None):
 		if ast_object:
-			if any([regions, operation]):
+			# `is not None`, not truthiness: an empty regions list or a zero-valued
+			# operation must still be rejected as a conflicting parameter
+			if regions is not None or operation is not None:
 				raise ValueError("If the ast_object is specified, no other parameter is accepted.")
 			else:
 				super().__init__(ast_object=ast_object)

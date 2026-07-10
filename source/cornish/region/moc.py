@@ -50,21 +50,21 @@ class ASTMoc(ASTRegion):
 	def __init__(self, ast_object:Ast.Moc=None, max_order:int=None):
 		if ast_object is not None:
 			if max_order is not None:
-				raise ValueError("ASTMoc: cannot specify both 'ast_object' and 'max_order'.")
+				raise ValueError("Cannot specify both 'ast_object' and 'max_order'.")
 			if isinstance(ast_object, Ast.Moc):
 				super().__init__(ast_object=ast_object)
 				return
 			else:
-				raise TypeError(f"ASTMoc: The 'ast_object' provided was not of type starlink.Ast.Moc (got '{type(ast_object)}').")
+				raise TypeError(f"The 'ast_object' provided was not of type starlink.Ast.Moc (got '{type(ast_object)}').")
 
 		if max_order is None:
 			super().__init__(ast_object=Ast.Moc())
 		else:
 			if isinstance(max_order, bool):
-				raise TypeError("ASTMoc: 'max_order' must be an integer, not a bool.")
+				raise TypeError("'max_order' must be an integer, not a bool.")
 			max_order = operator.index(max_order) # requires an integer; no silent float truncation
 			if not (0 <= max_order <= 27):
-				raise ValueError(f"ASTMoc: 'max_order' must be in the range 0..27 (got {max_order}).")
+				raise ValueError(f"'max_order' must be in the range 0..27 (got {max_order}).")
 			super().__init__(ast_object=Ast.Moc(f"MaxOrder={max_order}"))
 
 	@classmethod

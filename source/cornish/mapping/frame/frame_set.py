@@ -60,7 +60,7 @@ class ASTFrameSet(ASTFrame):
 			if isinstance(ast_object, starlink.Ast.FrameSet):
 				super().__init__(ast_object=ast_object)
 			else:
-				raise TypeError("ASTFrameSet: Unhandled ast_object type ('{0}')".format(ast_object))
+				raise TypeError("Unhandled ast_object type ('{0}')".format(ast_object))
 		else:
 			# construct from provided base_frame
 			# NOTE: the frame MUST be passed positionally — pyast silently swallows
@@ -72,7 +72,7 @@ class ASTFrameSet(ASTFrame):
 			elif isinstance(base_frame, ASTFrame):
 				fs = Ast.FrameSet(base_frame.astObject)
 			else:
-				raise TypeError("ASTFrameSet: Unhandled base_frame type ('{0}')".format(base_frame))
+				raise TypeError("Unhandled base_frame type ('{0}')".format(base_frame))
 
 			super().__init__(ast_object=fs)
 
