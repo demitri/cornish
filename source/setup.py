@@ -2,8 +2,6 @@ import re
 import setuptools
 from distutils.core import setup
 
-import numpy as np
-
 def get_property(prop:str, project:str):
 	'''
 	Read the requested property (e.g. '__version__', '__author__') from the specified Python module.
@@ -20,7 +18,9 @@ except:
 
 sources = [] # e.g. C sources
 data_files = []
-include_dirs = ['cornish', np.get_include()]		# -I directories
+# no C extensions are built: numpy must not be imported at setup time (it may
+# not be installed yet when pip reads this metadata)
+include_dirs = ['cornish']	# -I directories
 library_dirs = []			# -L directories
 libraries = []		# libraries to include
 # equivalent of a bare #define in C source
