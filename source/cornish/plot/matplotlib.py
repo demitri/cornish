@@ -66,7 +66,14 @@ class SkyPlot(CornishPlot):
 			circle_extent = extent.boundingCircle()
 			#center = circle_extent.center
 		else:
-			raise ValueError("Could not determine a center point for the provided extent. Hint: provide an ASTRegion object.")
+			raise TypeError("Could not determine a center point for the provided extent. Hint: provide an ASTRegion object.")
+
+		if not bridge.is_sky(circle_extent.astObject):
+			# a basic-frame extent has a bare-float radius and no sky coordinates
+			# to build the WCS cards from — refuse loudly rather than leak an
+			# AttributeError from the unit handling below
+			raise ValueError("SkyPlot requires an extent defined in a sky frame "
+			                 f"(got a region on a '{bridge.current_frame_of(circle_extent.astObject).Class}' frame).")
 
 		if any([math.isfinite(x) is False for x in [circle_extent.center[0], circle_extent.center[1], circle_extent.radius.value]]):
 			logger.warning(f"Plotting will fail as the bounding circle returned contains NaNs. (centre={circle_extent.centre}, radius={circle_extent.radius})")
@@ -268,19 +275,22 @@ class SkyPlot(CornishPlot):
 
 		if all([x is None for x in [ra,dec,points]]):
 			raise ValueError("'ra','dec' OR 'points' must be specified (if any values were provided, they were 'None').")
-		if all([x is True for x in [ra, dec, points]]):
-			raise ValueError("Only 'ra','dec' OR 'points' can be specified.")
+		if points is not None and (ra is not None or dec is not None):
+			raise ValueError("Only 'ra','dec' OR 'points' can be specified, not both.")
 		if ra is None and dec is not None:
-		#elif points is None and any([x is None for x in [ra,dec]]):
-#			if ra is None:
-			raise ValueError("If 'ra' or dec' is given, then other parameter must also be provided ('ra' was 'None').")
+			raise ValueError("If 'ra' or 'dec' is given, the other parameter must also be provided ('ra' was 'None').")
 		if dec is None and ra is not None:
-			raise ValueError("If 'ra' or dec' is given, then other parameter must also be provided ('dec' was 'None').")
+			raise ValueError("If 'ra' or 'dec' is given, the other parameter must also be provided ('dec' was 'None').")
 
-
-
-		if points is not None and len(points) == 0:
-			raise ValueError("No points were provided to plot.")
+		if points is not None:
+			# a guarded probe, like the bridge's own emptiness check: scalar
+			# SkyCoord/Quantity single-point forms do not support len()
+			try:
+				no_points = (len(points) == 0)
+			except TypeError:
+				no_points = False
+			if no_points:
+				raise ValueError("No points were provided to plot.")
 
 		if size:
 			current_marker_size = self.astPlot.Size_Markers

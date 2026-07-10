@@ -382,6 +382,15 @@ def test_fits_channel_boundingPolygon_delegates():
 	assert bridge.is_sky(from_channel.astObject)
 
 
+def test_fits_channel_ast_object_constructor():
+	''' review finding: ASTFITSChannel(ast_object=...) previously always raised NotImplementedError '''
+	raw = Ast.FitsChan()
+	# an EMPTY FitsChan is falsy (card-count length), so this also pins the
+	# is-not-None fix: truthiness silently discarded the provided object
+	channel = ASTFITSChannel(ast_object=raw)
+	assert channel.astObject is raw
+
+
 def test_fits_channel_boundingCircle():
 	''' M32: was B9-dead; the circle contains all four field corners, radius AST-exact '''
 	channel = ASTFITSChannel(header=GOLDEN_TAN_HEADER)
@@ -526,6 +535,36 @@ class TestAddPoints:
 		assert len(marks) == 2
 		np.testing.assert_allclose(marks[0][0], np.deg2rad([30.0, 45.0]), atol=1e-10)
 
+	def test_addPoints_scalar_skycoord(self, plot_with_captured_marks):
+		''' review finding: a scalar SkyCoord (single-point form P1) must not die in a len() probe '''
+		skyplot, marks = plot_with_captured_marks
+		skyplot.addPoints(points=SkyCoord(ra=30 * u.deg, dec=45 * u.deg))
+		assert len(marks) == 1
+		np.testing.assert_allclose(marks[0][0], np.deg2rad([30.0, 45.0]), atol=1e-12)
+
+	def test_addPoints_square_follows_D3(self, plot_with_captured_marks):
+		''' Δ7: the (2,2) square case reads as PAIRS at the M29 site too '''
+		skyplot, marks = plot_with_captured_marks
+		skyplot.addPoints(points=np.array([[30.0, 45.0], [30.1, 45.1]]))
+		assert len(marks) == 2
+		np.testing.assert_allclose(marks[0][0], np.deg2rad([30.0, 45.0]), atol=1e-12)
+		np.testing.assert_allclose(marks[1][0], np.deg2rad([30.1, 45.1]), atol=1e-12)
+
+	def test_addPoints_both_forms_rejected(self, plot_with_captured_marks):
+		''' review finding: the old both-ra/dec-and-points guard was vacuous '''
+		skyplot, marks = plot_with_captured_marks
+		with pytest.raises(ValueError):
+			skyplot.addPoints(points=[[30.0, 45.0]], ra=30 * u.deg, dec=45 * u.deg)
+
+	def test_skyplot_nonsky_extent_refused(self):
+		''' review finding: a basic-frame extent must be a loud ValueError, not an AttributeError '''
+		import matplotlib
+		matplotlib.use("Agg", force=True)
+		from cornish.plot.matplotlib import SkyPlot
+		box = ASTBox.fromCorners(frame=CornishFrame(naxes=2), corners=([0, 0], [10, 10]), uncertainty=None)
+		with pytest.raises(ValueError, match="sky frame"):
+			SkyPlot(extent=box, figsize=(4, 4))
+
 
 # ---------------------------------------------------------------------------
 # T6 — pickle round-trips (D6/D16)
@@ -547,6 +586,9 @@ class TestT6Pickle:
 		circle = ASTCircle(frame=CornishFrame(naxes=2), center=[50, 50], radius=10.0)
 		restored = self.roundtrip(circle)
 		assert restored.radius == pytest.approx(10.0)
+		np.testing.assert_allclose(np.asarray(restored.centre), [50.0, 50.0], atol=1e-9)
+		assert restored.astObject.overlap(circle.astObject) == 5
+		assert not restored.astObject.getregionframe().isaskyframe()
 
 	def test_polygon(self):
 		polygon = ASTPolygon(frame=ASTICRSFrame(), points=[[10, 20], [10, 21], [11, 21], [11, 20]])
@@ -583,6 +625,7 @@ class TestT6Pickle:
 		assert restored.system == "FK5"
 		assert restored.equinox == "1975.0"
 		assert restored.naxes == 2
+		assert restored.astObject.get("Epoch") == frame.astObject.get("Epoch")
 
 	def test_moc(self):
 		circle = ASTCircle(center=[30, 45], radius=2.0)

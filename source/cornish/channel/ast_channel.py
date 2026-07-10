@@ -18,7 +18,8 @@ class ASTChannel(ASTObject):
 	'''
 	def __init__(self, ast_object=None):
 
-		if ast_object:
+		# `is not None`, not truthiness: channel objects can be falsy when empty
+		if ast_object is not None:
 			if isinstance(ast_object, Ast.Channel):
 				super().__init__(ast_object=ast_object)
 			else:

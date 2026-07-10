@@ -50,7 +50,10 @@ class ASTFITSChannel(ASTChannel):
 		'''
 		self._frameSet = None
 
-		if ast_object:
+		# NOTE: `is not None`, not truthiness — an EMPTY Ast.FitsChan is falsy
+		# (it exposes a card-count length), and truthiness here silently
+		# discarded a provided empty channel (found by review round 3)
+		if ast_object is not None:
 			if any([hdu, header]):
 				raise ValueError("If 'ast_object' is provided, 'hdu' or 'header' should not be set.")
 			if isinstance(ast_object, starlink.Ast.FitsChan):

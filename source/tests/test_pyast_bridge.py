@@ -127,11 +127,12 @@ class TestT1DecisionTable:
 		with pytest.raises(ValueError):
 			bridge.to_frame_units(sc, frames[kind])
 
-	def test_P3_mixed_frame_skycoord_sequence(self, K1):
+	@pytest.mark.parametrize("kind", SKY_KINDS)
+	def test_P3_mixed_frame_skycoord_sequence(self, frames, kind):
 		''' each element converts independently — no shared-frame requirement '''
 		sc1 = SkyCoord(ra=10 * u.deg, dec=20 * u.deg, frame="icrs")
 		sc2 = galactic_equivalent_of_icrs(30.0, 40.0)
-		result = bridge.to_frame_units([sc1, sc2], K1)
+		result = bridge.to_frame_units([sc1, sc2], frames[kind])
 		expected = np.deg2rad([[10.0, 30.0], [20.0, 40.0]])
 		np.testing.assert_allclose(result, expected, atol=1e-10)
 
@@ -149,9 +150,10 @@ class TestT1DecisionTable:
 		with pytest.raises(ValueError):
 			bridge.to_frame_units((10 * u.deg, 20 * u.deg), K2)
 
-	def test_P5_parallel_quantity_arrays(self, K1):
+	@pytest.mark.parametrize("kind", SKY_KINDS)
+	def test_P5_parallel_quantity_arrays(self, frames, kind):
 		points = (np.r_[10., 30., 50.] * u.deg, np.r_[20., 40., 60.] * u.deg)
-		result = bridge.to_frame_units(points, K1, parallel_axes=True)
+		result = bridge.to_frame_units(points, frames[kind], parallel_axes=True)
 		np.testing.assert_allclose(result, REF_RAD_PARALLEL, atol=1e-12)
 
 	def test_P5_basic_valueerror(self, K2):
@@ -171,8 +173,18 @@ class TestT1DecisionTable:
 	def test_P7_pairs_quantity(self, K1):
 		self.check_sky(REF_ARRAY * u.deg, K1, REF_RAD_PARALLEL)
 
+	@pytest.mark.parametrize("kind", BASIC_KINDS)
+	def test_P7_basic_valueerror(self, frames, kind):
+		with pytest.raises(ValueError):
+			bridge.to_frame_units(REF_ARRAY * u.deg, frames[kind])
+
 	def test_P8_parallel_quantity(self, K1):
 		self.check_sky(REF_ARRAY.T * u.deg, K1, REF_RAD_PARALLEL)
+
+	@pytest.mark.parametrize("kind", BASIC_KINDS)
+	def test_P8_basic_valueerror(self, frames, kind):
+		with pytest.raises(ValueError):
+			bridge.to_frame_units(REF_ARRAY.T * u.deg, frames[kind])
 
 	def test_P9_square_quantity_reads_as_pairs(self, K1):
 		''' D3: (2,2) is pairs — column 0 is the first point '''
@@ -180,6 +192,11 @@ class TestT1DecisionTable:
 		result = bridge.to_frame_units(q, K1)
 		np.testing.assert_allclose(result[:, 0], np.deg2rad([10.0, 20.0]), atol=1e-12)
 		np.testing.assert_allclose(result[:, 1], np.deg2rad([30.0, 40.0]), atol=1e-12)
+
+	@pytest.mark.parametrize("kind", BASIC_KINDS)
+	def test_P9_basic_valueerror(self, frames, kind):
+		with pytest.raises(ValueError):
+			bridge.to_frame_units(np.array([[10.0, 20.0], [30.0, 40.0]]) * u.deg, frames[kind])
 
 	@pytest.mark.parametrize("kind", ALL_KINDS)
 	def test_P10_bare_single_point(self, frames, kind):
@@ -510,6 +527,23 @@ class TestT4EffectiveFrame:
 		independent = bridge.current_frame_of(fs, copy=True)
 		independent.set("System=Galactic")
 		assert fs.getframe(Ast.CURRENT).get("System") == "ICRS"
+
+	@pytest.mark.parametrize("kind", ALL_KINDS)
+	def test_copy_true_all_kinds(self, frames, kind):
+		''' copy=True mutation never propagates, for every frame kind '''
+		obj = frames[kind]
+		independent = bridge.current_frame_of(obj, copy=True)
+		before = bridge.current_frame_of(obj).get("Domain")
+		independent.set("Domain=SCRATCH")
+		assert bridge.current_frame_of(obj).get("Domain") == before
+
+	def test_is_sky_and_current_frame_of_direct(self, frames, K1, K2):
+		''' direct pins for the plain-frame rows of the §3 table '''
+		assert bridge.is_sky(K1) is True
+		assert bridge.is_sky(K2) is False
+		assert bridge.current_frame_of(K2) is K2
+		wrapper = CornishFrame(naxes=2)
+		assert bridge.current_frame_of(wrapper) is wrapper.astObject
 
 
 # ---------------------------------------------------------------------------
