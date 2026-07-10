@@ -2,9 +2,6 @@
 import logging
 from typing import Iterable, Union, List
 
-import numpy as np
-
-import astropy
 import astropy.units as u
 import starlink.Ast as Ast
 
@@ -129,7 +126,7 @@ class ASTCompoundRegion(ASTRegion):
 				raise NotImplementedError(f"A region type was found that is not yet handled: {type(r)}")
 		return regions
 
-	def toPolygon(self) -> ASTPolygon: #, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
+	def toPolygon(self, npoints=200, maxerr:u.Quantity=1.0*u.arcsec) -> ASTPolygon:
 		'''
 		Not yet implemented for compound regions (SPEC-03 repairs this class).
 

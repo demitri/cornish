@@ -796,6 +796,10 @@ def test_compound_toPolygon_raises():
 	compound = ASTCompoundRegion(regions=[c1, c2], operation=Ast.OR)
 	with pytest.raises(NotImplementedError):
 		compound.toPolygon()
+	# the abstract toPolygon(npoints, maxerr) contract holds polymorphically:
+	# parameters are accepted (and moot), never a TypeError
+	with pytest.raises(NotImplementedError):
+		compound.toPolygon(npoints=50, maxerr=1 * u.arcsec)
 	# the recommended route works
 	moc = compound.toMoc(max_order=8)
 	assert moc.astObject.pointinregion(np.deg2rad([30.0, 45.0]))
