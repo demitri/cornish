@@ -663,10 +663,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			# from_frame_units norms again, which is a harmless idempotent call (M14).
 		except Ast.MBBNF as e:
 			raise ValueError("A mesh could not be generated: no bounding box could be found for this region's mapping.") from e
-
-		if npoints is not None:
-			# restore original value
-			self.meshSize = old_mesh_size
+		finally:
+			if npoints is not None:
+				# restore original value even when the mesh generation fails
+				self.meshSize = old_mesh_size
 
 		return bridge.from_frame_units(mesh, self.astObject) # a list of point pairs, not two parallel arrays
 
@@ -695,13 +695,14 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# The returned "points" array from getregionmesh() will be a 2-dimensional array with shape (ncoord,npoint),
 		# where "ncoord" is the number of axes within the Frame represented by the Region,
 		# and "npoint" is the number of points in the mesh (see attribute "MeshSize").
-		mesh = self.astObject.getregionmesh(MeshType.SURFACE) # AST's "surface" mesh is the interior
-		# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points;
-		# from_frame_units norms again, which is a harmless idempotent call (M14).
-
-		if npoints is not None:
-			# restore original value
-			self.astObject.set("MeshSize={0}".format(old_mesh_size))
+		try:
+			mesh = self.astObject.getregionmesh(MeshType.SURFACE) # AST's "surface" mesh is the interior
+			# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points;
+			# from_frame_units norms again, which is a harmless idempotent call (M14).
+		finally:
+			if npoints is not None:
+				# restore original value even when the mesh generation fails
+				self.astObject.set("MeshSize={0}".format(old_mesh_size))
 
 		return bridge.from_frame_units(mesh, self.astObject)
 

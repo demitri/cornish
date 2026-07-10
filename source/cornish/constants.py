@@ -16,6 +16,10 @@ import warnings
 
 from .enums import SkySystem, SpecSystem, TimeSystem, MeshType, PixelComparison
 
+# __all__ lists the deprecated names too so `from cornish.constants import *`
+# keeps working (each name resolves through __getattr__ and warns).
+__all__ = ['CENTER_CORNER', 'CORNER_CORNER', 'EQUINOX_J2000', 'EQUINOX_J2010', 'EQUINOX_2001']
+
 # Not deprecated: AST Box "form" argument values (no enum counterpart yet).
 CENTER_CORNER = 0
 CORNER_CORNER = 1
@@ -66,6 +70,8 @@ _DEPRECATED_CONSTANTS = {
 	'AST_OUTLINE_GT': PixelComparison.GT.value,
 	'AST_OUTLINE_NE': PixelComparison.NE.value,
 }
+
+__all__ += list(_DEPRECATED_CONSTANTS)
 
 def __getattr__(name):
 	if name in _DEPRECATED_CONSTANTS:

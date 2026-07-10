@@ -66,7 +66,11 @@ setup(
     #setup_requires=['wheel'], # needed to package for distribution
     install_requires=[
         # minimum version verified against the ASTMoc / STC-S features (AST 9.3)
-        'starlink-pyast>=4.0.1'
+        'starlink-pyast>=4.0.1',
+        # hard dependencies of the bridge module (SPEC-04); astropy 7 is the
+        # verified floor and itself sets the effective python floor of 3.11
+        'numpy>=2.0',
+        'astropy>=7.0'
     ],
     #packages=['cornish'],
     packages=setuptools.find_packages(include=["cornish", "cornish.*"]),#exclude=["tests"]), # https://setuptools.readthedocs.io/en/latest/setuptools.html#id15

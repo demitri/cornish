@@ -223,3 +223,30 @@ def test_boundary_mesh_ast_error_chained():
 	source = inspect.getsource(ASTRegion.boundaryPointMesh)
 	assert "print(" not in source
 	assert "from e" in source
+
+
+def test_constants_star_import():
+	''' codex round-1: `from cornish.constants import *` must still bind the deprecated names (warning) '''
+	namespace = {}
+	with warnings.catch_warnings():
+		warnings.simplefilter("ignore", DeprecationWarning)
+		exec("from cornish.constants import *", namespace)
+	assert namespace["SYSTEM_ICRS"] == "ICRS"
+	assert namespace["AST_BOUNDARY_MESH"] == 1
+	assert namespace["CENTER_CORNER"] == 0
+
+
+def test_mesh_size_restored():
+	'''
+	codex round-1: a temporary MeshSize (npoints) must never leak — the
+	restore is in a `finally`, so this pin covers the success path and the
+	structure covers the failure path (a genuine getregionmesh failure is not
+	constructible from a valid region).
+	'''
+	from cornish import ASTCircle
+	circle = ASTCircle(center=[30, 45], radius=2.0)
+	original = circle.meshSize
+	mesh = circle.boundaryPointMesh(npoints=57)
+	assert circle.meshSize == original
+	circle.interiorPointMesh(npoints=57)
+	assert circle.meshSize == original
