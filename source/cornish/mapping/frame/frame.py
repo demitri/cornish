@@ -106,11 +106,16 @@ class ASTFrame(ASTMapping):
 
 	def _validate_axis(self, axis):
 		''' Shared validation for the per-axis accessors below. '''
+		import operator
 		if axis is None:
 			raise ValueError("An axis number must be specified.")
-		elif not isinstance(axis, int):
-			raise TypeError("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis)))
-		elif axis > self.naxes:
+		if isinstance(axis, bool):
+			raise TypeError("The parameter 'axis' must be an integer, not a bool.")
+		try:
+			axis = operator.index(axis) # accepts NumPy ints; rejects floats
+		except TypeError:
+			raise TypeError("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis))) from None
+		if axis > self.naxes:
 			raise ValueError("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
 
 	def label(self, axis=None) -> str:

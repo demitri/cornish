@@ -493,8 +493,15 @@ class ASTPolygon(ASTRegion):
 		:param maxvert: maximum allowed number of vertices in the returned polygon
 		:returns: a new ASTPolygon.
 		'''
+		import operator
 		if maxerr is None or maxvert is None:
 			raise ValueError("Both 'maxerr' and 'maxvert' must be specified.")
+		if isinstance(maxvert, bool):
+			raise TypeError("'maxvert' must be an integer, not a bool.")
+		try:
+			maxvert = operator.index(maxvert) # accepts NumPy ints; rejects floats
+		except TypeError:
+			raise TypeError(f"'maxvert' must be an integer (got '{type(maxvert).__name__}').") from None
 
 		# pyast's own downsize silently accepts NaN/BAD/negative/bool maxerr
 		# values, so the validation must live here (M33): bool -> TypeError;

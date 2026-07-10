@@ -492,3 +492,30 @@ def test_mesh_size_rejects_too_small():
 		circle.boundaryPointMesh(npoints=3)
 	with pytest.raises(TypeError):
 		circle.interiorPointMesh(npoints=True)
+
+
+def test_integer_parameters_accept_numpy_ints():
+	'''
+	Rule of two (third instance): integer parameters follow the moc.py
+	operator.index pattern everywhere — NumPy ints accepted, floats and
+	bools rejected, no silent truncation.
+	'''
+	circle = ASTCircle(center=[30, 45], radius=2.0)
+	circle.meshSize = np.int64(50)
+	assert circle.meshSize == 50
+	mesh = circle.boundaryPointMesh(npoints=np.int64(40))
+	assert len(mesh) > 0
+	with pytest.raises(TypeError):
+		circle.meshSize = 50.0
+	# toSTCS digits
+	assert circle.toSTCS(digits=np.int64(8)) == circle.toSTCS(digits=8)
+	# frame axis accessors
+	frame = CornishFrame(naxes=2)
+	assert frame.unit(axis=np.int64(1)) == frame.unit(axis=1)
+	# polygon downsize maxvert
+	polygon = circle.toPolygon(npoints=50)
+	import astropy.units as _u
+	downsized = polygon.downsize(maxerr=1 * _u.arcsec, maxvert=np.int64(10))
+	assert len(downsized.points) <= 10
+	with pytest.raises(TypeError):
+		polygon.downsize(maxerr=1 * _u.arcsec, maxvert=10.5)

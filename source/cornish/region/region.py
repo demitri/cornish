@@ -199,8 +199,13 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		'''
 		from ..channel.channel_io import ListSink # avoid circular import
 
-		if not isinstance(digits, int) or isinstance(digits, bool):
-			raise TypeError(f"'digits' must be an integer (got '{type(digits).__name__}').")
+		import operator
+		if isinstance(digits, bool):
+			raise TypeError("'digits' must be an integer, not a bool.")
+		try:
+			digits = operator.index(digits) # accepts NumPy ints; rejects floats
+		except TypeError:
+			raise TypeError(f"'digits' must be an integer (got '{type(digits).__name__}').") from None
 		if not (1 <= digits <= 17):
 			raise ValueError(f"'digits' must be between 1 and 17 (got {digits}).")
 
@@ -400,8 +405,13 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 	@meshSize.setter
 	def meshSize(self, newValue:int):
-		if isinstance(newValue, bool) or not isinstance(newValue, int):
-			raise TypeError("An integer value of at least 5 is required for 'meshSize'.")
+		import operator
+		if isinstance(newValue, bool):
+			raise TypeError("An integer value of at least 5 is required for 'meshSize' (got a bool).")
+		try:
+			newValue = operator.index(newValue) # accepts NumPy ints; rejects floats — no silent truncation
+		except TypeError:
+			raise TypeError(f"An integer value of at least 5 is required for 'meshSize' (got '{type(newValue).__name__}').") from None
 		if newValue < 5:
 			# raise rather than silently clamp: a rewritten value is a hidden surprise
 			raise ValueError(f"'meshSize' must be at least 5 (got {newValue}).")
