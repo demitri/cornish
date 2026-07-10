@@ -478,7 +478,11 @@ def test_mesh_size_rejects_too_small():
 		circle.meshSize = True
 	circle.meshSize = 6
 	assert circle.meshSize == 6
-	# AST silently rewrites values beyond C int range — the setter is the gate
+	# beyond MAX_MESH_SIZE, mesh spacing is finer than any boundary uncertainty
+	# (and AST silently rewrites values beyond C int range besides)
+	from cornish.region.region import MAX_MESH_SIZE
+	with pytest.raises(ValueError):
+		circle.meshSize = MAX_MESH_SIZE + 1
 	with pytest.raises(ValueError):
 		circle.meshSize = 2**31
 	# both mesh methods route npoints through the same validated setter

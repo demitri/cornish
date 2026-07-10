@@ -28,6 +28,15 @@ from .. import _pyast_bridge as bridge
 #: from an explicitly-passed value (SPEC-04A §8 three-way rule).
 DEFAULT_UNCERTAINTY = 1 * u.arcsec
 
+#: Ceiling for ``meshSize``. Physically anchored rather than the C-int limit:
+#: 10^7 points sample even a full great-circle boundary (the longest possible,
+#: 360 deg) at ~0.13 arcsec spacing — finer than the 1 arcsec default boundary
+#: uncertainty, below which additional mesh points are meaningless — while a
+#: mesh this size already costs ~160 MB and minutes of compute. Larger requests
+#: are almost certainly errors (a value beyond C int is silently rewritten by
+#: AST besides). Adjust here, deliberately, if a use case ever needs more.
+MAX_MESH_SIZE = 10_000_000
+
 
 __all__ = ['ASTRegion']
 
@@ -396,9 +405,9 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		if newValue < 5:
 			# raise rather than silently clamp: a rewritten value is a hidden surprise
 			raise ValueError(f"'meshSize' must be at least 5 (got {newValue}).")
-		if newValue > 2**31 - 1:
-			# MeshSize is a C int inside AST: larger values are silently rewritten
-			raise ValueError(f"'meshSize' must fit in a signed 32-bit integer (got {newValue}).")
+		if newValue > MAX_MESH_SIZE:
+			raise ValueError(f"'meshSize' must be at most {MAX_MESH_SIZE} (got {newValue}); "
+			                 f"see MAX_MESH_SIZE for the physical rationale.")
 		self.astObject.set("MeshSize={0}".format(newValue))
 
 
