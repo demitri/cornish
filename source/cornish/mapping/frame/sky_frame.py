@@ -102,12 +102,7 @@ class ASTSkyFrame(ASTFrame):
 			raise ValueError("An 'equinox' parameter must be specified.")
 		elif not isinstance(equinox, str):
 			raise TypeError("A string value was expected for 'equinox' (got '{0}').".format(type(equinox)))
-		try:
-			self.astObject.set(f"Equinox={equinox}")
-		except Ast.AstError as e:
-			# surface AST's parse failure (e.g. an empty or malformed string) per
-			# the type-vs-value policy rather than leaking a raw Ast.DTERR
-			raise ValueError(f"AST could not interpret '{equinox}' as an equinox.") from e
+		self._setAttribute("Equinox", equinox) # chains AST parse failures into ValueError
 
 	@property
 	def epoch(self):
@@ -119,15 +114,22 @@ class ASTSkyFrame(ASTFrame):
 	@epoch.setter
 	def epoch(self, epoch=None):
 		'''	Set the epoch for the frame. '''
+		import math
 		if epoch is None:
 			raise ValueError("An 'epoch' parameter must be specified.")
+		if isinstance(epoch, str):
+			try:
+				epoch_value = float(epoch)
+			except ValueError as e:
+				raise ValueError("'epoch' must be a numeric value (or a string that can be converted to a numeric value).") from e
+		elif isinstance(epoch, bool) or not isinstance(epoch, (int, float)):
+			raise TypeError(f"'epoch' must be a number or a numeric string (got '{type(epoch).__name__}').")
 		else:
-			if isinstance(epoch, str):
-				try:
-					float(epoch)
-				except ValueError as e:
-					raise ValueError("'epoch' must be a numeric value (or a string that can be converted to a numeric value).") from e
-		self.astObject.set(f"Epoch={epoch}")
+			epoch_value = float(epoch)
+		if not math.isfinite(epoch_value):
+			# AST silently accepts Epoch=nan/inf — the gate must live here
+			raise ValueError(f"'epoch' must be finite (got {epoch!r}).")
+		self._setAttribute("Epoch", epoch)
 
 # .. todo:: make this a factory class
 class ASTICRSFrame(ASTSkyFrame):

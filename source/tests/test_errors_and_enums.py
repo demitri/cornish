@@ -374,8 +374,9 @@ def _wrapper_classes():
 	from cornish import (ASTBox, ASTCircle, ASTPolygon, ASTCompoundRegion, ASTMoc,
 	                     ASTFrame, ASTFrameSet, ASTFITSChannel)
 	from cornish.mapping.frame.sky_frame import ASTSkyFrame
+	from cornish.mapping import ASTMapping
 	return [ASTBox, ASTCircle, ASTPolygon, ASTCompoundRegion, ASTMoc,
-	        ASTFrame, ASTSkyFrame, ASTFrameSet, ASTFITSChannel]
+	        ASTFrame, ASTSkyFrame, ASTFrameSet, ASTFITSChannel, ASTMapping]
 
 @pytest.mark.parametrize("wrapper_class", _wrapper_classes(), ids=lambda c: c.__name__)
 @pytest.mark.parametrize("bad_object", ["garbage", 42], ids=["str", "int"])
@@ -391,8 +392,12 @@ def test_wrong_type_ast_object_rejected(wrapper_class, bad_object):
 @pytest.mark.parametrize("wrapper_class", _wrapper_classes(), ids=lambda c: c.__name__)
 def test_wrong_ast_class_ast_object_rejected(wrapper_class):
 	''' a genuine AST object of the WRONG class must also be rejected with TypeError '''
+	# a UnitMap is the wrong class for everything except ASTMapping itself
+	# (a UnitMap IS an Ast.Mapping); use a FitsChan there
+	from cornish.mapping import ASTMapping
+	wrong_object = Ast.FitsChan() if wrapper_class is ASTMapping else Ast.UnitMap(2)
 	with pytest.raises(TypeError):
-		wrapper_class(ast_object=Ast.UnitMap(2))
+		wrapper_class(ast_object=wrong_object)
 
 
 def test_skyframe_empty_string_params_not_ignored():
@@ -406,3 +411,35 @@ def test_skyframe_empty_string_params_not_ignored():
 		ASTSkyFrame(equinox="") # chained from AST's parse error, not a raw Ast.DTERR
 	with pytest.raises(ValueError):
 		ASTSkyFrame(epoch="")
+
+
+def test_attribute_setters_never_leak_ast_errors():
+	'''
+	Rule of two, mechanized: AST attribute setters (Equinox, then System) were
+	found leaking raw Ast.AstError subclasses twice — all user-value setters
+	now route through ASTObject._setAttribute, which chains into ValueError.
+	'''
+	frame = CornishFrame(naxes=2)
+	with pytest.raises(ValueError) as excinfo:
+		frame.system = "garbage"
+	assert isinstance(excinfo.value.__cause__, Ast.AstError)
+	from cornish.mapping.frame.sky_frame import ASTSkyFrame
+	with pytest.raises(ValueError):
+		ASTSkyFrame().equinox = "garbage"
+
+
+def test_epoch_rejects_nonfinite():
+	''' AST silently accepts Epoch=nan/inf; the cornish setter is the only gate '''
+	from cornish.mapping.frame.sky_frame import ASTSkyFrame
+	frame = ASTSkyFrame()
+	for bad in ("nan", float("nan"), float("inf")):
+		with pytest.raises(ValueError):
+			frame.epoch = bad
+	with pytest.raises(TypeError):
+		frame.epoch = True
+
+
+def test_frame_both_ast_object_and_naxes_zero():
+	''' truthiness fix pin: naxes=0 alongside ast_object is still a conflict '''
+	with pytest.raises(ValueError):
+		CornishFrame(ast_object=Ast.Frame(2), naxes=0)

@@ -102,7 +102,7 @@ class ASTFrame(ASTMapping):
 
 	@title.setter
 	def title(self, newTitle):
-		self.astObject.set("Title={0}".format(newTitle))
+		self._setAttribute("Title", newTitle)
 
 	def _validate_axis(self, axis):
 		''' Shared validation for the per-axis accessors below. '''
@@ -123,7 +123,7 @@ class ASTFrame(ASTMapping):
 		self._validate_axis(axis)
 		if label is None:
 			raise ValueError("A new label must be specified.")
-		self.astObject.set("Label({0})={1}".format(axis, label))
+		self._setAttribute(f"Label({axis})", label)
 
 	def unit(self, axis=None):
 		''' Return the unit for the specified axis. '''
@@ -135,7 +135,7 @@ class ASTFrame(ASTMapping):
 		self._validate_axis(axis)
 		if unit is None:
 			raise ValueError("A new unit must be specified.")
-		self.astObject.set("Unit({0})={1}".format(axis, unit))
+		self._setAttribute(f"Unit({axis})", unit)
 
 	@property
 	def system(self):
@@ -153,7 +153,7 @@ class ASTFrame(ASTMapping):
 			raise ValueError("A 'system' parameter must be specified.")
 		elif not isinstance(system, str):
 			raise TypeError("A string value was expected for 'system' (got '{0}').".format(type(system)))
-		self.astObject.set("System={0}".format(system))
+		self._setAttribute("System", system)
 
 	@property
 	def isSkyFrame(self) -> bool:
@@ -180,7 +180,7 @@ class ASTFrame(ASTMapping):
 	def domain(self, newDomain=None):
 		if newDomain is None or isinstance(newDomain, str) == False:
 			raise TypeError("The domain value must be set to a string.")
-		self.astObject.set("Domain={0}".format(newDomain))
+		self._setAttribute("Domain", newDomain)
 
 	def distance(self, point1:Union[Iterable, SkyCoord], point2:Union[Iterable,SkyCoord]) -> Quantity:
 		'''

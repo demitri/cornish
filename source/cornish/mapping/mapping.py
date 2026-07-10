@@ -3,6 +3,7 @@
 from typing import Iterable
 
 import numpy as np
+import starlink.Ast as Ast
 
 from ..ast_object import ASTObject
 
@@ -13,6 +14,8 @@ class ASTMapping(ASTObject):
 	:param ast_object: an existing :class:`starlink.Ast.Mapping` object
 	'''
 	def __init__(self, ast_object=None):
+		if ast_object is not None and not isinstance(ast_object, Ast.Mapping):
+			raise TypeError(f"The provided 'ast_object' is not an Ast.Mapping (got '{type(ast_object)}').")
 		super().__init__(ast_object=ast_object)
 
 	@property

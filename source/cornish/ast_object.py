@@ -2,6 +2,8 @@
 import copy as _copy
 from abc import ABCMeta
 
+import starlink.Ast as Ast
+
 class ASTObject(metaclass=ABCMeta):
 	'''
 	This is the root class for all AST objects.
@@ -15,6 +17,21 @@ class ASTObject(metaclass=ABCMeta):
 	def ast_description(self):
 		''' A string description of this object, customized for each subclass of :class:`ASTObject`. '''
 		return "This is an AST object (override the 'ast_description' method for a more descriptive output)."
+
+	def _setAttribute(self, name:str, value):
+		'''
+		Set an AST attribute on the underlying object, surfacing AST's
+		parse/validation failures as a chained :class:`ValueError` per the
+		type-vs-value policy — never a raw ``Ast.AstError`` subclass.
+
+		All wrapper setters that forward user-provided values to
+		``astObject.set()`` must route through this single seam (found twice
+		leaking — Equinox and System — before it was mechanized).
+		'''
+		try:
+			self.astObject.set(f"{name}={value}")
+		except Ast.AstError as e:
+			raise ValueError(f"AST could not set the attribute '{name}' to {value!r}.") from e
 
 	@property
 	def id(self) -> str:
