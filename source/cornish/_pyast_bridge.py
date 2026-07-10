@@ -681,7 +681,22 @@ def dump_value(
     :returns: for scalar components, the value token with the trailing
         comment stripped and surrounding double quotes removed; for
         object-valued components (e.g. "Unc"), the nested Begin..End block
-        text, newline-joined, exactly as dumped (Channel-readable — verified)
+        text, newline-joined, exactly as dumped.
+
+        CAUTION for object-valued components: the block parses through an
+        ``Ast.Channel`` without error, but AST elides any frame the component
+        shares with its enclosing object (its normal dump behavior), so the
+        read-back object silently carries a generic Cartesian ``Ast.Frame``
+        instead of the original frame. Verified for both ``"Unc"`` and
+        ``CmpRegion``'s ``"RegionA"``/``"RegionB"``: a sky circle read back
+        this way reports ``isaskyframe() == False``, degrades ``overlap()``
+        results, AND returns distorted geometry — ``circlepars()`` radius is
+        inflated by exactly 1/cos(dec), since Cartesian distance is applied
+        to the cos(dec)-scaled stored RA offset. Only the raw stored axis
+        values (``getregionpoints()``) survive unchanged. Anything else
+        requires re-attaching the enclosing object's frame rather than
+        trusting the isolated block. Pinned by
+        ``test_dump_value_object_component_loses_shared_frame``.
     :raises KeyError: component not present at the top level of the dump
         (message must name the component and the object class)
     :raises TypeError: not an AST object / cornish wrapper
