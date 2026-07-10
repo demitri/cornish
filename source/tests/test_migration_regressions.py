@@ -736,8 +736,9 @@ def test_toSTCS_unserializable_raises_serialization_not_possible():
 
 
 def test_fits_channel_empty_header_valueerror():
-	''' delta-round P3: an empty header container was a raw IndexError; now a loud ValueError '''
-	for empty in ([], "", {}):
+	''' delta-round P3: an empty header container was a raw IndexError; now a loud ValueError — for typed header objects too '''
+	import astropy.io.fits
+	for empty in ([], "", {}, astropy.io.fits.Header()):
 		with pytest.raises(ValueError):
 			ASTFITSChannel(header=empty)
 

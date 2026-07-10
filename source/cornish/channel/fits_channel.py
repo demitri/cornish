@@ -86,10 +86,16 @@ class ASTFITSChannel(ASTChannel):
 		self.astObject = Ast.FitsChan() # sink=self
 
 		if header is not None:
-			if isinstance(header, (list, str, dict)) and len(header) == 0:
-				# an empty container can't describe a header — refuse loudly
-				# rather than fall into the type probes below (an empty list
-				# previously crashed with a raw IndexError)
+			# an empty header of ANY supported type (list, str, dict, astropy
+			# Header, fitsio FITSHDR — all sized) can't describe a header —
+			# refuse loudly rather than fall into the type probes below (an
+			# empty list previously crashed with a raw IndexError); omit the
+			# parameter entirely to work with an empty channel
+			try:
+				header_length = len(header)
+			except TypeError:
+				header_length = None
+			if header_length == 0:
 				raise ValueError("An empty header was provided; pass header content or omit the parameter.")
 			# Note that the starlink.Ast.Channel.read() operation is destructive.
 			# Save the header so it can be restored/reused.
