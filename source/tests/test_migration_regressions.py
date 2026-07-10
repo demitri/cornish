@@ -676,9 +676,18 @@ class TestT6Pickle:
 CONVERSION_ALLOWLIST = {
 	("mapping/frame/frame.py", "return np.rad2deg(angle_rad) * u.deg"),
 	("region/polygon.py", "angles.append(angle.to(u.rad).value)"),
+	# fromPointsOnSkyFrame's internal TAN-projection FITS cards: pyast-internal
+	# radians converted to the FITS-card degree convention, never crossing a
+	# user boundary (M20 rule) — audited by the opus round, 2026-07-10
+	("region/polygon.py", 'fc["CRVAL1"] = centre[0]*Ast.DR2D'),
+	("region/polygon.py", 'fc["CRVAL2"] = centre[1]*Ast.DR2D'),
+	("region/polygon.py", 'fc["CDELT1"] = 2.0*radius*Ast.DR2D/( M - 1 )'),
+	("region/polygon.py", 'fc["CDELT2"] = 2.0*radius*Ast.DR2D/( M - 1 )'),
 }
 
-CONVERSION_TOKENS = re.compile(r"deg2rad|rad2deg|\.to\(u\.rad\)|math\.radians|math\.degrees")
+# includes AST's own conversion constants (DR2D/DD2R) so the AST-constant form
+# of a conversion cannot slip through unaudited (opus-round finding)
+CONVERSION_TOKENS = re.compile(r"deg2rad|rad2deg|\.to\(u\.rad\)|math\.radians|math\.degrees|DR2D|DD2R")
 
 
 def test_no_conversions_outside_bridge():
@@ -695,6 +704,8 @@ def test_no_conversions_outside_bridge():
 			continue
 		with open(path) as source_file:
 			for line_number, line in enumerate(source_file, start=1):
+				if line.strip().startswith("#"):
+					continue # comment-only lines cannot convert coordinates
 				if CONVERSION_TOKENS.search(line):
 					if (rel_path, line.strip()) in CONVERSION_ALLOWLIST:
 						continue
@@ -751,3 +762,23 @@ def test_compound_region_ast_object_exclusivity():
 	compound = ASTCompoundRegion(regions=[c1, c2], operation=Ast.OR)
 	with pytest.raises(ValueError):
 		ASTCompoundRegion(ast_object=compound.astObject, regions=[])
+
+
+def test_fromPointsOnSkyFrame():
+	''' opus round: public API with no coverage — pin the M18 contract '''
+	theta = np.linspace(0, 2 * np.pi, 24, endpoint=False)
+	points = np.stack([10.0 + 0.5 * np.cos(theta), 20.0 + 0.5 * np.sin(theta)]).T
+	polygon = ASTPolygon.fromPointsOnSkyFrame(frame=ASTICRSFrame(), points=points)
+	assert polygon.pointInRegion([10.0, 20.0])
+	assert not polygon.pointInRegion([15.0, 25.0])
+	# M18: Quantity input accepted uniformly through the bridge
+	polygon_q = ASTPolygon.fromPointsOnSkyFrame(frame=ASTICRSFrame(), points=points * u.deg)
+	assert polygon_q.pointInRegion([10.0, 20.0])
+
+
+def test_readHeader_unrecognized_list_raises():
+	''' opus round: an unrecognized list shape silently added no cards '''
+	with pytest.raises(TypeError):
+		ASTFITSChannel(header=[(1, 2, 3), (4, 5, 6)])
+	with pytest.raises(TypeError):
+		ASTFITSChannel(header=[42, 43])

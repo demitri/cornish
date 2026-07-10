@@ -153,7 +153,7 @@ class ASTCompoundRegion(ASTRegion):
 			# .. todo:: convert points from one frame to the other
 
 			# create bounding polygon
-			polygon = ASTPolygon(frame=region1.frame, points=np.array([
+			polygon = ASTPolygon(frame=region1.frame(), points=np.array([
 			    [min(points[0]), min(points[1])],
 			    [min(points[0]), max(points[1])],
 			    [max(points[0]), max(points[1])],

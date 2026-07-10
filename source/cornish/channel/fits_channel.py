@@ -162,6 +162,11 @@ class ASTFITSChannel(ASTChannel):
 			elif isinstance(first_item, (list,tuple)) and len(first_item) == 2:
 				for keyword,value in self.header:
 					self.addHeader(keyword=keyword, value=value)
+			else:
+				# without this, an unrecognized list shape silently added NO
+				# cards and surfaced later as a misleading FrameNotFoundException
+				raise TypeError(f"A list header must contain card strings or (keyword, value) pairs "
+				                f"(first element is '{type(first_item).__name__}').")
 
 		else:
 			raise TypeError("Unable to parse the provided header.")
