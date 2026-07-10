@@ -65,7 +65,7 @@ class ASTPolygon(ASTRegion):
 				 points=None,
 				 fits_header=None):
 
-		if ast_object:
+		if ast_object is not None:
 			if any([frame is not None, points is not None, fits_header is not None]):
 				raise ValueError("Cannot specify 'ast_object' along with any other parameter.")
 			# test object

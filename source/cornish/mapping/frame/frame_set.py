@@ -51,12 +51,12 @@ class ASTFrameSet(ASTFrame):
 	'''
 	def __init__(self, ast_object:starlink.Ast.FrameSet=None, base_frame:Union[starlink.Ast.FrameSet,ASTFrame]=None): #, fits_header=None):
 		# validate parameters
-		if all([ast_object, base_frame]):
+		if ast_object is not None and base_frame is not None:
 			raise ValueError("Both an 'ast_object' and a 'base_frame' cannot be specified.")
 		elif all([x is None for x in [ast_object, base_frame]]):
 			raise ValueError("One of 'ast_object' or 'base_frame' must be provided.")
 
-		if ast_object:
+		if ast_object is not None:
 			if isinstance(ast_object, starlink.Ast.FrameSet):
 				super().__init__(ast_object=ast_object)
 			else:

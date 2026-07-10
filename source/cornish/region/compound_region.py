@@ -34,14 +34,15 @@ class ASTCompoundRegion(ASTRegion):
 	:param operation: one of :class:`cornish.enums.RegionOperation` (or the equivalent ``starlink.Ast.AND``/``OR``/``XOR`` constants)
 	'''
 	def __init__(self, ast_object=None, regions:Iterable[Union[ASTRegion, Ast.Region]]=None, operation:int=None):
-		if ast_object:
+		if ast_object is not None:
 			# `is not None`, not truthiness: an empty regions list or a zero-valued
 			# operation must still be rejected as a conflicting parameter
 			if regions is not None or operation is not None:
 				raise ValueError("If the ast_object is specified, no other parameter is accepted.")
-			else:
-				super().__init__(ast_object=ast_object)
-				return
+			if not isinstance(ast_object, Ast.CmpRegion):
+				raise TypeError(f"The 'ast_object' provided was not of type starlink.Ast.CmpRegion (got '{type(ast_object)}').")
+			super().__init__(ast_object=ast_object)
+			return
 
 		if regions is None:
 			raise ValueError("The 'regions' parameter must contain at least two regions.")

@@ -363,3 +363,33 @@ def test_no_kwargs_into_pyast_constructors():
 						offenders.append(f"{os.path.relpath(path, package_dir)}:{node.lineno}: "
 						                 f"Ast.{func.attr}({keyword.arg}=...) — pyast may silently ignore this kwarg; pass positionally")
 	assert not offenders, "\n".join(offenders)
+
+
+# ---------------------------------------------------------------------------
+# ast_object validation gate (rule of two: moc.py and compound_region.py both
+# had gaps here — mechanize the invariant across every wrapper)
+# ---------------------------------------------------------------------------
+
+def _wrapper_classes():
+	from cornish import (ASTBox, ASTCircle, ASTPolygon, ASTCompoundRegion, ASTMoc,
+	                     ASTFrame, ASTFrameSet, ASTFITSChannel)
+	from cornish.mapping.frame.sky_frame import ASTSkyFrame
+	return [ASTBox, ASTCircle, ASTPolygon, ASTCompoundRegion, ASTMoc,
+	        ASTFrame, ASTSkyFrame, ASTFrameSet, ASTFITSChannel]
+
+@pytest.mark.parametrize("wrapper_class", _wrapper_classes(), ids=lambda c: c.__name__)
+@pytest.mark.parametrize("bad_object", ["garbage", 42], ids=["str", "int"])
+def test_wrong_type_ast_object_rejected(wrapper_class, bad_object):
+	'''
+	Every ASTObject wrapper must reject a wrong-type ast_object with TypeError
+	at construction — not accept it silently and fail confusingly later
+	(the compound_region gap found in review).
+	'''
+	with pytest.raises(TypeError):
+		wrapper_class(ast_object=bad_object)
+
+@pytest.mark.parametrize("wrapper_class", _wrapper_classes(), ids=lambda c: c.__name__)
+def test_wrong_ast_class_ast_object_rejected(wrapper_class):
+	''' a genuine AST object of the WRONG class must also be rejected with TypeError '''
+	with pytest.raises(TypeError):
+		wrapper_class(ast_object=Ast.UnitMap(2))

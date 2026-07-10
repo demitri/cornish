@@ -32,13 +32,13 @@ class ASTFrame(ASTMapping):
 	'''
 	def __init__(self, ast_object:Ast.Frame=None, naxes:int=None):
 
-		if all([ast_object, naxes]):
+		if ast_object is not None and naxes is not None:
 			raise ValueError("Cannot initialize ASTFrame with both 'ast_object' and 'naxes' set.")
 
 		if all([x is None for x in [ast_object, naxes]]):
 			raise ValueError("Either 'ast_object' or 'naxes' must be specified to create an ASTFrame.")
 
-		if ast_object:
+		if ast_object is not None:
 			if isinstance(ast_object, Ast.Frame):
 				super().__init__(ast_object=ast_object)
 			else:

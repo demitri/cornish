@@ -58,7 +58,7 @@ class ASTCircle(ASTRegion):
 				 radius:Union[float,astropy.units.quantity.Quantity]=None, \
 				 uncertainty:Union[None, float, u.Quantity, ASTRegion, Ast.Region]=DEFAULT_UNCERTAINTY):
 
-		if ast_object:
+		if ast_object is not None:
 			if any([x is not None for x in [frame, center, edge_point, radius]]):
 				raise ValueError("Cannot specify both 'ast_object' and any other parameter.")
 

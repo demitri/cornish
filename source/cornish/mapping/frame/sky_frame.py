@@ -36,11 +36,13 @@ class ASTSkyFrame(ASTFrame):
 
 		# TODO: if ast_frame provided, check it is a sky frame (see below)
 
-		if ast_object and any([equinox, system, epoch]):
+		if ast_object is not None and any([equinox, system, epoch]):
 			raise ValueError("If 'ast_object' is provided, none of the other parameters ('equinox', 'system', 'epoch') can be specified.")
 
-		if ast_object:
-			if ast_object.isaskyframe():
+		if ast_object is not None:
+			# isinstance, not ast_object.isaskyframe(): the latter AttributeErrors
+			# on non-AST input instead of raising the policy TypeError
+			if isinstance(ast_object, Ast.SkyFrame):
 				super().__init__(ast_object=ast_object)
 			else:
 				raise TypeError(f"The provided 'ast_object' value is not an Ast.SkyFrame (got '{type(ast_object)}').")
