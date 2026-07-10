@@ -9,7 +9,7 @@ import starlink.Ast as Ast
 
 from .ast_channel import ASTChannel
 from ..mapping.frame import ASTFrame, ASTFrameSet
-from ..region import ASTBox, ASTPolygon, ASTCircle
+from ..region import ASTPolygon, ASTCircle
 from ..exc import FrameNotFoundException, IncompleteHeader
 
 _astropy_available = True
@@ -67,14 +67,16 @@ class ASTFITSChannel(ASTChannel):
 		# ----------
 		# Validation
 		# ----------
-		if all([hdu, header]):
+		# `is not None` throughout: an empty astropy Header (like an empty
+		# FitsChan) is falsy, and truthiness would silently ignore it
+		if hdu is not None and header is not None:
 			raise ValueError("Only specify an HDU or header to create a ASTFITSChannel object.")
 
 		# get header from HDU
-		if hdu:
-			if hdu and _astropy_available and isinstance(hdu, (astropy.io.fits.hdu.image.PrimaryHDU, astropy.io.fits.hdu.base.ExtensionHDU)):
+		if hdu is not None:
+			if _astropy_available and isinstance(hdu, (astropy.io.fits.hdu.image.PrimaryHDU, astropy.io.fits.hdu.base.ExtensionHDU)):
 				header = hdu.header        # type: astropy.io.fits.header.Header
-			elif hdu and _fitsio_available and isinstance(hdu, fitsio.hdu.base.HDUBase):
+			elif _fitsio_available and isinstance(hdu, fitsio.hdu.base.HDUBase):
 				header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
 			else:
 				raise TypeError("ASTFITSChannel: unknown HDU type specified ('{0}').".format(type(hdu)))

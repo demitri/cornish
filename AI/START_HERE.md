@@ -31,7 +31,7 @@ Cornish wraps the C-flavored `starlink-pyast` interface to the Starlink AST libr
 ## Conventions a fresh session would otherwise violate
 
 - **All coordinate unit/shape conversions go through `cornish/_pyast_bridge.py`** (`to_frame_units`/`from_frame_units` and the distance pair). Never write `deg2rad`/`rad2deg`/`.to(u.rad)` in package code — a test gate fails the suite if you do (angle-of-result lines are the only allowlisted exception).
-- **Region constructors' uncertainty must be passed to pyast POSITIONALLY, appended only when non-None** — pyast silently ignores the `unc=` keyword and rejects a positional `None`. Every such call site carries a comment saying so; do not "clean it up" into kwarg form (D15).
+- **Pass ALL arguments to pyast constructors POSITIONALLY** — pyast silently swallows unknown keyword arguments (verified victims: region `unc=` dropped, CmpRegion `oper=` always-OR, FrameSet `frame=` discarded). A test gate (`test_no_kwargs_into_pyast_constructors`) fails the suite on any kwarg into an `Ast.<Class>(...)` call. Uncertainty additionally is appended only when non-None (pyast rejects a positional `None`; D15) — the call sites carry comments saying so; do not "clean them up".
 - **Values from fixed sets use the enums in `cornish/enums.py`** (OverlapType, RegionOperation, MeshType, …), not bare strings/ints; `cornish/constants.py` is a deprecated alias layer.
 - **No bare `raise Exception`** — TypeError for wrong types, ValueError for bad values, `cornish.exc` subclasses for domain errors (SPEC-10 policy; AST-walk gate enforces the unraised-exception pattern too).
 - Test channel/`FitsChan` objects with `is not None`, never truthiness — an empty `Ast.FitsChan` is falsy.

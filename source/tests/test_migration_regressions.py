@@ -697,3 +697,34 @@ def test_no_conversions_outside_bridge():
 	assert not violations, ("coordinate conversions found outside the bridge "
 	                        "(add to _pyast_bridge or, for angle-of-result lines only, "
 	                        "the allowlist):\n" + "\n".join(violations))
+
+
+def test_polygon_two_point_refusal():
+	''' M17/D3: a two-vertex polygon is refused in every input form '''
+	frame = ASTICRSFrame()
+	with pytest.raises(ValueError):
+		ASTPolygon(frame=frame, points=[[10, 20], [11, 21]])       # (2,2) pairs/square
+	with pytest.raises(ValueError):
+		ASTPolygon(frame=frame, points="((10,20),(11,21))")        # string form
+	with pytest.raises(ValueError):
+		ASTPolygon(frame=frame, points=SkyCoord(ra=[10, 11] * u.deg, dec=[20, 21] * u.deg))
+
+
+def test_fromFITSHeader_maxerr_validation():
+	''' review finding: a bare-float maxerr crashed deep in the fallback path; now validated up front '''
+	with pytest.raises(TypeError):
+		ASTPolygon.fromFITSHeader(GOLDEN_TAN_HEADER, maxerr=4.848e-6)
+	with pytest.raises(ValueError):
+		ASTPolygon.fromFITSHeader(GOLDEN_TAN_HEADER, maxerr=1 * u.m)
+	with pytest.raises(ValueError):
+		ASTPolygon.fromFITSHeader(GOLDEN_TAN_HEADER, maxerr=-1 * u.arcsec)
+
+
+def test_toSTCS_unserializable_raises_serialization_not_possible():
+	''' SPEC-10/SPEC-02: the cannot-serialize case uses the domain exception '''
+	from cornish.exc import SerializationNotPossible, CornishError
+	assert issubclass(SerializationNotPossible, CornishError)
+	# a MOC cannot be represented in STC-S by AST
+	moc = ASTCircle(center=[30, 45], radius=2.0).toMoc(max_order=8)
+	with pytest.raises(SerializationNotPossible):
+		moc.toSTCS()

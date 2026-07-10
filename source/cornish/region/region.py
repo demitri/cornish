@@ -186,7 +186,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		:param digits: number of significant digits written for coordinate values;
 			the default (16) makes the geometry round-trip losslessly through
 			:meth:`fromSTCS` (STC-S remains lossy for uncertainty and refpos)
-		:raises ValueError: if AST cannot represent this region in STC-S
+		:raises cornish.exc.SerializationNotPossible: if AST cannot represent this region in STC-S
 		'''
 		from ..channel.channel_io import ListSink # avoid circular import
 
@@ -203,7 +203,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		stcs_channel = Ast.StcsChan(None, sink)
 		n_written = stcs_channel.write(formatted_copy)
 		if n_written == 0 or len(sink.lines) == 0:
-			raise ValueError(f"This region ({self.__class__.__name__}) could not be serialized to STC-S.")
+			from ..exc import SerializationNotPossible
+			raise SerializationNotPossible(f"This region ({self.__class__.__name__}) could not be serialized to STC-S.")
 		return " ".join(line.strip() for line in sink.lines).strip()
 
 	@property

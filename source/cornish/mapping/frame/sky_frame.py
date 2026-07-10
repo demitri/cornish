@@ -43,7 +43,7 @@ class ASTSkyFrame(ASTFrame):
 			if ast_object.isaskyframe():
 				super().__init__(ast_object=ast_object)
 			else:
-				raise ValueError(f"The provided 'ast_object' value is not an Ast.SkyFrame (got '{type(ast_object)}').")
+				raise TypeError(f"The provided 'ast_object' value is not an Ast.SkyFrame (got '{type(ast_object)}').")
 		else:
 			self.astObject = Ast.SkyFrame()
 

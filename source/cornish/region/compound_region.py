@@ -12,6 +12,7 @@ from .box import ASTBox
 from .circle import ASTCircle
 from .region import ASTRegion
 from .polygon import ASTPolygon
+from ..enums import RegionOperation
 
 __all__ = ["ASTCompoundRegion"]
 
@@ -30,7 +31,7 @@ class ASTCompoundRegion(ASTRegion):
 	all using the same operator as specified.
 
 	:param regions: a list of regions to compound
-	:param operation: one of `starlink.Ast.AND, `starlink.Ast.OR`, `starlink.Ast.XOR`
+	:param operation: one of :class:`cornish.enums.RegionOperation` (or the equivalent ``starlink.Ast.AND``/``OR``/``XOR`` constants)
 	'''
 	def __init__(self, ast_object=None, regions:Iterable[Union[ASTRegion, Ast.Region]]=None, operation:int=None):
 		if ast_object:
@@ -47,7 +48,13 @@ class ASTCompoundRegion(ASTRegion):
 			raise ValueError("The 'regions' parameter must contain at least two regions.")
 		for r in regions:
 			if not isinstance(r, (ASTRegion, Ast.Region)):
-				raise ValueError("The regions provided must be of type ASTRegion or starlink.Ast.Region.")
+				raise TypeError("The regions provided must be of type ASTRegion or starlink.Ast.Region.")
+
+		if operation is None:
+			raise ValueError("An 'operation' must be specified (one of RegionOperation.AND/OR/XOR).")
+		if isinstance(operation, bool) or not isinstance(operation, int):
+			raise TypeError(f"'operation' must be a RegionOperation (or Ast.AND/OR/XOR integer); got '{type(operation).__name__}'.")
+		operation = RegionOperation(operation) # ValueError for out-of-range ints
 
 		# Maintain a list of regions that make up the compound region.
 		# How will this work with different types of chained operations?
@@ -71,7 +78,11 @@ class ASTCompoundRegion(ASTRegion):
 			if isinstance(r2, ASTRegion):
 				r2 = r2.astObject
 
-			compound_region = Ast.CmpRegion( r1, r2, oper=operation ) # todo: 'series' parameter?
+			# pyast SILENTLY IGNORES the `oper=` keyword on Ast.CmpRegion (the same
+			# argument-parsing bug class as region constructors' `unc=`): a kwarg
+			# form parses fine and always builds an OR region. The operation MUST
+			# be passed positionally — verified 2026-07-10; do not "clean this up".
+			compound_region = Ast.CmpRegion( r1, r2, operation ) # todo: 'series' parameter?
 			if compound_region is None:
 				# not observed in practice (Ast.CmpRegion raises on error), but if it
 				# ever happens a half-built object must not escape

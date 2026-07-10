@@ -250,3 +250,113 @@ def test_mesh_size_restored():
 	assert circle.meshSize == original
 	circle.interiorPointMesh(npoints=57)
 	assert circle.meshSize == original
+
+
+# ---------------------------------------------------------------------------
+# pyast kwarg-swallowing (the N1/oper=/frame= bug class) — behavior + gate
+# ---------------------------------------------------------------------------
+
+class TestCompoundRegionOperationTruthTable:
+	'''
+	Review finding (P1): pyast silently ignores the `oper=` keyword on
+	Ast.CmpRegion — every compound region cornish ever built was an OR.
+	These tests pin the now-positional delivery for all three operations.
+	'''
+
+	@pytest.fixture
+	def overlapping_circles(self):
+		c1 = ASTCircle(center=[30.0, 45.0], radius=2.0)
+		c2 = ASTCircle(center=[32.0, 45.0], radius=2.0)
+		return c1, c2
+
+	def check(self, compound, in_both, in_first_only):
+		''' membership probes at a point inside both circles / inside only the first '''
+		assert compound.pointInRegion([31.0, 45.0]) is in_both
+		assert compound.pointInRegion([28.5, 45.0]) is in_first_only
+
+	def test_and(self, overlapping_circles):
+		from cornish import ASTCompoundRegion
+		from cornish import _pyast_bridge as bridge
+		compound = ASTCompoundRegion(regions=overlapping_circles, operation=RegionOperation.AND)
+		self.check(compound, in_both=True, in_first_only=False)
+		assert int(bridge.dump_value(compound.astObject, "Operator")) == Ast.AND
+
+	def test_or(self, overlapping_circles):
+		from cornish import ASTCompoundRegion
+		from cornish import _pyast_bridge as bridge
+		compound = ASTCompoundRegion(regions=overlapping_circles, operation=Ast.OR)
+		self.check(compound, in_both=True, in_first_only=True)
+		assert int(bridge.dump_value(compound.astObject, "Operator")) == Ast.OR
+
+	def test_xor(self, overlapping_circles):
+		from cornish import ASTCompoundRegion
+		from cornish import _pyast_bridge as bridge
+		compound = ASTCompoundRegion(regions=overlapping_circles, operation=RegionOperation.XOR)
+		self.check(compound, in_both=False, in_first_only=True)
+		assert int(bridge.dump_value(compound.astObject, "Operator")) == Ast.XOR
+
+	def test_region_add_operator_is_genuinely_and(self, overlapping_circles):
+		'''
+		the public `region1 + region2` (base-class ASTRegion.__add__) requests
+		AND — and now actually gets it. (Circles override + for dilation and
+		refuse region operands per D5, so exercise it via polygons.)
+		'''
+		p1 = overlapping_circles[0].toPolygon(npoints=60)
+		p2 = overlapping_circles[1].toPolygon(npoints=60)
+		compound = p1 + p2
+		self.check(compound, in_both=True, in_first_only=False)
+
+	def test_operation_validation(self, overlapping_circles):
+		from cornish import ASTCompoundRegion
+		with pytest.raises(ValueError):
+			ASTCompoundRegion(regions=overlapping_circles)          # operation required
+		with pytest.raises(TypeError):
+			ASTCompoundRegion(regions=overlapping_circles, operation="AND")
+		with pytest.raises(ValueError):
+			ASTCompoundRegion(regions=overlapping_circles, operation=99)
+		with pytest.raises(TypeError):
+			ASTCompoundRegion(regions=[overlapping_circles[0], "not a region"], operation=Ast.OR)
+
+
+def test_frameset_base_frame_constructor():
+	''' review finding sibling: Ast.FrameSet's `frame=` kwarg was swallowed too — this ctor path was dead '''
+	from cornish import ASTFrameSet, ASTICRSFrame
+	fs = ASTFrameSet(base_frame=ASTICRSFrame())
+	assert fs.currentFrame.system == "ICRS"
+	fs2 = ASTFrameSet(base_frame=Ast.SkyFrame("System=Galactic"))
+	assert fs2.currentFrame.system == "GALACTIC"
+
+
+def test_no_kwargs_into_pyast_constructors():
+	'''
+	The rule-of-two gate for the pyast kwarg-swallowing bug class: pyast
+	accepts and silently IGNORES unknown keyword arguments on many C-level
+	constructors (verified victims: region `unc=`, CmpRegion `oper=`,
+	FrameSet `frame=`). Every `Ast.<Class>(...)` call in cornish must pass
+	its arguments positionally; a (callee, kwarg) pair may be allowlisted
+	here only with a comment citing empirical verification that the kwarg
+	is honored.
+
+	Blind spot: cannot see calls built dynamically (getattr) or kwargs
+	splatted from dicts; none exist today.
+	'''
+	import ast as python_ast
+	import glob, os
+	allowlist = set()  # e.g. ("SomeClass", "some_kwarg") — none verified safe today
+	package_dir = os.path.join(os.path.dirname(__file__), "..", "cornish")
+	offenders = []
+	for path in glob.glob(os.path.join(package_dir, "**", "*.py"), recursive=True):
+		with open(path) as source_file:
+			tree = python_ast.parse(source_file.read(), filename=path)
+		for node in python_ast.walk(tree):
+			if not isinstance(node, python_ast.Call) or not node.keywords:
+				continue
+			func = node.func
+			# match Ast.<UpperName>(...) — pyast classes are capitalized
+			if isinstance(func, python_ast.Attribute) and isinstance(func.value, python_ast.Name) \
+					and func.value.id == "Ast" and func.attr[:1].isupper():
+				for keyword in node.keywords:
+					if (func.attr, keyword.arg) not in allowlist:
+						offenders.append(f"{os.path.relpath(path, package_dir)}:{node.lineno}: "
+						                 f"Ast.{func.attr}({keyword.arg}=...) — pyast may silently ignore this kwarg; pass positionally")
+	assert not offenders, "\n".join(offenders)

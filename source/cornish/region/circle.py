@@ -60,14 +60,14 @@ class ASTCircle(ASTRegion):
 
 		if ast_object:
 			if any([x is not None for x in [frame, center, edge_point, radius]]):
-				raise ValueError("ASTCircle: cannot specify both 'ast_object' and any other parameter.")
+				raise ValueError("Cannot specify both 'ast_object' and any other parameter.")
 
 			if isinstance(ast_object, Ast.Circle):
 				# an externally-created circle: its uncertainty (if any) is unknown here
 				super().__init__(ast_object=ast_object)
 				return
 			else:
-				raise TypeError("ASTCircle: The 'ast_object' provided was not of type starlink.Ast.Circle.")
+				raise TypeError("The 'ast_object' provided was not of type starlink.Ast.Circle.")
 
 		# check valid combination of parameters
 		# -------------------------------------

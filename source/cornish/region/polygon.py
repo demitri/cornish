@@ -67,13 +67,13 @@ class ASTPolygon(ASTRegion):
 
 		if ast_object:
 			if any([frame is not None, points is not None, fits_header is not None]):
-				raise ValueError("ASTPolygon: Cannot specify 'ast_object' along with any other parameter.")
+				raise ValueError("Cannot specify 'ast_object' along with any other parameter.")
 			# test object
 			if isinstance(ast_object, Ast.Polygon):
 				super().__init__(ast_object=ast_object)
 				return
 			else:
-				raise TypeError("ASTPolygon: The 'ast_object' provided was not of type starlink.Ast.Polygon.")
+				raise TypeError("The 'ast_object' provided was not of type starlink.Ast.Polygon.")
 
 		if points is None:
 			raise ValueError("A list of points must be provided to create a polygon. This doesn't seem like an unreasonable request.")
@@ -82,12 +82,12 @@ class ASTPolygon(ASTRegion):
 		wcs_frameset = None
 		if fits_header is not None:
 			if frame is not None:
-				raise ValueError("ASTPolygon: Provide the frame via the 'frame' parameter or the FITS header, but not both.")
+				raise ValueError("Provide the frame via the 'frame' parameter or the FITS header, but not both.")
 			wcs_frameset = ASTFrameSet.fromFITSHeader(fits_header=fits_header) # raises FrameNotFoundException
 			frame = wcs_frameset # the current (sky) frame governs point interpretation
 
 		if frame is None:
-			raise ValueError(f"ASTPolygon: A frame must be provided (via 'frame' or 'fits_header').")
+			raise ValueError("A frame must be provided (via 'frame' or 'fits_header').")
 
 		ast_frame = bridge._unwrap(frame) # frame sets and regions are legal: the current/encapsulated frame governs
 
@@ -162,6 +162,16 @@ class ASTPolygon(ASTRegion):
 		'''
 		if len(dims) != 2:
 			raise ValueError(f"Only 2D images are supported (got {len(dims)} dimensions).")
+		# validate up front rather than crash deep in the fallback path: maxerr
+		# is a NEW parameter of this API, so an angular Quantity is simply
+		# required (no bare-number legacy meaning exists to honor here)
+		if not isinstance(maxerr, u.Quantity):
+			raise TypeError(f"'maxerr' must be an angular astropy Quantity, e.g. 1*u.arcsec "
+			                f"(got '{type(maxerr).__name__}').")
+		if not maxerr.isscalar or maxerr.unit.physical_type != 'angle':
+			raise ValueError(f"'maxerr' must be a scalar angular Quantity (got {maxerr!r}).")
+		if not (np.isfinite(maxerr.value) and maxerr.value > 0):
+			raise ValueError(f"'maxerr' must be positive and finite (got {maxerr!r}).")
 
 		# Create a Box describing the extent of the image in pixel coordinates.
 		#
@@ -484,7 +494,7 @@ class ASTPolygon(ASTRegion):
 		:returns: a new ASTPolygon.
 		'''
 		if maxerr is None or maxvert is None:
-			raise ValueError("ASTPolygon.downsize: Both 'maxerr' and 'maxvert' must be specified.")
+			raise ValueError("Both 'maxerr' and 'maxvert' must be specified.")
 
 		# pyast's own downsize silently accepts NaN/BAD/negative/bool maxerr
 		# values, so the validation must live here (M33): bool -> TypeError;
