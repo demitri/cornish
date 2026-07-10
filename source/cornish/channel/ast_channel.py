@@ -17,13 +17,13 @@ class ASTChannel(ASTObject):
 	:param ast_object: an existing `starlink.Ast.Channel` object
 	'''
 	def __init__(self, ast_object=None):
-		
+
 		if ast_object:
 			if isinstance(ast_object, Ast.Channel):
 				super().__init__(ast_object=ast_object)
 			else:
-				raise ValueError(f"The parameter 'ast_object' must be an existing starlink.Ast.Channel object; got '{type(ast_object)}'.")
-		
-		raise NotImplementedError()
-		# under construction...
+				raise TypeError(f"The parameter 'ast_object' must be an existing starlink.Ast.Channel object; got '{type(ast_object)}'.")
+		else:
+			# under construction...
+			raise NotImplementedError("Creating a generic ASTChannel from scratch is not yet supported; provide an 'ast_object'.")
 	

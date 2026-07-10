@@ -18,22 +18,26 @@ from .cornish import CornishPlot
 from ..mapping import ASTMapping
 from ..region.region import ASTRegion
 from ..region.circle import ASTCircle
+from ..enums import Marker
+from .. import _pyast_bridge as bridge
 
 from cornish import ASTFITSChannel, ASTFrameSet
 
 logger = logging.getLogger("cornish")
 
+# string names for the Marker enum values (the old dict listed "circle" twice,
+# silently losing the small-circle style — SPEC-10)
 markerstr2value = {
-	"circle" : 1,
-	"cross" : 2,
-	"star" : 3,
-	"circle" : 4,
-	"x" : 5,
-	"dot" : 6,
-	"triangle" : 7,
-	"triangle down" : 8,
-	"triangle left" : 9,
-	"triangle right" : 10
+	"small circle" : Marker.SMALL_CIRCLE,
+	"cross" : Marker.CROSS,
+	"star" : Marker.STAR,
+	"circle" : Marker.CIRCLE,
+	"x" : Marker.X,
+	"dot" : Marker.DOT,
+	"triangle" : Marker.TRIANGLE,
+	"triangle down" : Marker.TRIANGLE_DOWN,
+	"triangle left" : Marker.TRIANGLE_LEFT,
+	"triangle right" : Marker.TRIANGLE_RIGHT
 }
 
 class SkyPlot(CornishPlot):
@@ -276,9 +280,7 @@ class SkyPlot(CornishPlot):
 
 
 		if points is not None and len(points) == 0:
-			raise Exception("No points were provided to plot.")
-		if ra is not None:
-			points = np.transpose([ra,dec])
+			raise ValueError("No points were provided to plot.")
 
 		if size:
 			current_marker_size = self.astPlot.Size_Markers
@@ -291,44 +293,21 @@ class SkyPlot(CornishPlot):
 			current_marker_colour = self.astPlot.Colour_Markers
 			self.astPlot.Colour_Markers = colour
 
-		# use first point to determine type
-
-		if isinstance(points[0], SkyCoord):
-			for p in points:
-				point = [p.ra.to(u.rad).value, p.dec.to(u.rad).value]
-				self.astPlot.mark(point, marker_style)
-		elif isinstance(points, (np.ndarray, list, tuple)):
-			if len(points) == 2:
-				# single point
-				#for p in points:
-				if True:
-					if isinstance(points[0], Quantity):
-						point = [x.to(u.rad).value for x in points]
-					else:
-						point = np.deg2rad(points)
-					self.astPlot.mark(point, marker_style)
-				#if isinstance(points[0], Quantity):
-				#	points = [x.to(u.rad) for x in points]
-				#	self.astPlot.mark(point, marker_style)
-				#else:
-				#	for p in points:
-				#		point = np.deg2rad(p)
-				#	self.astPlot.mark(point, marker_style)
-			elif points.shape[1] == 2:
-				if isinstance(points[0][0], Quantity):
-					for p in points:
-						self.astPlot.mark([x.to(rad).value for x in p], marker_style)
-				else:
-					for p in points:
-						self.astPlot.mark(np.deg2rad(p), marker_style)
-		elif len(points[0]) == 2 and isinstance(points[0], Quantity):
-			for p in points:
-				point = [p[0].to(u.rad).value, p[1].to(u.rad).value]
-				self.astPlot.mark(point, marker_style)
+		# An Ast.Plot IS a FrameSet with the sky frame current (V13), so the
+		# bridge handles every accepted point form uniformly. Separate ra/dec
+		# values stack per M25's scalar rule: scalars stack to a rank-1 single
+		# point (parallel_axes must stay None); arrays stack to (2, n), parallel
+		# by declaration.
+		if ra is not None:
+			stacked = np.stack([np.asarray(ra), np.asarray(dec)]) if not (isinstance(ra, Quantity) or isinstance(dec, Quantity)) \
+				else u.Quantity([u.Quantity(ra, u.deg), u.Quantity(dec, u.deg)])
+			pts = bridge.to_frame_units(stacked, self.astPlot,
+			                            parallel_axes=(True if np.ndim(ra) > 0 else None))
 		else:
-			raise ValueError("Unhandled point type.")
+			pts = bridge.to_frame_units(points, self.astPlot)
 
-		#self.astPlot.mark(point, marker_style)
+		for p in pts.T:
+			self.astPlot.mark(p, marker_style)
 
 		# restore plot values
 		# -------------------

@@ -2,21 +2,21 @@
 from __future__ import annotations # remove in Python 3.10
 
 import os
-import re
-import ast
 import math
 import logging
+import numbers
+import warnings
 from typing import Union, Iterable
 
 import starlink.Ast as Ast
 import astropy.units as u
 import astropy
-from astropy.coordinates.builtin_frames import ICRS as AstropyICRS
 import numpy as np
 
 from .box import ASTBox
 from .region import ASTRegion
-from ..mapping import ASTFrame, ASTSkyFrame
+from ..mapping import ASTFrame, ASTSkyFrame, ASTFrameSet
+from .. import _pyast_bridge as bridge
 
 __all__ = ["ASTPolygon"]
 
@@ -31,10 +31,12 @@ class ASTPolygon(ASTRegion):
 	.. code-block:: python
 
 		p = ASTPolygon(frame, points)
-		p = ASTPolygon(fits_header, points)  # get the frame from the FITS header provided
+		p = ASTPolygon(fits_header=fits_header, points=points)  # get the frame from the FITS header provided
 		p = ASTPolygon(ast_object)           # where ast_object is a starlink.Ast.Polygon object
 
-	Points may be provided as a list of coordinate points, e.g.
+	Points may be provided in any of the bridge-accepted forms — SkyCoords,
+	Quantities, bare arrays (read as degrees on sky frames, native units
+	otherwise) — as a list of coordinate points, e.g.
 
 	.. code-block:: python
 
@@ -53,8 +55,9 @@ class ASTPolygon(ASTRegion):
 	    "((131.758,5.366),(131.759,3.766),(132.561,3.767),(133.363,3.766),(133.364,5.366),(132.577,5.367))"
 
 	:param ast_object: create a new ASTPolygon from an existing :class:`starlink.Ast.Polygon` object
-	:param frame: the frame the provided points lie in, accepts either :class:`ASTFrame` or :class:`starlink.Ast.Frame` objects
-	:param points: points in degrees that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points
+	:param frame: the frame the provided points lie in — a cornish or ``starlink.Ast`` frame, frame set (current frame governs), or region
+	:param points: points that describe the polygon, may be a list of pairs of points or two parallel arrays of axis points
+	:param fits_header: a FITS header whose WCS frame set defines the polygon's frame (the points are then sky coordinates in degrees)
 	:returns: Returns a new ``ASTPolygon`` object.
 	'''
 	def __init__(self, ast_object:Ast.Polygon=None,
@@ -63,75 +66,43 @@ class ASTPolygon(ASTRegion):
 				 fits_header=None):
 
 		if ast_object:
-			if any([frame, points, fits_header]):
+			if any([frame is not None, points is not None, fits_header is not None]):
 				raise ValueError("ASTPolygon: Cannot specify 'ast_object' along with any other parameter.")
 			# test object
 			if isinstance(ast_object, Ast.Polygon):
 				super().__init__(ast_object=ast_object)
 				return
 			else:
-				raise Exception("ASTPolygon: The 'ast_object' provided was not of type starlink.Ast.Polygon.")
+				raise TypeError("ASTPolygon: The 'ast_object' provided was not of type starlink.Ast.Polygon.")
 
 		if points is None:
-			raise Exception("A list of points must be provided to create a polygon. This doesn't seem like an unreasonable request.")
+			raise ValueError("A list of points must be provided to create a polygon. This doesn't seem like an unreasonable request.")
 
 		# Get the frame from the FITS header
-		if fits_header:
+		wcs_frameset = None
+		if fits_header is not None:
 			if frame is not None:
 				raise ValueError("ASTPolygon: Provide the frame via the 'frame' parameter or the FITS header, but not both.")
+			wcs_frameset = ASTFrameSet.fromFITSHeader(fits_header=fits_header) # raises FrameNotFoundException
+			frame = wcs_frameset # the current (sky) frame governs point interpretation
 
-			frame_set = ASTFrameSet.fromFITSHeader(fits_header=fits_header).baseFrame # raises FrameNotFoundException
+		if frame is None:
+			raise ValueError(f"ASTPolygon: A frame must be provided (via 'frame' or 'fits_header').")
 
-		if isinstance(frame, Ast.Region):
-			# a region returns 'True' for being a frame, so catch this
-			# before testing for Ast.Frame below
-			ast_frame = frame.getregionframe()
-		elif isinstance(frame, ASTRegion):
-			ast_frame = frame.astObject.getregionframe()
-		elif isinstance(frame, Ast.Frame):
-			ast_frame = frame
-		elif isinstance(frame, ASTFrame):
-			ast_frame = frame.astObject
-		else:
-			raise Exception(f"ASTPolygon: The supplied 'frame' object must either be a starlink.Ast.Frame or ASTFrame object (got '{type(frame)}').")
+		ast_frame = bridge._unwrap(frame) # frame sets and regions are legal: the current/encapsulated frame governs
 
-		# parse points if provided as string
-		if isinstance(points, str):
-			# acceptable forms:
-			#    "[(ra1, dec1), (ra2, dec2), ..., (ran, decn)]"
-			#    "((ra1, dec1), (ra2, dec2), ..., (ran, decn))"
-			#
-			# We're going to use eval here; make sure input only
-			# contains numbers (inc. exponentials, e.g. "12.34e-2"), spaces, and "()[]".
-			s = re.sub('[^\d\[\]\(\) ,\.eE+-]', '', points)
-			try:
-				points = np.array(ast.literal_eval(s), dtype=float)
-			except ValueError:
-				raise Exception(f"Could not parse provided string into an array of coordinate points: '{points}'")
+		pts = bridge.to_frame_units(points, ast_frame) # -> (naxes, npoints), the parallel form Ast.Polygon wants
 
-		if ast_frame.isaskyframe():
-			points = np.deg2rad(points)
+		# A polygon needs at least three vertices: two points do not a polygon
+		# make, and the square two-point case is inherently ambiguous (D3 note —
+		# polygons refuse it rather than interpret it).
+		if pts.shape[1] < 3:
+			raise ValueError(f"A polygon requires at least 3 vertices ({pts.shape[1]} provided); "
+			                 f"note that two points are ambiguous (pairs vs. parallel axes) and are always refused.")
 
-		# The problem with accepting both forms is that the case of two points is ambiguous:
-		# [[x1,x2], [y1, y2]]
-		# [(x1,y1), (x2, y2}]
-		# I'm going to argue that two points does not a polygon make.
-		if len(points) == 2 and len(points[0]) == 2:
-			raise Exception("There are only two points in this polygon, making the point ordering ambiguous. But is it really a polygon?")
-
-		# Internally, the starlink.Ast.Polygon constructor takes the parallel array form of points.
-		# starlink.Ast.Polygon( ast_frame, points, unc=None, options=None )
-
-		parallel_arrays = not len(points[0]) == 2
-
-		if parallel_arrays:
-			self.astObject = Ast.Polygon(ast_frame, points)
-		else:
-			if isinstance(points, np.ndarray):
-				self.astObject = Ast.Polygon(ast_frame, points.T)
-			else:
-				dim1, dim2 = points.T
-				self.astObject = Ast.Polygon(ast_frame, np.array([dim1, dim2]))
+		super().__init__(ast_object=Ast.Polygon(ast_frame, pts))
+		if wcs_frameset is not None:
+			self.wcs = wcs_frameset # SPEC-04 §2
 
 	@staticmethod
 	def fromFITSFilepath(path:Union[str,os.PathLike]=None, hdu:int=1):
@@ -146,23 +117,51 @@ class ASTPolygon(ASTRegion):
 		return polygon
 
 	@staticmethod
-	def fromFITSHeader(header=None, uncertainty=4.848e-6):
+	def fromFITSHeader(header=None, maxerr:astropy.units.Quantity=1.0*u.arcsec, maxvert:int=200):
 		'''
-		Creates an ASTPolygon in a sky frame from a FITS header. Header of HDU must be a 2D image and contain WCS information.
+		Creates an ASTPolygon in a sky frame that bounds the field described by
+		a FITS header. The header must describe a 2D image and contain WCS
+		information.
 
-		:param header: a FITS header
-		:param uncertainty: TODO: parameter not yet used
+		Implementation (SPEC-04 §3): the pixel bounding box is mapped directly
+		into the sky frame with ``astMapRegion``; when AST returns an exact
+		polygon that validates against probe points along the pixel boundary,
+		that (typically 4-vertex) polygon is returned. For pathological WCS
+		(all-sky projections, discontinuity-crossing fields, heavy distortion)
+		the method falls back to the boundary-mesh + downsize recipe.
+
+		The returned polygon carries the pixel<->world frame set in ``.wcs``.
+
+		:param header: a FITS header (astropy, fitsio, an array of cards, a dict, or a string)
+		:param maxerr: (fallback path) maximum deviation of the polygon from the true field outline
+		:param maxvert: (fallback path) maximum number of vertices in the returned polygon
 		'''
 		if header is None:
 			raise ValueError("A FITS header must be provided.")
 
 		from ..channel import ASTFITSChannel # avoids circular import
 
-		# The code below is adapted from code originally provided by David Berry.
 		fitsChannel = ASTFITSChannel(header=header)
 
 		# create an ASTFrameSet that contains two frames (pixel grid, WCS) and the mapping between them
-		wcsFrameSet = fitsChannel.frameSet
+		wcsFrameSet = fitsChannel.frameSet          # raises FrameNotFoundException when no WCS
+		dims = fitsChannel.dimensions               # raises IncompleteHeader when NAXIS cards are missing
+
+		return ASTPolygon._fromParsedWCS(wcsFrameSet, dims, maxerr=maxerr, maxvert=maxvert)
+
+	@staticmethod
+	def _fromParsedWCS(wcsFrameSet:ASTFrameSet, dims, maxerr:astropy.units.Quantity=1.0*u.arcsec, maxvert:int=200,
+	                   _force_fallback:bool=False):
+		'''
+		Internal implementation behind :meth:`fromFITSHeader` (and
+		:meth:`ASTFITSChannel.boundingPolygon`), taking an already-parsed
+		pixel<->world frame set and the pixel dimensions.
+
+		``_force_fallback`` skips the fast path; it exists so tests can exercise
+		the mesh recipe on headers whose fast path would validate.
+		'''
+		if len(dims) != 2:
+			raise ValueError(f"Only 2D images are supported (got {len(dims)} dimensions).")
 
 		# Create a Box describing the extent of the image in pixel coordinates.
 		#
@@ -175,22 +174,67 @@ class ASTPolygon(ASTRegion):
 		#       (dim1+0.5,dim2+0.5) is the top right corner of the top right pixel.
 		#       This results in the Box covering the whole image area."
 		#
-		dims = fitsChannel.dimensions
-		corner1 = [0.5,0.5] # center of lower left pixel
-		corner2 = [dims[0]+0.5, dims[1]+0.5]
-		pixelbox = ASTBox.fromCorners(frame=wcsFrameSet.baseFrame, corners=(corner1, corner2))
-						  #cornerPoint=[0.5,0.5], # center of lower left pixel
-						  #cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
+		corner1 = [0.5, 0.5] # outer corner of lower left pixel
+		corner2 = [dims[0] + 0.5, dims[1] + 0.5]
+		pixelbox = ASTBox.fromCorners(frame=wcsFrameSet.baseFrame, corners=(corner1, corner2),
+		                              uncertainty=None) # pixel frame: AST's internal default uncertainty
 
-		#  Map this box into (RA,Dec)
-		#
-		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTBox
+		# ------------------------------------------------------------------
+		# Fast path (SPEC-04 §3.1): map the pixel box directly into the sky.
+		# On AST 9.3 a plain mapregion returns an exact (typically 4-vertex)
+		# sky polygon for well-behaved WCS in milliseconds.
+		# ------------------------------------------------------------------
+		fast_path_region = None
+		if not _force_fallback:
+			mapping = wcsFrameSet.astObject.getmapping()
+			current_frame = wcsFrameSet.astObject.getframe(Ast.CURRENT)
+			mapped = pixelbox.astObject.mapregion(mapping, current_frame)
 
-		#  Get the (RA,Dec) at a large number of points evenly distributed around
-		#  the polygon. The number of points created is controlled by the
-		#  MeshSize attribute of the polygon.
-		#
-		mesh_deg = skybox.boundaryPointMesh() # np.array of points in degrees
+			if isinstance(mapped, Ast.Polygon):
+				fast_path_region = ASTPolygon(ast_object=mapped)
+			elif isinstance(mapped, Ast.Box):
+				fast_path_region = ASTBox(ast_object=mapped).toPolygon()
+			# a Circle (or anything else) cannot represent the field as an exact
+			# polygon; fall through to the mesh path with its controlled maxerr
+
+		if fast_path_region is not None:
+			# Validate (SPEC-04 §3.1): probe boundary-mesh points of the pixel
+			# box, mapped to the sky, for membership. Any failure — including
+			# unmappable (Ast.BAD) boundary pixels — falls back to the mesh
+			# recipe, which is always correct, just slower.
+			K = 32
+			old_mesh_size = pixelbox.astObject.get("MeshSize")
+			pixelbox.astObject.set(f"MeshSize={K}")
+			try:
+				probe_mesh_px = pixelbox.astObject.getregionmesh(1) # boundary mesh, pixel coords
+			finally:
+				pixelbox.astObject.set(f"MeshSize={old_mesh_size}")
+			# pyast-internal radians end-to-end: these values never cross a
+			# constructor/user boundary, so no bridge call is inserted (M20 rule)
+			probe_sky = wcsFrameSet.astObject.tran(probe_mesh_px, True)
+			values_ok = bool(np.all(np.isfinite(probe_sky)) and not np.any(probe_sky == Ast.BAD))
+			if values_ok and all(mapped.pointinregion(probe_sky[:, i]) for i in range(probe_sky.shape[1])):
+				fast_path_region.wcs = wcsFrameSet # SPEC-04 §2
+				return fast_path_region
+
+		# ------------------------------------------------------------------
+		# Fallback (SPEC-04 §3.2 / SPEC-04A M19): boundary mesh + downsize.
+		# The code below is adapted from code originally provided by David Berry.
+		# ------------------------------------------------------------------
+
+		#  Map the box into (RA,Dec) and get the (RA,Dec) at a large number of
+		#  points evenly distributed around the boundary.
+		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet)
+		mesh_deg = skybox.boundaryPointMesh() # np.array of point pairs in degrees
+
+		#  A field straddling RA=0 would produce a self-crossing flat-frame
+		#  polygon; unwrap the longitudes onto a continuous branch first
+		#  (SPEC-04 §3.2 discontinuity-awareness). The flat frame is unit-blind,
+		#  so out-of-range longitudes are fine; the final sky polygon normalizes.
+		lon = mesh_deg[:, 0]
+		if lon.max() - lon.min() > 180.0:
+			mesh_deg = mesh_deg.copy()
+			mesh_deg[:, 0] = np.where(lon > 180.0, lon - 360.0, lon)
 
 		#  Create a polygon using the vertices in the mesh. This polygon is
 		#  defined in a basic Frame (flat geometry) - not a SkyFrame (spherical
@@ -206,24 +250,18 @@ class ASTPolygon(ASTRegion):
 		degFlatFrame.setUnitForAxis(axis=1, unit="deg")
 		degFlatFrame.setUnitForAxis(axis=2, unit="deg")
 
-		flatpoly = ASTPolygon(frame=degFlatFrame, points=np.deg2rad(mesh_deg))
+		# basic frame -> native pass-through: the flat frame HONESTLY holds degrees (M19)
+		flatpoly = ASTPolygon(frame=degFlatFrame, points=mesh_deg)
 
 		#  Remove mesh points where the polygon is close to a Cartesian straight
-		#  line, and retain them where it deviates from a straight line, in order
-		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
-		#
-		downsizedpoly = flatpoly.downsize(maxerr=4.848e-6, maxvert=200) # -> ASTPolygon
-
-		#logger.debug(f"{flatpoly=}")
+		#  line, and retain them where it deviates from a straight line.
+		#  The flat frame is a degree frame, so degrees ARE its native maxerr
+		#  units — this .to(u.deg) is a unit read-out, not a hidden conversion (M19).
+		downsizedpoly = flatpoly.downsize(maxerr=maxerr.to(u.deg).value, maxvert=maxvert) # -> ASTPolygon
 
 		# "downsizedpoly" is a polygon in a frame with axes in degrees, but is not a sky frame.
-
+		# The bridge converts its degree points into the frame set's sky frame.
 		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet, points=downsizedpoly.points)
-
-		#  Create a polygon with the same vertices but defined in a SkyFrame rather than a flat Frame.
-		#downsized_points = downsizedpoly.astObject.norm(downsizedpoly.astObject.getregionpoints())
-#		sky_frame_polygon = ASTPolygon(frame=wcsFrameSet,
-#			                           points=np.rad2deg(downsizedpoly.astObject.getregionpoints()))
 
 		#  The order in which the vertices are supplied to the polygon constructor above
 		#  defines which side of the polygon boundary is the inside and which is the
@@ -232,31 +270,29 @@ class ASTPolygon(ASTRegion):
 		#  central pixel in the FITS image is "inside" the polygon, and negate
 		#  the polygon if it is not.
 		(a, b) = wcsFrameSet.astObject.tran( [[dims[0]/2], [dims[1]/2]] )
-		center = wcsFrameSet.astObject.norm(np.array([a,b]))
+		# pyast-internal radians end-to-end: this centre never crosses a
+		# constructor/user boundary, so no bridge call is inserted (M20 rule)
+		center = wcsFrameSet.astObject.norm(np.array([a, b]))
 
-		#logger.debug(f"before: {sky_frame_polygon.isBounded=}, {center=}, {a=}, {b=}")
-
-		#if not sky_frame_polygon.astObject.pointinregion( [a[0], b[0]] ):
 		if not sky_frame_polygon.astObject.pointinregion( center ):
-			# sky_frame_polygon.astObject.negate()
-			# The region is all points *outside* of the FITS area.
-			# In this case the region is unbounded. One option is to call .negate(),
-			# but this only flips a boolean flag in the object and leaves the region unbounded.
-			# Instead, just recreate the region by reversing the order of the points.
+			# The region as constructed covers all points *outside* the FITS area
+			# (and is unbounded); rather than negate a flag, recreate the region
+			# by reversing the order of the points.
 			sky_frame_polygon = ASTPolygon(frame=wcsFrameSet, points=np.flip(downsizedpoly.points, axis=0))
 
-		#logger.debug(f"after: {sky_frame_polygon.isBounded=}")
+		sky_frame_polygon.wcs = wcsFrameSet # SPEC-04 §2
 
 		# Return a polygon with the same vertices but defined in a SkyFrame
 		# rather than a flat Frame.
-		return sky_frame_polygon #ASTPolygon(frame=wcsFrameSet, points=downsizedPolygon.astObject.getregionpoints())
+		return sky_frame_polygon
 
 	@staticmethod
 	def fromPointsOnSkyFrame(frame:ASTSkyFrame=None, points:np.ndarray=None, expand_by:astropy.units.quantity.Quantity=20*u.pix): # astropy.coordinates.BaseRADecFrame
 		'''
 		Create an ``ASTPolygon`` specifically in a sky frame from an array of points.
 
-		Points can be provided in degrees either as an array or coordinate pairs, e.g.
+		Points can be provided in any of the bridge-accepted forms — SkyCoords,
+		Quantities, bare values in degrees — either as coordinate pairs, e.g.
 
 		.. code-block:: python
 
@@ -275,16 +311,16 @@ class ASTPolygon(ASTRegion):
 		'''
 		if points is None:
 			raise ValueError("Coordinate points must be provided to create a polygon.")
+		if frame is None:
+			raise ValueError("A sky frame must be provided.")
 
-		# .. todo:: handle various input types (e.g. Quantity) (also see below)
+		ast_frame = bridge._unwrap(frame)
+		if not bridge.is_sky(ast_frame):
+			from ..exc import NotASkyRegion
+			raise NotASkyRegion(f"The frame provided to fromPointsOnSkyFrame must be a sky frame (got '{ast_frame.Class}').")
 
-		# code below requires two parallel arrays of ra, dec in radians
-		points = np.deg2rad(points)
-		if len(points[0]) == 2:
-			# data is array of coordinate pairs, convert to parallel arrays
-			ra_list, dec_list = points.T
-		else:
-			ra_list, dec_list = points
+		# the code below requires two parallel arrays of ra, dec in radians
+		ra_list, dec_list = bridge.to_frame_units(points, ast_frame)
 
 		# author: David Berry (any errors are Demitri Muna's)
 		#
@@ -315,39 +351,8 @@ class ASTPolygon(ASTRegion):
 		ACC = 4.85E-5
 		M = 0
 
-		#  A SkyFrame describing the (RA,Dec) values.
-		#skyfrm = Ast.SkyFrame( "System=FK5,Equinox=J2000,Epoch=1982.0" )
-
-		#  The RA values (radians).
-# 		ra_list = [ 0.1646434, 0.1798973, 0.1925398, 0.2024329, 0.2053291,
-# 		            0.1796907, 0.1761278, 0.1701603, 0.1762123, 0.1689954,
-# 		            0.1725925, 0.1819018, 0.1865827, 0.19369, 0.1766037 ]
-#
-# 		#  The Dec values (radians).
-# 		dec_list = [ 0.6967545, 0.706133, 0.7176528, 0.729342, 0.740609,
-# 		             0.724532, 0.7318467, 0.7273944, 0.7225725, 0.7120513,
-# 		             0.7087136, 0.7211723, 0.7199059, 0.7268493, 0.7119532 ]
-
-		# .. todo:: handle various input types (e.g. Quantity)
-		# if isinstance(points, np.ndarray):
-		# 	if len(points.shape) != 2 or points.shape[1] != 2:
-		# 		raise ValueError("The shape of the array provided should be (n,2).")
-		# 	ra_list, dec_list = np.deg2rad(points.T)
-		# elif isinstance(frame, (ASTSkyFrame, Ast.SkyFrame)):
-		# 	# if it's a sky frame of some kind, we will expect degrees
-		# 	ra_list  = np.deg2rad(ra)
-		# 	dec_list = np.deg2rad(dec)
-
-		# convert frame parameter to an Ast.Frame object
-		if isinstance(frame, ASTFrame):
-			frame = frame.astObject
-		elif isinstance(frame, Ast.Frame):
-			pass
-		else:
-			raise ValueError(f"The 'frame' parameter must be either an Ast.SkyFrame or ASTSkyFrame object; got {type(frame)}")
-
 		#  Create a PointList holding the (RA,Dec) positions.
-		plist = Ast.PointList( frame, [ra_list, dec_list] )
+		plist = Ast.PointList( ast_frame, np.array([ra_list, dec_list]) )
 
 		#  Get the centre and radius of the circle that bounds the points (in
 		#  radians).
@@ -358,12 +363,13 @@ class ASTPolygon(ASTRegion):
 		#  has already been set, use it.
 		if M == 0 :
 		   M = int( 1 + 2.0*radius/ACC )
-		#logger.debug(f"Using grid size {M}")
 
 		#  Create a minimal set of FITS-WCS headers that describe a TAN
 		#  projection that projects the above circle into a square of M.M
 		#  pixels. The reference point is the centre of the circle and is put
 		#  at the centre of the square grid. Put the headers into a FitsChan.
+		#  (Ast.DR2D is AST's own radians->degrees constant: FITS cards are
+		#  pyast-internal here, never crossing a user boundary.)
 		fc = Ast.FitsChan()
 		fc["NAXIS1"] = M
 		fc["NAXIS2"] = M
@@ -434,16 +440,17 @@ class ASTPolygon(ASTRegion):
 			big_poly = Ast.Polygon( wcs.getframe( Ast.BASE ), [ x_new, y_new ] )
 
 			# Transform the Polygon into (RA,Dec).
-			new_ast_polygon = big_poly.mapregion( wcs, frame )
+			new_ast_polygon = big_poly.mapregion( wcs, ast_frame )
 
 		else:
 			# Transform the Polygon into (RA,Dec)
-			new_ast_polygon = pix_poly.mapregion( wcs, frame )
+			new_ast_polygon = pix_poly.mapregion( wcs, ast_frame )
 
 		polygon = ASTPolygon(ast_object=new_ast_polygon)
 
-		# check if we need to negate polygon
-		if not polygon.containsPoint(np.rad2deg(centre)):
+		# check if we need to negate polygon; the centre stays pyast-internal
+		# radians end-to-end (M20 rule), so test membership on the raw object
+		if not polygon.astObject.pointinregion(centre):
 			polygon.negate()
 
 		return polygon
@@ -457,26 +464,60 @@ class ASTPolygon(ASTRegion):
 		within the limits specified. The density of points in the new polygon is greater
 		where the curvature of the boundary is greater.
 
-		The 'maxerr' parameter set the maximum allowed discrepancy between the original and
-		new polygons as a geodesic distance within the polygon's coordinate frame. Setting this to zero
-		returns a new polygon with the number of vertices set in "maxvert".
+		The 'maxerr' parameter sets the maximum allowed discrepancy between the original and
+		new polygons as a geodesic distance within the polygon's coordinate frame:
 
-		The 'maxvert' parameter set the maximum number of vertices the new polygon can have. If this is
+		* an :class:`astropy.units.Quantity` (angular) — sky-frame polygons only;
+		* a bare number on a NON-sky (e.g. flat degree) frame — the frame's native units;
+		* a bare number on a SKY frame — currently read as RADIANS for backward
+		  compatibility, which is DEPRECATED: pass a Quantity instead (this form
+		  will become a ValueError in a future release).
+
+		Setting maxerr to zero returns a polygon with exactly "maxvert" vertices.
+
+		The 'maxvert' parameter sets the maximum number of vertices the new polygon can have. If this is
 		less than 3, the number of vertices in the returned polygon will be the minimum needed
-		to achieve the maximum discrepancy specified by "maxerr". The unadorned value is in radians,
-		but accepts Astropy unit objects.
+		to achieve the maximum discrepancy specified by "maxerr".
 
-		:param maxerr: maximum allowed discrepancy in radians between the original and new polygons as a geodesic distance within the polygon's coordinate frame
+		:param maxerr: maximum allowed discrepancy between the original and new polygons (see above)
 		:param maxvert: maximum allowed number of vertices in the returned polygon
 		:returns: a new ASTPolygon.
 		'''
+		if maxerr is None or maxvert is None:
+			raise ValueError("ASTPolygon.downsize: Both 'maxerr' and 'maxvert' must be specified.")
 
-		# should find some reasonable default values
-		if None in [maxerr, maxvert]:
-			raise Exception("ASTPolygon.downsize: Both 'maxerr' and 'maxvert' must be specified.")
+		# pyast's own downsize silently accepts NaN/BAD/negative/bool maxerr
+		# values, so the validation must live here (M33): bool -> TypeError;
+		# NaN/inf/Ast.BAD/negative -> ValueError; zero stays legal (AST-documented
+		# meaning: "return a polygon with exactly maxvert vertices").
+		if isinstance(maxerr, bool):
+			raise TypeError("A bool cannot be interpreted as a 'maxerr' distance.")
+		if isinstance(maxerr, u.Quantity):
+			# sky frames: converted to radians; basic frames: ValueError (native units unknowable, D12)
+			maxerr_frame_units = bridge.to_frame_distance(maxerr, self.astObject)
+		elif isinstance(maxerr, numbers.Real):
+			value = float(maxerr)
+			if not math.isfinite(value) or value == Ast.BAD:
+				raise ValueError(f"'maxerr' must be finite (got {value!r}).")
+			if bridge.is_sky(self.astObject):
+				# NEVER silently reinterpret: a bare float here has always meant
+				# radians (a documented, working meaning — unlike `unc`, D15's
+				# no-compat argument does not apply). Deprecate toward Quantity.
+				warnings.warn("Passing a bare number as 'maxerr' to downsize() on a sky-frame "
+				              "polygon is read as RADIANS; this will raise a ValueError in a "
+				              "future release — pass an astropy Quantity (e.g. maxerr * u.rad) instead.",
+				              DeprecationWarning, stacklevel=2)
+			# sky frames: legacy radians; basic frames: native frame units, permanently
+			maxerr_frame_units = value
+		else:
+			raise TypeError(f"Cannot interpret an object of type '{type(maxerr).__name__}' as 'maxerr'.")
+		if maxerr_frame_units < 0:
+			raise ValueError(f"'maxerr' must be non-negative (got {maxerr!r}).")
 
-		ast_polygon = self.astObject.downsize(maxerr, maxvert)
-		return ASTPolygon(ast_object=ast_polygon)
+		ast_polygon = self.astObject.downsize(maxerr_frame_units, maxvert)
+		new_polygon = ASTPolygon(ast_object=ast_polygon)
+		new_polygon.wcs = self.wcs # propagate the originating WCS, when known (SPEC-04 §2)
+		return new_polygon
 
 	@property
 	def area(self) -> astropy.units.quantity.Quantity:
@@ -509,20 +550,18 @@ class ASTPolygon(ASTRegion):
 					p2 = points[idx+1]
 
 				angle = frame.angle(vertex=v, points=(p1,p2)) # -> Quantity
+				# reading out the interior ANGLE in radians — a property of the
+				# result, not a coordinate conversion (gate-allowlisted)
 				angles.append(angle.to(u.rad).value)
 
-			#print(angles)
 			sum_of_polygon_angles = sum(angles) # radians
-			#area = math.pi/180 * (sum_of_polygon_angles - (n-2) * 180)
-			#area = math.pi/180 * (sum_of_polygon_angles - (n-2))
-			#area = np.deg2rad(sum_of_polygon_angles) - (n-2) * math.pi
 			area_sr = (sum_of_polygon_angles - (n-2) * math.pi) * u.sr
 			return area_sr
 
 		else:
 
 			# Ref: https://mathworld.wolfram.com/PolygonArea.html
-			raise NotImplementedError("The area calculation for a polygon in a non-sky frame has not been immplemented.")
+			raise NotImplementedError("The area calculation for a polygon in a non-sky frame has not been implemented.")
 
 	def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec) -> ASTPolygon:
 		'''

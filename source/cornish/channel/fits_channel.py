@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
-import math
 import logging
 from typing import Union
 
-#import ast
 import numpy as np
 import starlink
 import starlink.Ast as Ast
@@ -12,7 +10,7 @@ import starlink.Ast as Ast
 from .ast_channel import ASTChannel
 from ..mapping.frame import ASTFrame, ASTFrameSet
 from ..region import ASTBox, ASTPolygon, ASTCircle
-from ..exc import FrameNotFoundException
+from ..exc import FrameNotFoundException, IncompleteHeader
 
 _astropy_available = True
 _fitsio_available = True
@@ -55,17 +53,19 @@ class ASTFITSChannel(ASTChannel):
 		if ast_object:
 			if any([hdu, header]):
 				raise ValueError("If 'ast_object' is provided, 'hdu' or 'header' should not be set.")
+			if isinstance(ast_object, starlink.Ast.FitsChan):
+				self._dimensions = None # pixel dimensions
+				self.header = None
+				super().__init__(ast_object=ast_object)
+				return
 			else:
-				if isinstance(ast_object, starlink.Ast.FitsChan):
-					super().__init__(ast_object=ast_object)
-				else:
-					raise ValueError("Expected first parameter to be type 'ast_object'; did you mean to use 'header=' or 'hdu='?")
+				raise TypeError("Expected first parameter to be type 'ast_object'; did you mean to use 'header=' or 'hdu='?")
 
 		# ----------
 		# Validation
 		# ----------
 		if all([hdu, header]):
-			raise Exception("Only specify an HDU or header to create a ASTFITSChannel object.")
+			raise ValueError("Only specify an HDU or header to create a ASTFITSChannel object.")
 
 		# get header from HDU
 		if hdu:
@@ -74,7 +74,7 @@ class ASTFITSChannel(ASTChannel):
 			elif hdu and _fitsio_available and isinstance(hdu, fitsio.hdu.base.HDUBase):
 				header = hdu.read_header() # type: fitsio.fitslib.FITSHDR
 			else:
-				raise Exception(f"ASTFITSChannel: unknown HDU type specified ('{0}').".format(type(hdu)))
+				raise TypeError("ASTFITSChannel: unknown HDU type specified ('{0}').".format(type(hdu)))
 		# ----------
 
 		self._dimensions = None # pixel dimensions
@@ -101,7 +101,7 @@ class ASTFITSChannel(ASTChannel):
 					#self.addHeader(keyword=key, value=header[key])
 				#self._readHeader()
 			else:
-				raise Exception("Could not work with the type of header provided ('{0}').".format(type(header)))
+				raise TypeError("Could not work with the type of header provided ('{0}').".format(type(header)))
 		else:
 			pass # work with an empty Ast.FitsChan()
 			logger.warning("ASTFITSChannel: no data found: working with an empty FITSChannel.")
@@ -148,7 +148,7 @@ class ASTFITSChannel(ASTChannel):
 					self.addHeader(keyword=keyword, value=value)
 
 		else:
-			raise Exception("ASTFITSChannel: unable to parse header.")
+			raise TypeError("ASTFITSChannel: unable to parse header.")
 
 	def cardForKeyword(self, keyword=None):
 		'''
@@ -175,9 +175,9 @@ class ASTFITSChannel(ASTChannel):
 		#       which is not what the documentation says.
 
 		if card and any([keyword, value, comment]):
-			raise Exception("If a card is specified, don't set 'keyword', 'value', or 'comment'.")
+			raise ValueError("If a card is specified, don't set 'keyword', 'value', or 'comment'.")
 		if not any([card, keyword, value, comment]):
-			raise Exception("Specify either a 'card' value or else 'keyword', 'value', or 'comment'.")
+			raise ValueError("Specify either a 'card' value or else 'keyword', 'value', or 'comment'.")
 
 		fits_header_card = None
 
@@ -216,7 +216,7 @@ class ASTFITSChannel(ASTChannel):
 				else:
 					raise NotImplementedError("handle long cards")
 			else:
-				raise Exception("Unknown card type: '{0}'.".format(type(card)))
+				raise TypeError("Unknown card type: '{0}'.".format(type(card)))
 
 		else:
 			#
@@ -271,7 +271,7 @@ class ASTFITSChannel(ASTChannel):
 		Value from header for given keyword.
 		'''
 		if keyword is None:
-			raise Exception("A keyword must be specified.")
+			raise ValueError("A keyword must be specified.")
 
 		return self.astObject[keyword]
 
@@ -313,150 +313,53 @@ class ASTFITSChannel(ASTChannel):
 
 	@property
 	def dimensions(self):
-		''' Returns pixel dimensions as a NumPy array. '''
+		'''
+		Returns pixel dimensions as a NumPy array.
+
+		:raises cornish.exc.IncompleteHeader: when the NAXIS/NAXISn cards are missing
+			(common in primary HDUs and some cutout services)
+		'''
 		if self._dimensions is None:
 			dims = list()
 			try:
 				naxis = self.valueForKeyword("NAXIS")
-			except TypeError as e:
-				# TypeError: 'int' object is not subscriptable
-				if "'int' object is not subscriptable" in str(e):
-					raise Exception()
+			except KeyError as e:
+				raise IncompleteHeader("The header does not contain an 'NAXIS' card, "
+				                       "so the pixel dimensions cannot be determined.") from e
 			if isinstance(naxis, str):
 				naxis = int(naxis)
 			for i in range(naxis):
-				dims.append(int(self.valueForKeyword("NAXIS{0}".format(i+1))))
+				keyword = "NAXIS{0}".format(i+1)
+				try:
+					dims.append(int(self.valueForKeyword(keyword)))
+				except KeyError as e:
+					raise IncompleteHeader(f"The header declares NAXIS={naxis} but does not "
+					                       f"contain an '{keyword}' card.") from e
 			self._dimensions = np.array(dims)
 		return self._dimensions
 
 	# .. todo:: move to polygon class
-	def boundingPolygon(self):
+	def boundingPolygon(self) -> ASTPolygon:
 		'''
-		Returns an ASTPolygon that bounds the field described by the FITS header. (Must be a 2D image with WCS present.)
+		Returns an ASTPolygon in the WCS sky frame that bounds the field described
+		by this FITS header. (Must be a 2D image with WCS present.)
 
+		Note (SPEC-04A M31): this method previously documented (but never
+		delivered — it was dead code) a polygon in a flat degree frame; it now
+		returns the field's bounding polygon in the sky frame, delegating to the
+		same implementation as :meth:`ASTPolygon.fromFITSHeader`.
 		'''
+		return ASTPolygon._fromParsedWCS(self.frameSet, self.dimensions)
 
-		# The code below is adapted from code originally provided by David Berry.
-
-		# create an ASTFrameSet that contains two frames (pixel grid, WCS) and the mapping between them
-		wcsFrameSet = self.frameSet
-
-		# Create a Box describing the extent of the image in pixel coordinates.
-		#
-		# From David Berry:
-		#       "Because of the FITS-WCS standard, the base Frame in a FrameSet read
-		#       from a FITS header will always represent FITS pixel coordinates, which
-		#       are defined by the FITS-WCS standard so that the bottom left (i.e.
-		#       first) pixel in a 2D array is centred at (1,1). That means that
-		#       (0.5,0.5) is the bottom left corner of the bottom left pixel, and
-		#       (dim1+0.5,dim2+0.5) is the top right corner of the top right pixel.
-		#       This results in the Box covering the whole image area."
-		#
-		dims = self.dimensions
-		pixelbox = ASTBox(frame=wcsFrameSet.baseFrame,
-						  cornerPoint=[0.5,0.5], # center of lower left pixel
-						  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
-
-		#  Map this box into (RA,Dec)
-		#
-		skybox = pixelbox.regionWithMapping(map=wcsFrameSet, frame=wcsFrameSet) # -> ASTRegion
-
-		#  Get the (RA,Dec) at a large number of points evenly distributed around
-		#  the polygon. The number of points created is controlled by the
-		#  MeshSize attribute of the polygon.
-		#
-		mesh = skybox.boundaryPointMesh() # np.array of points
-
-		#  Create a polygon using the vertices in the mesh. This polygon is
-		#  defined in a basic Frame (flat geometry) - not a SkyFrame (spherical
-		#  geometry). If we used a SkyFrame, then all the mesh points along each
-		#  edge of the box would fall exactly on a geodesic (i.e. a great circle),
-		#  and so the subsequent call to the downsize function would remove them all
-		#  (except the corners). Using a basic Frame means that the downsize function
-		#  will use geodesics that are Cartesian straight lines. So points that
-		#  deviate by more than the required error form a Cartesian straight line
-		#  will be retained by the downsize function.
-		#
-		degFlatFrame = ASTFrame(naxes=2)
-		degFlatFrame.setUnitForAxis(axis=1, unit="deg")
-		degFlatFrame.setUnitForAxis(axis=2, unit="deg")
-
-		flatpoly = ASTPolygon(frame=degFlatFrame, points=mesh)
-
-		#  Remove mesh points where the polygon is close to a Cartesian straight
-		#  line, and retain them where it deviates from a stright line, in order
-		#  to achieve an max error of 1 arc-second (4.8E-6 rads).
-		#
-		return flatpoly.downsize(maxerr=4.848e-6) # -> ASTPolygon
-
-	def boundingCircle(self):
+	def boundingCircle(self) -> ASTCircle:
 		'''
-		Returns the smallest circle that bounds the HDU represented by this FITS header.
+		Returns the smallest circle that bounds the field described by this FITS header.
 
-		It is up to the called to know that this is a 2D image (only minimal checks are made).
+		The geometry is AST-exact (``astGetRegionDisc`` on the field's bounding
+		polygon), replacing the earlier hand-rolled corner heuristics (SPEC-04A M32).
 		'''
-
-		# contains two frames (pixels grid, WCS) and mapping between them
-		#    - baseFrame    - native coordinate system (pixels)
-		#    - currentFrame - WCS (ra, dec)
-		wcsFrameSet = self.frameSet
-		baseFrame = wcsFrameSet.baseFrame   # pixel coordinates frame
-		wcsFrame = wcsFrameSet.currentFrame # (AST SkyFrame)
-
-		#print(baseFrame.astObject)
-		#print(wcsFrame.astObject)
-
 		if len(self.dimensions) != 2:
-			raise Exception("ASTFITSChannel: Requesting bounding circle on an HDU that is not 2D.")
+			raise ValueError("ASTFITSChannel: Requesting bounding circle on an HDU that is not 2D.")
 
-		#logger.debug("dimensions: {0}".format(dims))
-
-		#dims = self.dimensions
-		# pixelbox = ASTBox(frame=wcsFrameSet.baseFrame,
-		# 				  cornerPoint=[0.5,0.5], # center of lower left pixel
-		# 				  cornerPoint2=[dims[0]+0.5, dims[1]+0.5])
-
-		# the base frame (pixels) is used since we're using the pixel dimensions to define the area
-		pixelbox = ASTBox(frame=baseFrame, dimensions=self.dimensions)
-
-		# Use frame set to map between pixels and WCS coords (SkyFrame).
-		# Result coordinates are degrees on sky.
-		#
-		corner_points = np.array(pixelbox.corners(mapping=wcsFrameSet)) # -> unit: degrees
-
-		logger.debug("corner points (deg): {0}".format(corner_points))
-		logger.debug("corner points (rad): {0}".format(np.deg2rad(corner_points)))
-
-		# convert back to rad to use in AST functions
-		corner_points = np.deg2rad(corner_points) # -> unit: radians
-
-		# calculate the distance between two corner points
-		c1 = corner_points[0]
-		c2 = corner_points[2]
-		diagonal_distance = wcsFrame.distance(c1, c2)
-
-		ed = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2) # distance in Euclidean space
-		logger.debug("diagonal distance: {0} (rad)".format(diagonal_distance))
-		logger.debug("Euclidian value:   {0} ".format(ed)) # should not match the value above
-
-		# find point halfway on diagonal line
-		center = wcsFrame.astObject.offset(c1, c2, diagonal_distance/2.0) # -> unit: radians
-
-		#print("center: ", center)
-		#print("center: ", np.rad2deg(center))
-
-		# Use this point as the circle center.
-		# Calculate the distance from the center to each corner.
-		distances = [wcsFrame.distance(center, p) for p in corner_points]
-
-		logger.debug("distances from center to each corner (rad): {}".format(distances))
-		logger.debug("distances from center to each corner (deg): {}".format(np.rad2deg(distances)))
-
-		radius = max(distances) # -> unit: radians
-		radius *= 1.000001 # increase by a tiny amount to account for possible rounding errors
-
-
-		logger.debug("radius: {0} (radians), {1} (deg)".format(radius, np.rad2deg(radius)))
-
-		return ASTCircle(frame=wcsFrame, center=np.rad2deg(center), radius=np.rad2deg(radius))
+		return self.boundingPolygon().boundingCircle()
 

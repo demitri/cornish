@@ -1,7 +1,8 @@
 #/usr/bin/env python
 
 import logging
-from typing import Union, Iterable
+import warnings
+from typing import Union, Iterable, Optional
 
 import numpy as np
 import starlink
@@ -15,7 +16,7 @@ from ... import ASTObject
 from .frame import ASTFrame
 from ..mapping import ASTMapping
 from ...exc import FrameNotFoundException
-#from ...channel import ASTFITSChannel
+from ... import _pyast_bridge as bridge
 
 __all__ = ['ASTFrameSet']
 
@@ -59,7 +60,7 @@ class ASTFrameSet(ASTFrame):
 			if isinstance(ast_object, starlink.Ast.FrameSet):
 				super().__init__(ast_object=ast_object)
 			else:
-				raise Exception("ASTFrameSet: Unhandled ast_object type ('{0}')".format(ast_object))
+				raise TypeError("ASTFrameSet: Unhandled ast_object type ('{0}')".format(ast_object))
 		else:
 			# construct from provided base_frame
 			if isinstance(base_frame, starlink.Ast.Frame):
@@ -67,7 +68,7 @@ class ASTFrameSet(ASTFrame):
 			elif isinstance(base_frame, ASTFrame):
 				fs = Ast.FrameSet(frame=base_frame.astObject, options=None)
 			else:
-				raise Exception("ASTFrameSet: Unhandled base_frame type ('{0}')".format(base_frame))
+				raise TypeError("ASTFrameSet: Unhandled base_frame type ('{0}')".format(base_frame))
 
 			super().__init__(ast_object=fs)
 
@@ -91,12 +92,12 @@ class ASTFrameSet(ASTFrame):
 			elif isinstance(frame, starlink.Ast.Frame):
 				ast_frames.append(frame)
 			else:
-				raise ValueError(f"The provided frames must either be of type ASTFrame or starlink.Ast.Frame (got '{type(frame)}'.")
+				raise TypeError(f"The provided frames must either be of type ASTFrame or starlink.Ast.Frame (got '{type(frame)}'.")
 
 		frame_set = Ast.Frame.convert(ast_frames[0], ast_frames[1])
 		if frame_set is None:
-			# I don't know if this is actually the failure mode
-			raise Exception("An ASTFrameSet could not be created since the mapping between the two provided frames could not be determined (conversion may not be possible).")
+			from ...exc import CoordinateSystemsCouldNotBeMapped
+			raise CoordinateSystemsCouldNotBeMapped("An ASTFrameSet could not be created since the mapping between the two provided frames could not be determined (conversion may not be possible).")
 		else:
 			return ASTFrameSet(ast_object=frame_set)
 
@@ -193,7 +194,7 @@ class ASTFrameSet(ASTFrame):
 		# addframe( iframe, map, frame )
 
 		if frame is None:
-			raise Exception(f"frame must be provided to 'addFrame'")
+			raise ValueError("frame must be provided to 'addToBaseFrame'")
 
 		iframe = Ast.BASE # add to base frame
 		map = None
@@ -206,253 +207,163 @@ class ASTFrameSet(ASTFrame):
 		'''
 		return ASTMapping(ast_object=self.astObject.getmapping()) # default is from base to current
 
-	def convertPoints(self, points:Iterable, forward:bool=True):
+	def _tran(self, points, forward:bool=True, *,
+	          parallel_axes:Optional[bool]=None, bad:str="raise") -> np.ndarray:
 		'''
-		Convert the provided coordinate points using the mapping defined in this object from one frame to another.
-
-		:param points:
-		:param forward:
+		The single private implementation behind pix2world/world2pix/convertPoints:
+		bridge in -> Ast.tran -> bridge out, preserving single-point-in ->
+		single-point-out return shapes by FORM (SPEC-04A §5).
 		'''
-		if isinstance(points[0], SkyCoord):
-			# handle SkyCoord objects
-			ra_rad = [c.ra.to(u.rad).value for c in points]
-			dec_rad = [c.dec.to(u.rad).value for c in points]
-			out = self.astObject.tran(np.array([ra_rad, dec_rad]), forward)
-			return_points = list()
-			for p in out.T:
-				return_points.append(  SkyCoord(ra=p[0]*u.rad, dec=p[1]*u.rad)  )
-			return return_points
+		src = self.astObject.getframe(Ast.BASE if forward else Ast.CURRENT)
+		dst = self.astObject.getframe(Ast.CURRENT if forward else Ast.BASE)
+		single = bridge.is_single_point(points, src)          # decided by FORM, before conversion
+		pts = bridge.to_frame_units(points, src, parallel_axes=parallel_axes)   # always (naxes, npoints) — tran requires 2-D (V5)
+		out = bridge.from_frame_units(self.astObject.tran(pts, forward), dst, bad=bad)
+		return out[0] if single else out               # single-point form in -> (naxes,) out
 
-		else:
-			# handle arrays
+	def convertPoints(self, points:Iterable, forward:bool=True, *, parallel_axes:Optional[bool]=None):
+		'''
+		Convert the provided coordinate points from this frame set's base frame to
+		its current frame (``forward=True``) or the reverse (``forward=False``).
 
-			if points.shape[0] == 2:
-				#
-				# check the form [ [ra1, ra2, ...], [dec1, dec2, ...] ]
+		Accepted input forms are those of the bridge decision table: SkyCoord
+		(scalar, array, or a sequence of SkyCoords — sky source frames only),
+		Quantity arrays (sky source frames only), bare arrays/lists read in the
+		source frame's units (degrees when the source frame is a sky frame),
+		in either pairs ``(n, naxes)`` or parallel ``(naxes, n)`` orientation.
+		A square ``(naxes, naxes)`` array reads as PAIRS (DECISIONS D3); pass
+		``parallel_axes=True`` for the parallel reading.
 
-				#if len(points[0]) == 1:
-				#	raise ValueError("")
-				ra_rad = np.deg2rad(points[0])
-				dec_rad = np.deg2rad(points[1])
-				out = self.astObject.tran(np.array([ra_rad, dec_rad]), forward)
-				return np.rad2deg(out)
-			elif points.shape[1] == 2:
-				#
-				# check the form [ [ra1, dec1], [ra2, dec2], ... ]
+		Returns a bare array of converted points — shape ``(npoints, naxes)``, or
+		``(naxes,)`` for single-point-form input — in the destination frame's
+		units (degrees for sky). As a convenience, when the input was SkyCoord-form
+		and the destination frame is a sky frame, SkyCoords are returned instead,
+		built in the destination frame's actual system (never ICRS-by-fiat):
+		scalar in -> scalar out, array in -> array out, sequence in -> list of
+		scalar SkyCoords out.
 
-				points = points.T
-				ra_rad = np.deg2rad(points[0])
-				dec_rad = np.deg2rad(points[1])
-				out = self.astObject.tran(np.array([ra_rad, dec_rad]), forward)
-				return np.rad2deg(out.T)
+		:param points: coordinate points in the source frame
+		:param forward: True: base -> current; False: current -> base
+		:param parallel_axes: orientation override for square array input (see above)
+		'''
+		skycoord_form = isinstance(points, SkyCoord) or \
+			(isinstance(points, (list, tuple)) and len(points) > 0 and all(isinstance(p, SkyCoord) for p in points))
 
+		out = self._tran(points, forward, parallel_axes=parallel_axes)
 
+		if not skycoord_form:
+			return out
 
-		# elif isinstance(points, np.ndarray):
-		# 	raise NotImplementedError("handle numpy arrays")
-		# else:
-		# 	# handle other iterables
-		# 	#TODO validate inputs for error reporting
-		# 	assert len(x_coordinates) == len(y_coordinates), "Coordinate arrays of unequal lengths."
-		# 	#forward = True # convert from frame1 to frame2
-		# 	#in_coords = np.array([x_coordinates, y_coordinates]).T
-		# 	in_coords = np.array(list(zip(x_coordinates, y_coordinates))).T
-		# 	print(in_coords)
-		# 	forward = True
-		# 	return self.astObject.tran(in_coords, forward)
+		dst = self.astObject.getframe(Ast.CURRENT if forward else Ast.BASE)
+		if not bridge.is_sky(dst):
+			return out  # nothing to wrap: SkyCoords cannot represent non-sky coordinates
+
+		# build output SkyCoords in the DESTINATION's actual system (§2.3, both
+		# directions); an unmappable sky destination raises the §2.3 ValueError
+		target = bridge.astropy_frame_for(dst)
+
+		if isinstance(points, SkyCoord):
+			if points.isscalar:
+				return SkyCoord(out[0] * u.deg, out[1] * u.deg, frame=target)
+			return SkyCoord(out[:, 0] * u.deg, out[:, 1] * u.deg, frame=target)
+		return [SkyCoord(row[0] * u.deg, row[1] * u.deg, frame=target) for row in out]
 
 	def convertRaDec(self, ra, dec, forward:bool=True):
 		'''
 		Convert the provided ra,dec values using the mapping defined in this object from one frame to another.
 
-		:param ra: right ascension value in degrees or astropy.units.Quantity
-		:param dec: declination value in degrees or astropy.units.Quantity
-		:param forward:
+		Bare numbers are read as degrees; Quantities are converted. When either
+		input is a Quantity, the results carry units — degrees when the
+		destination frame is a sky frame, or bare native values when it is not
+		(e.g. pixel results are never labeled with any unit).
+
+		:param ra: right ascension value(s) in degrees or astropy.units.Quantity
+		:param dec: declination value(s) in degrees or astropy.units.Quantity
+		:param forward: True: base -> current; False: current -> base
 		'''
+		quantity_input = isinstance(ra, Quantity) or isinstance(dec, Quantity)
 
-		provided_quantity = False # return the same type as provided
-		if isinstance(ra, Quantity):
-			ra = ra.to(u.deg).value
-			provided_quantity = True
-		if isinstance(dec, Quantity):
-			dec = dec.to(u.deg).value
-			provided_quantity = True
-
-		try:
-			# when ra,dec single values
-			out = self.astObject.tran(np.array(np.deg2rad([[ra], [dec]])), forward)
-		except ValueError as e:
-			# when ra, dec are already arrays
-			out = self.astObject.tran(np.array(np.deg2rad([ra, dec])), forward)
-
-		if provided_quantity:
-			return out[0]*u.deg, out[1]*u.deg
+		if quantity_input:
+			# coerce each independently: bare numbers keep their documented
+			# degrees meaning, so mixed Quantity/bare pairs stay legal
+			ra = u.Quantity(ra, u.deg)
+			dec = u.Quantity(dec, u.deg)
+			pts = u.Quantity([ra, dec])
 		else:
-			return np.rad2deg(out[0]), np.rad2deg(out[1])
+			pts = np.stack([np.asarray(ra, dtype=float), np.asarray(dec, dtype=float)])
 
+		# scalars stack to rank-1 (2,), a single-point form where parallel_axes
+		# must stay None (§2.2); arrays stack to (2, n), parallel by declaration
+		out = self._tran(pts, forward, parallel_axes=(True if np.ndim(ra) > 0 else None))
 
-	def convert(self, points=None, ra:Iterable=None, dec:Iterable=None, forward:bool=True): #x_coordinates=None, y_coordinates=None):
-		'''
-		Convert the provided points using the mapping defined in this object from one frame to another.
-
-		If no units are provided (e.g. a bare NumPy array), degrees are assumed.
-
-		:param points:
-		:param ra:
-		:param dec:
-		:param forward:
-		'''
-
-		# # parameter validation
-		# if all([x is None in [points, ra, dec]):
-		# 	raise ValueError(f"Either 'points' must be provided, or both 'ra' and 'dec' parameters.")
-#
-		# if points is None:
-		# 	# specify ra & dec?
-		# 	if any([x is None in [ra,dec]]):
-		# 		raise ValueError("If one of 'ra' or 'dec' is specified, both must be provided.")
-		# 	elif all(
-		# else:
-		# 	# specifying points?
-		# 	if any([x is not None for x in [ra,dec]]):
-		# 		raise ValueError("'ra' and 'dec' should not be provided")
-
-
-		# handle SkyCoords
-		if isinstance(points, SkyCoord) or \
-		  (isinstance(points, list) and len(points) > 0 and isinstance(points[0], SkyCoord)):
-			if isinstance(points, SkyCoord):
-				p = points
-				out = self.astObject.tran(np.array([[p.ra.to(u.rad).value], [p.dec.to(u.rad).value]]), forward)
-				return SkyCoord(ra=out[0]*u.rad, dec=out[1]*u.rad)
-			else:
-				raise NotImplementedError("Need to implement arrays of SkyCoord objects.")
-		elif isinstance(points, np.ndarray):
-			raise NotImplementedError("handle numpy arrays")
+		if np.ndim(ra) == 0:
+			ra_out, dec_out = out          # single-point form -> (naxes,)
 		else:
-			# handle other iterables
-			#TODO validate inputs for error reporting
-			assert len(x_coordinates) == len(y_coordinates), "Coordinate arrays of unequal lengths."
-			#forward = True # convert from frame1 to frame2
-			#in_coords = np.array([x_coordinates, y_coordinates]).T
-			in_coords = np.array(list(zip(x_coordinates, y_coordinates))).T
-			print(in_coords)
-			forward = True
-			return self.astObject.tran(in_coords, forward)
+			ra_out, dec_out = out[:, 0], out[:, 1]
+
+		if quantity_input:
+			dst = self.astObject.getframe(Ast.CURRENT if forward else Ast.BASE)
+			if bridge.is_sky(dst):
+				return ra_out * u.deg, dec_out * u.deg
+			# non-sky destination: bare native values — there is no honest unit
+			# to attach (NEVER u.deg unconditionally; that was bug N2)
+			return ra_out, dec_out
+		return ra_out, dec_out
+
+	def convert(self, points=None, forward:bool=True, *, parallel_axes:Optional[bool]=None):
+		'''
+		Deprecated alias for :meth:`convertPoints` (kept for one release).
+		'''
+		warnings.warn("ASTFrameSet.convert() is deprecated; use convertPoints() "
+		              "(or convertRaDec() for separate ra/dec arrays).",
+		              DeprecationWarning, stacklevel=2)
+		return self.convertPoints(points, forward, parallel_axes=parallel_axes)
 
 	# move to ASTMapping?
-	def pix2world(self, points:Iterable) -> np.ndarray:
+	def pix2world(self, points:Iterable, *, parallel_axes:Optional[bool]=None) -> np.ndarray:
 		'''
-		Convert provided coordinates from a world frame to a pixel frame.
+		Convert provided coordinates from the pixel (base) frame to the world (current) frame.
 
-		This method will throw a ``cornish.exc.FrameNotAvailable`` exception if
-		the frame set does not contain both a pixel and world frame.
-
-		Format of points:
+		Points may be provided as coordinate pairs, e.g.
 
 		.. code-block::
 
-			[ [ values on axis 1 ], [ values on axis 2 ], ... ]
+			[ [x1, y1], [x2, y2], ... ]           # shape (n, 2)
 
-		e.g. pixel to sky:
+		or as parallel axis arrays, e.g.
 
 		.. code-block::
 
-			[ [x1, x2, ...], [y1, y2, ...] ]
+			[ [x1, x2, ...], [y1, y2, ...] ]      # shape (2, n)
 
-		A single point may also be specified alone, e.g. ``[a,b]`` or ``np.array([a,b])``.
+		A square ``(2, 2)`` array is read as PAIRS (DECISIONS D3); pass
+		``parallel_axes=True`` for the parallel reading. A single point may also
+		be specified alone, e.g. ``[a, b]``, and returns a single point.
 
-		:param points: input list of coordinates as numpy.ndarray, 2-dimensional array with shape (2,npoint)
+		Returns shape ``(npoints, 2)`` — or ``(2,)`` for single-point input — in
+		the current frame's units (degrees for sky frames, normalized).
+
+		:param points: input coordinates in the base (pixel) frame
+		:param parallel_axes: orientation override for square input (see above)
 		'''
-		pix2world = True # AST flag ("forward" parameter)
-
-		if isinstance(points, (list, tuple)):
-			points = np.array(points)
-
-		# check for single point, e.g. pix2world([12, 33])
-		single_point = False
-		if points.shape == np.array([1,2]).shape:
-			single_point = True
-			points = np.array([points])
-
-		# Note that tran() takes points in the form [ [ra2, ra2, ...], [dec1, dec2, ...] ]
-		out = np.rad2deg(self.astObject.norm((self.astObject.tran(points.T, pix2world)))).T
-
-		if single_point:
-			return out[0]
-		else:
-			return out
+		return self._tran(points, True, parallel_axes=parallel_axes)
 
 	# move to ASTMapping?
-	def world2pix(self, points:Union[Iterable, SkyCoord]) -> np.ndarray:
+	def world2pix(self, points:Union[Iterable, SkyCoord], *, parallel_axes:Optional[bool]=None) -> np.ndarray:
 		'''
-		Convert provided coordinates from a world frame to a pixel frame.
+		Convert provided coordinates from the world (current) frame to the pixel (base) frame.
 
-		This method will throw a ``cornish.exc.FrameNotAvailable`` exception if
-		the frame set does not contain both a pixel and world frame.
+		Points may be provided as coordinate pairs ``(n, 2)``, parallel axis
+		arrays ``(2, n)``, a single point ``[a, b]``, SkyCoords (any system —
+		converted to the world frame's system), or Quantities; bare values are
+		read as degrees when the world frame is a sky frame. A square ``(2, 2)``
+		array is read as PAIRS (DECISIONS D3); pass ``parallel_axes=True`` for
+		the parallel reading.
 
-		Points must have the shape (2,n), e.g.:
+		Returns shape ``(npoints, 2)`` — or ``(2,)`` for single-point-form
+		input — in the base frame's native units.
 
-		.. code-block::
-
-			[ [ra1, ra2, ...], [dec1, dec2, ...] ]
-
-		A single point may also be specified alone, e.g. ``[a,b]`` or ``np.array([a,b])``.
-
-		:param points: input list of coordinates as numpy.ndarray, 2-dimensional array with shape (2,npoints); units are assumed to be degrees if not specified via ``astropy.units.Quantity``
+		:param points: input coordinates in the current (world) frame
+		:param parallel_axes: orientation override for square input (see above)
 		'''
-		world2pix = False # AST flag ("forward" parameter)
-		single_point = False
-
-		if isinstance(points, (list, tuple)):
-			points = np.array(points)
-		elif isinstance(points, astropy.coordinates.SkyCoord):
-			points = np.array([[points.ra.to(u.rad).value, points.dec.to(u.rad).value]]) * u.rad
-			single_point = True
-
-		# check for single point, e.g. world2pix([12.34, 56.78])
-		if points.shape == np.array([1,2]).shape:
-			single_point = True
-			points = np.array([points])
-
-		# AST expects radians
-		if isinstance(points, astropy.units.quantity.Quantity):
-			points_rad = points.to(u.rad).value
-		else:
-			points_rad = np.deg2rad(points)
-
-		# Note that tran() takes points in the form [ [ra2, ra2, ...], [dec1, dec2, ...] ]
-		out = self.astObject.tran(points_rad.T, world2pix).T
-		if single_point:
-			return out[0]
-		else:
-			return out
-
-	#def frame(self, name=None):
-	#	'''
-	#	Extract a frame from the frame set with the given name.
-	#	'''
-	#	self.
-
-
-'''
-Transform the coordinates of a set of points provided according the mapping defined by this object.
-
-:param in: input list of coordinates as numpy.ndarray,
-		   any iterable list accepted
-		   2-dimensional array with shape (nin,npoint)
-:param out: output coordinates
-
-Format of points:
-
-.. code-block::
-
-	[ [ values on axis 1 ], [ values on axis 2 ], ... ]
-
-e.g. sky to pixel:
-
-.. code-block::
-
-	[ [ra1, ra2, ...], [dec1, dec2, ...] ]
-
-'''
+		return self._tran(points, False, parallel_axes=parallel_axes)

@@ -3,15 +3,14 @@
 import starlink.Ast as Ast
 
 from .frame import ASTFrame
+from ...enums import SkySystem, SKY_SYSTEM_INPUT_ALIASES
 
 __all__ = ['ASTSkyFrame', 'ASTICRSFrame']
 
-# this is a list of sky coordinate systems supported by AST,
-# see: http://starlink.eao.hawaii.edu/docs/sun211.htx/sun211ss424.html
-sky_systems = ["ICRS", "J2000", "AZEL", "ECLIPTIC", "FK4", "FK4-NO-E",
-			   "FK4_NO_E", "FK5", "EQUATORIAL",
-			   "GALACTIC", "GAPPT", "GEOCENTRIC", "APPARENT",
-			   "HELIOECLIPTIC", "SUPERGALACTIC"]
+#: The set of strings accepted for a SkyFrame system: the canonical values
+#: (:class:`cornish.enums.SkySystem`) plus the input aliases AST canonicalizes
+#: on set (e.g. "EQUATORIAL" -> "FK5"); see SUN/211 §SkyFrame.System.
+_ACCEPTED_SKY_SYSTEMS = {member.value.upper() for member in SkySystem} | set(SKY_SYSTEM_INPUT_ALIASES)
 
 class ASTSkyFrame(ASTFrame):
 	'''
@@ -49,10 +48,12 @@ class ASTSkyFrame(ASTFrame):
 			self.astObject = Ast.SkyFrame()
 
 		if system:
-			if system.upper() in sky_systems:
+			if isinstance(system, SkySystem):
+				self.system = system.value
+			elif isinstance(system, str) and system.upper() in _ACCEPTED_SKY_SYSTEMS:
 				self.system = system
 			else:
-				raise ValueError(f"The provided system must be one of: [{sky_systems}].")
+				raise ValueError(f"The provided system must be one of: [{sorted(_ACCEPTED_SKY_SYSTEMS)}].")
 		if equinox:
 			self.equinox = equinox
 		if epoch:
@@ -93,9 +94,9 @@ class ASTSkyFrame(ASTFrame):
 	def equinox(self, equinox=None):
 		'''	Set the equinox for the frame. '''
 		if equinox is None:
-			raise Exception("An 'equinox' parameter must be specified.")
+			raise ValueError("An 'equinox' parameter must be specified.")
 		elif not isinstance(equinox, str):
-			raise Exception("A string value was expected for 'equinox' (got '{0}').".format(type(equinox)))
+			raise TypeError("A string value was expected for 'equinox' (got '{0}').".format(type(equinox)))
 		self.astObject.set(f"Equinox={equinox}")
 
 	@property
@@ -109,13 +110,13 @@ class ASTSkyFrame(ASTFrame):
 	def epoch(self, epoch=None):
 		'''	Set the epoch for the frame. '''
 		if epoch is None:
-			raise Exception("An 'epoch' parameter must be specified.")
+			raise ValueError("An 'epoch' parameter must be specified.")
 		else:
 			if isinstance(epoch, str):
 				try:
 					float(epoch)
 				except ValueError as e:
-					raise ValueError("'epoch' much be a numeric value (or a string that can be converted to a numeric value")
+					raise ValueError("'epoch' must be a numeric value (or a string that can be converted to a numeric value).") from e
 		self.astObject.set(f"Epoch={epoch}")
 
 # .. todo:: make this a factory class

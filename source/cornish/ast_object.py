@@ -1,4 +1,5 @@
 
+import copy as _copy
 from abc import ABCMeta
 
 class ASTObject(metaclass=ABCMeta):
@@ -25,14 +26,50 @@ class ASTObject(metaclass=ABCMeta):
 		in any copy. However, it is retained in any external representation of an Object produced by
 		the astWrite function.
 
-		Not sure how to handle the above in this class.
-
 		:returns: string identifier that can be used to uniquely identify this object
 		'''
 		return self.astObject.get("ID")
 
 	def __repr__(self):
-		return self.astString #str(self.astObject)
+		# a one-liner; the full AST serialization (60+ lines) remains available as .astString
+		try:
+			ast_class = self.astObject.Class
+		except AttributeError:
+			# a repr must never raise: astObject may be None/unset on a
+			# partially-constructed wrapper being inspected in a debugger
+			ast_class = "no AST object attached"
+		return f"<{type(self).__module__}.{type(self).__name__} ({ast_class}) at {hex(id(self))}>"
+
+	def __reduce__(self):
+		# Pickle support (DECISIONS D6/D16): persist the AST-native text dump plus
+		# the Python-side attributes; `reconstruct` rehydrates via Ast.Channel and
+		# cls.__new__ (deliberately bypassing __init__ — constructor validation is
+		# for users, not for rehydration).
+		from . import _pyast_bridge
+		state = {k: v for k, v in self.__dict__.items() if k != "astObject"}
+		return (_pyast_bridge.reconstruct, (type(self), self.astString), state)
+
+	def copy(self):
+		'''
+		Return a new instance of this class wrapping a deep copy of the underlying AST object.
+
+		Python-side attributes are carried over by reference (use :func:`copy.deepcopy`
+		for a fully independent copy).
+		'''
+		cloned = type(self).__new__(type(self))
+		cloned.__dict__.update({k: v for k, v in self.__dict__.items() if k != "astObject"})
+		cloned.astObject = self.astObject.copy()
+		return cloned
+
+	def __deepcopy__(self, memo):
+		cloned = type(self).__new__(type(self))
+		memo[id(self)] = cloned
+		for key, value in self.__dict__.items():
+			if key == "astObject":
+				continue
+			setattr(cloned, key, _copy.deepcopy(value, memo))
+		cloned.astObject = self.astObject.copy()
+		return cloned
 
 	@property
 	def astString(self):

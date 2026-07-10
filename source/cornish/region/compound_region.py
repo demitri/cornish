@@ -2,6 +2,8 @@
 import logging
 from typing import Iterable, Union, List
 
+import numpy as np
+
 import astropy
 import astropy.units as u
 import starlink.Ast as Ast
@@ -71,15 +73,18 @@ class ASTCompoundRegion(ASTRegion):
 
 			compound_region = Ast.CmpRegion( r1, r2, oper=operation ) # todo: 'series' parameter?
 			if compound_region is None:
-				# an error occurred
-				return None
+				# not observed in practice (Ast.CmpRegion raises on error), but if it
+				# ever happens a half-built object must not escape
+				raise ValueError(f"AST could not combine the provided regions (Ast.CmpRegion returned None for {r1.Class} and {r2.Class}).")
 
 		super().__init__(ast_object=compound_region)
 
 	@property
 	def points(self):
-		logger.warning(f"Compund regions do not currently return points (as Ast.CmpRegion objects do not).")
-		return None
+		raise NotImplementedError(
+			"Compound regions do not return points (Ast.CmpRegion objects do not carry them); "
+			"call componentRegions() and read .points from each component instead."
+		)
 
 	@property
 	def area(self):

@@ -4,10 +4,8 @@ from __future__ import annotations # remove in Python 3.10
 # https://stackoverflow.com/a/33533514/2712652
 
 import logging
+import numbers
 from typing import Union, Iterator, Tuple
-
-from math import radians as deg2rad
-from math import degrees as rad2deg
 
 import astropy
 import astropy.units as u
@@ -16,10 +14,11 @@ import numpy as np
 import starlink
 import starlink.Ast as Ast
 
-from .region import ASTRegion
+from .region import ASTRegion, DEFAULT_UNCERTAINTY
 from .polygon import ASTPolygon
 from ..mapping.frame import ASTFrame
 from ..mapping.frame.sky_frame import ASTICRSFrame
+from .. import _pyast_bridge as bridge
 
 __all__ = ["ASTCircle"]
 
@@ -40,31 +39,35 @@ class ASTCircle(ASTRegion):
 		c = ASTCircle(frame, center, edge_point)
 		c = ASTCircle(frame, center, radius)
 
+	Points and the radius may be given in any of the bridge-accepted forms:
+	SkyCoord (any system — converted), Quantities, or bare values read as
+	degrees on sky frames and native units otherwise.
+
 	:param ast_object: a circle object from the ``starlink-pyast`` module
-	:param frame: a frame the circle is to be defined in, uses :class:`ASTICRSFrame` if `None`
-	:param center: two elements that describe the center point of the circle in the provided frame in degrees
-	:param edge_point: two elements that describe a point on the circumference of the circle in the provided frame in degrees
-	:param radius: radius of the circle in degrees
+	:param frame: a frame the circle is to be defined in — a cornish or ``starlink.Ast`` frame, frame set (current frame governs), or region; uses :class:`ASTICRSFrame` if `None`
+	:param center: two elements that describe the center point of the circle in the provided frame
+	:param edge_point: two elements that describe a point on the circumference of the circle in the provided frame
+	:param radius: radius of the circle: a Quantity (angular, sky frames only) or a number (degrees on sky frames, native units otherwise)
+	:param uncertainty: uncertainty of the boundary: a Quantity (angular, sky frames only), a number (degrees on sky frames), or a Region; omit for the 1 arcsec default (sky frames), or pass ``None`` explicitly for AST's internal default
 	'''
 	def __init__(self, \
 				 ast_object:starlink.Ast.Circle=None, \
-				 frame:Union[ASTFrame,Ast.astFrame,astropy.coordinates.ICRS]=None, \
+				 frame:Union[ASTFrame,Ast.Frame,astropy.coordinates.ICRS]=None, \
 				 center:Union[astropy.coordinates.SkyCoord,Iterator]=None, \
 				 edge_point:Union[np.ndarray,Iterator]=None, \
-				 radius:Union[float,astropy.units.quantity.Quantity]=None):
-
-		self._uncertainty = 4.848e-6 # defaults to 1 arcsec
+				 radius:Union[float,astropy.units.quantity.Quantity]=None, \
+				 uncertainty:Union[None, float, u.Quantity, ASTRegion, Ast.Region]=DEFAULT_UNCERTAINTY):
 
 		if ast_object:
 			if any([x is not None for x in [frame, center, edge_point, radius]]):
-				raise Exception("ASTCircle: cannot specify both 'ast_object' and any other parameter.")
+				raise ValueError("ASTCircle: cannot specify both 'ast_object' and any other parameter.")
 
 			if isinstance(ast_object, Ast.Circle):
-				# make sure no other parameters are set
-				self.astObject = ast_object
+				# an externally-created circle: its uncertainty (if any) is unknown here
+				super().__init__(ast_object=ast_object)
 				return
 			else:
-				raise Exception("ASTCircle: The 'ast_object' provided was not of type starlink.Ast.Circle.")
+				raise TypeError("ASTCircle: The 'ast_object' provided was not of type starlink.Ast.Circle.")
 
 		# check valid combination of parameters
 		# -------------------------------------
@@ -72,17 +75,10 @@ class ASTCircle(ASTRegion):
 		# make sure we have a frame we can work with
 		if frame is None:
 			ast_frame = ASTICRSFrame().astObject
-			#raise Exception("ASTCircle: A frame must be specified when creating an ASTCircle.")
+		elif isinstance(frame, astropy.coordinates.ICRS):
+			ast_frame = ASTICRSFrame().astObject
 		else:
-			if isinstance(frame, ASTFrame):
-				ast_frame = frame.astObject
-			elif isinstance(frame, starlink.Ast.Frame):
-				ast_frame = frame #ASTFrame.frameFromAstObject(frame)
-			elif isinstance(frame, astropy.coordinates.ICRS):
-				ast_frame = ASTICRSFrame().astObject
-			else:
-				raise Exception(f"ASTCircle: unexpected frame type specified ('{type(frame)}').")
-
+			ast_frame = bridge._unwrap(frame) # frame sets and regions are legal: the current/encapsulated frame governs
 
 		if all([x is not None for x in [edge_point, radius]]):
 			raise ValueError("Both 'edge_point' and 'radius' cannot be simultaneously specified.")
@@ -94,143 +90,125 @@ class ASTCircle(ASTRegion):
 		# input forms:
 		#	CENTER_EDGE   (0) : circle specified by center point and any point on the circumference (p1 = [float,float], p2 = [float,float])
 		#	CENTER_RADIUS (1) : circle specified by center point and radius                         (p1 = [float,float], p2 = float)
-		input_form = None
-		if edge_point is None:
+		p1 = bridge.to_frame_units(center, ast_frame, squeeze=True)
+		if edge_point is not None:
+			input_form = CENTER_EDGE
+			p2 = bridge.to_frame_units(edge_point, ast_frame, squeeze=True)
+		else:
 			input_form = CENTER_RADIUS
+			p2 = [bridge.to_frame_distance(radius, ast_frame)]
 
-		# convert np.array types to lists so that the value can be used in 'any' and 'all' comparisons.
-		# if isinstance(centerPoint, np.ndarray):
-		# 	centerPoint = centerPoint.tolist()
-		# if isinstance(edgePoint, np.ndarray):
-		# 	edgePoint = edgePoint.tolist()
-		# if isinstance(centerPoint, astropy.coordinates.SkyCoord):
-		# 	centerPoint = [centerPoint.ra.to(u.deg).value, centerPoint.dec.to(u.deg).value]
-		#
-		# if all([centerPoint, edgePoint]) or all([centerPoint, radius]):
-		# 	if edgePoint:
-		# 		input_form = CENTER_EDGE
-		# 	else:
-		# 		input_form = CENTER_RADIUS
-		# else:
-		# 	raise Exception("ASTCircle: Either 'centerPoint' and 'edgePoint' OR 'centerPoint' " + \
-		# 					"and 'radius' must be specified when creating an ASTCircle.")
+		if uncertainty is DEFAULT_UNCERTAINTY and not bridge.is_sky(ast_frame):
+			uncertainty = None # the angular 1 arcsec default is meaningless on a basic frame; AST's internal default governs
+		unc_region = bridge.as_uncertainty_region(uncertainty, ast_frame, p1)
 
-		if isinstance(center, astropy.coordinates.SkyCoord):
-			p1 = [center.ra.to(u.rad).value, center.dec.to(u.rad).value]
-		elif isinstance(center[0], astropy.units.quantity.Quantity):
-			try:
-				p1 = [center[0].to(u.rad).value, center[1].to(u.rad).value]
-			except astropy.units.core.UnitConversionError as e:
-				# todo: be more descriptive
-				raise e
-		else:
-			p1 = [deg2rad(center[0]), deg2rad(center[1])]
-
-		if input_form == CENTER_EDGE:
-			# p1 = center point, p2 = edge point
-			if isinstance(edge_point, astropy.coordinates.SkyCoord):
-				p2 = [edge_point.ra.to(u.rad).value, edge_point.dec.to(u.rad).value]
-			else:
-				p2 = [deg2rad(edge_point[0]), deg2rad(edge_point[1])]
-		else:
-			# p1 = center point, p2 = radius
-			if isinstance(radius, astropy.units.quantity.Quantity):
-				p2 = [radius.to(u.rad).value]
-			else:
-				p2 = [deg2rad(radius)]
-
-		self.astObject = Ast.Circle( ast_frame, input_form, p1, p2, unc=self.uncertainty )
+		# pyast SILENTLY IGNORES the `unc=` keyword on region constructors and
+		# rejects a positional None, so the uncertainty region must be appended
+		# POSITIONALLY and only when non-None (SPEC-04A §8 / D15). Do not "clean
+		# this up" into the kwarg form — it parses fine and silently drops the
+		# uncertainty.
+		args = (ast_frame, input_form, p1, p2) + ((unc_region,) if unc_region is not None else ())
+		super().__init__(ast_object=Ast.Circle(*args), uncertainty=uncertainty)
 
 	def __repr__(self):
-		return "<{0}.{1} {2}: center={3} deg, r={4:0.6}>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
+		return "<{0}.{1} {2}: center={3}, r={4:0.6}>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)),
 														self.center, self.radius)
+
+	def _validateDilationOperand(self, value, operation:str):
+		'''
+		Shared validation for the dilation operators below; returns the numeric operand.
+		'''
+		if isinstance(value, (ASTRegion, Ast.Region)):
+			raise TypeError(f"A region cannot be used to {operation} a circle; "
+			                f"pass a number (or an angular Quantity on a sky frame).")
+		if isinstance(value, bool) or not isinstance(value, (numbers.Real, u.Quantity)):
+			raise TypeError(f"Cannot {operation} a circle's radius by an object of type '{type(value).__name__}'.")
+		return value
 
 	def __add__(self, value):
 		'''
-		Return a new ASTCircle with a radius increased by the provided :class:`astropy.units.Quantity` angular distance.
-		:param value: new value is assumed to be in degrees if it's not an :class:`astropy.units.Quantity` object
-		'''
-		try:
-			value = float(value) * u.deg
-		except (ValueError, TypeError):
-			pass
+		Return a new ASTCircle with its radius increased by the provided distance.
 
-		if value:
+		On a sky-frame circle the value may be an angular :class:`astropy.units.Quantity`
+		or a bare number read as degrees. On a basic-frame circle the value must be
+		a bare number in the frame's native units (a Quantity raises ValueError —
+		its unit cannot be reconciled with unknowable native units).
+		'''
+		value = self._validateDilationOperand(value, "dilate")
+		if bridge.is_sky(self.astObject):
+			if not isinstance(value, u.Quantity):
+				value = float(value) * u.deg
 			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius + value)
 		else:
-			raise ValueError(f"Could not interpret provided value as a number.")
+			if isinstance(value, u.Quantity):
+				raise ValueError("A Quantity cannot dilate a circle on a non-sky frame: its unit "
+				                 "cannot be reconciled with unknowable native frame units — pass a bare number.")
+			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius + float(value))
 
 	def __mul__(self, value):
 		'''
-		Return a new ASTCircle with a radius increased by a multiple of the value provided.
-		:param value: numeric value to increase the radius by, e.g. 1.2 increases the radius by 20%
+		Return a new ASTCircle with a radius scaled by the value provided.
+		:param value: numeric value to scale the radius by, e.g. 1.2 increases the radius by 20%
 		'''
-		# try:
-		# 	new_radius = self.radius.to_value() * value
-		# except Exception as e:
-		# 	raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
-
-		if value:
-			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius.unit * self.radius.to(u.deg).value * value)
-		else:
-			raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
+		value = self._validateDilationOperand(value, "scale")
+		if isinstance(value, u.Quantity):
+			raise TypeError("A circle's radius can only be scaled by a plain number, not a Quantity.")
+		if not (np.isfinite(value) and value > 0):
+			raise ValueError(f"A circle's radius can only be scaled by a positive, finite value (got {value!r}).")
+		return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius * float(value))
 
 	def __truediv__(self, value):
 		'''
-		Return a new ASTCircle with a radius divided by a multiple of the value provided.
-		:param value: numeric value to decrease the radius by, e.g. 2 decreases the radius by 50%
+		Return a new ASTCircle with a radius divided by the value provided.
+		:param value: numeric value to divide the radius by, e.g. 2 decreases the radius by 50%
 		'''
-		if value:
-			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius.unit * self.radius.to(u.deg).value / value)
-		else:
-			raise ValueError(f"Could not interpret '{value}' as a number; error: {e}")
+		value = self._validateDilationOperand(value, "scale")
+		if isinstance(value, u.Quantity):
+			raise TypeError("A circle's radius can only be scaled by a plain number, not a Quantity.")
+		if not (np.isfinite(value) and value > 0):
+			raise ValueError(f"A circle's radius can only be divided by a positive, finite value (got {value!r}).")
+		return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius / float(value))
 
 	@property
-	def radius(self) -> astropy.units.quantity.Quantity:
+	def radius(self) -> Union[astropy.units.quantity.Quantity, float]:
 		'''
-		The radius of this circle region in degrees.
+		The radius of this circle region.
 
-		:returns: The radius as a geodesic distance in the associated coordinate system as an :class:`astropy.units.Quantity` object in degrees.
+		:returns: for a circle on a sky frame, an :class:`astropy.units.Quantity`
+			in degrees (a geodesic distance); for a circle on a basic (non-sky)
+			frame, a bare float in the frame's native units — never labeled with
+			a unit that AST does not know
 		'''
-		center = None
-		radius = None
-
 		( center, radius, some_point_on_circumference ) = self.astObject.circlepars()
 
-		return rad2deg(radius) * u.deg
-
-		# TODO: possibly cache this
+		r = bridge.from_frame_distance(radius, self.astObject)
+		if bridge.is_sky(self.astObject):
+			return r * u.deg
+		return r
 
 	@property
 	def center(self) -> Tuple[float]:
 		'''
-		The center of this circle region in degrees (a synonym for :func:`self.centre`" for the Americans).
+		The center of this circle region (a synonym for :func:`self.centre`" for the Americans).
 
 		Returns
 		-------
-		:returns: a tuple of points (x,y) that describe the centre of the circle in degrees
+		:returns: a tuple of points (x,y) that describe the centre of the circle, in degrees if a sky frame
 		'''
 		return self.centre
 
 	@property
 	def centre(self) -> Tuple[float]:
 		'''
-		The centre of this circle region in degrees.
+		The centre of this circle region, in degrees if a sky frame (native frame units otherwise).
 
 		Returns
 		-------
-		:returns: a tuple of points (x,y) that describe the centre of the circle in degrees
+		:returns: a tuple of points (x,y) that describe the centre of the circle
 		'''
-		center = None
-		radius = None
-
 		( center, radius, some_point_on_circumference ) = self.astObject.circlepars()
 
-		# ..todo:: possibly cache this
-		# ..todo:: create another method (e.g. centerCoord) that returns an astropy.coordinates.SkyCoordinate object; would need to check if it's a sky object
-		#          example use is from boundingCircle, but that does is not a SkyFrame.
-
-		return tuple(np.rad2deg(center))
+		return tuple(bridge.from_frame_units(center, self.astObject))
 
 	def toPolygon(self, npoints=200, maxerr:astropy.units.Quantity=1.0*u.arcsec):
 		'''
@@ -244,15 +222,11 @@ class ASTCircle(ASTRegion):
 		:param npoints: number of points to sample from the circle for the resulting polygon
 		:param maxerr:
 		'''
-		#old_mesh_size = self.meshSize
-		#self.meshSize = npoints
 		points = self.boundaryPointMesh(npoints=npoints)
 
-		#logger.debug(points)
-		return ASTPolygon(frame=self, points=points) # can get the frame from the astObject
-
-		#points = self.boundaryPointMesh(npoints=npoints)
-		#return ASTPolygon.fromPointsOnSkyFrame(radec_pairs=points, frame=self.frame)
+		polygon = ASTPolygon(frame=self, points=points) # can get the frame from the astObject
+		polygon.wcs = self.wcs # propagate the originating WCS, when known (SPEC-04 §2)
+		return polygon
 
 	def boundingCircle(self) -> ASTCircle:
 		'''

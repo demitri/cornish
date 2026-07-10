@@ -75,5 +75,6 @@ setup(
     #ext_modules=[c_extension], # alternative: cythonize(etc), needs "from Cython.Build import cythonize"
     #include_dirs=[],
     #py_modules=['cornish'],
-    python_requires='>=3.6'
+    python_requires='>=3.11' # StrEnum (cornish.enums); astropy >= 7 (a hard dependency) already requires 3.11
+
 )

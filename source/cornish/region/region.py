@@ -8,8 +8,6 @@ from abc import ABCMeta, abstractproperty, abstractmethod
 from typing import Union, Iterable, Tuple
 
 import math
-from math import radians as deg2rad
-from math import degrees as rad2deg
 
 import numpy as np
 import astropy
@@ -20,7 +18,15 @@ import starlink.Ast as Ast
 import cornish.region # to avoid circular imports below - better way?
 from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
 from ..exc import NotA2DRegion, CoordinateSystemsCouldNotBeMapped
-from ..constants import AST_SURFACE_MESH, AST_BOUNDARY_MESH, CENTER_CORNER, CORNER_CORNER
+from ..enums import MeshType, OverlapType
+from .. import _pyast_bridge as bridge
+
+#: Module-level default for region constructors' ``uncertainty`` parameter.
+#: Identity against this singleton distinguishes "parameter omitted" (the 1
+#: arcsec default is materialized and delivered to AST on sky frames; on basic
+#: frames an angular default is meaningless and AST's internal default governs)
+#: from an explicitly-passed value (SPEC-04A §8 three-way rule).
+DEFAULT_UNCERTAINTY = 1 * u.arcsec
 
 
 __all__ = ['ASTRegion']
@@ -74,6 +80,9 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	def __init__(self, ast_object:starlink.Ast.Region=None, uncertainty=None):
 		super().__init__(ast_object=ast_object)
 		self._uncertainty = uncertainty
+		#: The pixel<->world :class:`ASTFrameSet` this region was born from, when
+		#: known (e.g. set by ``fromFITSHeader``); ``None`` otherwise (SPEC-04 §2).
+		self.wcs = None
 
 	def __add__(self, other_region):
 		# TODO: check data type, handle both ASTRegion and the ast_object region?
@@ -81,107 +90,27 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		return ASTCompoundRegion(regions=[self, other_region], operation=Ast.AND)
 
 	@classmethod
-	def fromFITSHeader(cls, fits_header=None, uncertainty:float=4.848e-6):
+	def fromFITSHeader(cls, fits_header=None, maxerr:astropy.units.Quantity=1*u.arcsec, maxvert:int=200) -> ASTRegion:
 		'''
-		Factory method to create a region from the provided FITS header; the returned object will be as specific as possible (but probably an :py:class:`ASTPolygon`).
+		Factory method to create a region covering the field described by the
+		provided FITS header; the returned object will be as specific as
+		possible (currently always an :py:class:`ASTPolygon`).
 
-		The frame is determined from the FITS header.
+		This is a dispatcher over the shape-specific factories (SPEC-04 §3.4):
+		today it returns :meth:`ASTPolygon.fromFITSHeader`; a future heuristic
+		may return e.g. an :class:`ASTCircle` where one describes the field
+		exactly. The returned region carries its pixel<->world frame set in
+		``.wcs``.
 
-		:param fits_header: a FITS header (Astropy, fitsio, an array of cards)
-		:param uncertainty: defaults to 4.848e-6, an uncertainty of 1 arcsec
+		:param fits_header: a FITS header (astropy, fitsio, an array of cards, a dict, or a string)
+		:param maxerr: maximum deviation of the polygon from the true field outline
+		:param maxvert: maximum number of vertices in the returned polygon
 		'''
-
-		# See if anything needs to be saved from here.
-		# See if it's possible that ast_object.mapregion would ever return anything other than a polygon.
-		# Could be interesting to return a circle for a GALEX image, for example?
-		raise Exception("This method is deprecated; use ASTPolygon.fromFITSHeader.")
-
 		if fits_header is None:
 			raise ValueError("This method requires a 'fits_header' to be set.")
 
-		# import here to avoid circular imports
-		from .box import ASTBox
-		from .circle import ASTCircle
-		from .polygon import ASTPolygon
-		from ..channel import ASTFITSChannel
-
-		# get frame from header
-		fits_channel = ASTFITSChannel(header=fits_header)
-
-		# does this channel contain a frame set?
-		frame_set = fits_channel.frameSet
-		if frame_set is None:
-			raise ValueError("The provided FITS header does not describe a region (e.g. not an image, does not contain a WCS that AST can read).")
-
-		frame = frame_set.baseFrame
-
-		# support n-dimensional regions
-
-		# define needed parameters for region creation below
-		dimensions = fits_channel.dimensions
-		n_dim = len(dimensions)
-		cornerPoint = [0.5 for x in range(n_dim)] # -> pixels
-		cornerPoint2 = [dimensions[x] + 0.5 for x in range(n_dim)] # -> pixel
-		#cornerPoint=[0.5,0.5], # center of lower left pixel
-		#cornerPoint2=[dimensions[0]+0.5, dimensions[1]+0.5])
-
-		if n_dim > 2:
-			raise NotImplementedError("HDUs describing dimensions greater than 2 not currently supported.")
-
-		#if isinstance(frame, ASTFrame):
-		#	self.frame = frame
-		#elif isinstance(frame, starlink.Ast.Frame):
-		#	self.frame = ASTFrame(frame=frame)
-		#else:
-		#	raise Exception("ASTBox: unexpected frame type specified ('{0}').".format(type(frame)))
-
-		#if all([cornerPoint,centerPoint]) or all([cornerPoint,cornerPoint2]) or dimensions is not None:
-		#	if dimensions is not None:
-		#		input_form = CORNER_CORNER
-		#		p1 = [0.5,0.5] # use 0.5 to specify the center of each pixel
-		#		p2 = [dimensions[0]+0.5, dimensions[1]+0.5]
-		#	elif centerPoint is None:
-		#		input_form = CORNER_CORNER
-		#		p1 = [cornerPoint[0], cornerPoint[1]]
-		#		p2 = [cornerPoint2[0], cornerPoint2[1]]
-		#		dimensions = [math.fabs(cornerPoint[0] - cornerPoint2[0]),
-		#					  math.fabs(cornerPoint[1] - cornerPoint2[1])]
-		#	else:
-		#		input_form = CENTER_CORNER
-		#		p1 = [centerPoint[0], centerPoint[1]]
-		#		p2 = [cornerPoint[0], cornerPoint[1]]
-		#		dimensions = [2.0 * math.fabs(centerPoint[0] - cornerPoint[0]),
-		#					  2.0 * math.fabs(centerPoint[1] - cornerPoint[1])]
-
-		input_form = CORNER_CORNER
-		p1 = [cornerPoint[0], cornerPoint[1]]
-		p2 = [cornerPoint2[0], cornerPoint2[1]]
-		dimensions = [math.fabs(cornerPoint[0] - cornerPoint2[0]),
-					  math.fabs(cornerPoint[1] - cornerPoint2[1])]
-
-
-		#dimensions = [dimensions[0], dimensions[1]]
-		#logger.debug("Setting dims: {0}".format(self.dimensions))
-
-		ast_object = Ast.Box( frame.astObject, input_form, p1, p2, unc=uncertainty )
-
-		# create the mapping from pixel to sky (or whatever is there) if available
-		mapping = frame_set.astObject.getmapping() # defaults are good
-		current_frame = frame_set.astObject.getframe(starlink.Ast.CURRENT)
-
-		# create a new region with new mapping
-		ast_object = ast_object.mapregion(mapping, current_frame)
-
-		if isinstance(ast_object, Ast.Box):
-			from .box import ASTBox # avoid circular imports
-			return ASTBox(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.Circle):
-			from .circle import ASTCircle # avoid circular imports
-			return ASTCircle(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.Polygon):
-			return ASTPolygon(ast_object=ast_object)
-		else:
-			raise Exception(f"Unexpected region type encountered: {type(ast_object)}.")
+		from .polygon import ASTPolygon # avoid circular import
+		return ASTPolygon.fromFITSHeader(header=fits_header, maxerr=maxerr, maxvert=maxvert)
 
 	@classmethod
 	def fromSTCS(cls, stcs:str) -> ASTRegion:
@@ -241,7 +170,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		from .moc import ASTMoc # avoid circular import
 		return ASTMoc.fromRegion(self, max_order=max_order)
 
-	def toSTCS(self) -> str:
+	def toSTCS(self, digits:int=16) -> str:
 		'''
 		Return the IVOA STC-S string description of this region, e.g. ``Circle ICRS 30 45 2``.
 
@@ -254,13 +183,25 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		valid for external services but does not round-trip through
 		:meth:`fromSTCS`. Convert with :meth:`toPolygon` first if a round-trip is needed.
 
+		:param digits: number of significant digits written for coordinate values;
+			the default (16) makes the geometry round-trip losslessly through
+			:meth:`fromSTCS` (STC-S remains lossy for uncertainty and refpos)
 		:raises ValueError: if AST cannot represent this region in STC-S
 		'''
 		from ..channel.channel_io import ListSink # avoid circular import
 
+		if not isinstance(digits, int) or isinstance(digits, bool):
+			raise TypeError(f"'digits' must be an integer (got '{type(digits).__name__}').")
+		if not (1 <= digits <= 17):
+			raise ValueError(f"'digits' must be between 1 and 17 (got {digits}).")
+
+		# write a copy so the formatting attribute never leaks into this region
+		formatted_copy = self.astObject.copy()
+		formatted_copy.set(f"Digits={digits}")
+
 		sink = ListSink()
 		stcs_channel = Ast.StcsChan(None, sink)
-		n_written = stcs_channel.write(self.astObject)
+		n_written = stcs_channel.write(formatted_copy)
 		if n_written == 0 or len(sink.lines) == 0:
 			raise ValueError(f"This region ({self.__class__.__name__}) could not be serialized to STC-S.")
 		return " ".join(line.strip() for line in sink.lines).strip()
@@ -309,39 +250,46 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		:returns: NumPy array of coordinate points in degrees, shape (ncoord,2), e.g. [[ra1,dec1], [ra2, dec2], ..., [ra_n, dec_n]]
 		'''
 
-		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]]
-		# transpose the points before returning
-		# also, normalize points to expected bounds
+		# getregionpoints returns data as [[x1, x2, ..., xn], [y1, y2, ..., yn]];
+		# the bridge normalizes, converts units, and transposes
 
 		region_points = self.astObject.getregionpoints()
 
 		if self.isNegated:
 			# reverse order to reflect the definition of the polygon
+			# (negation is region semantics, not units — it stays at this call site)
 			region_points = np.fliplr(region_points)
 
-		if self.frame().isSkyFrame:
-			return np.rad2deg(self.astObject.norm(region_points)).T
-		else:
-			#return self.astObject.getregionpoints().T
-			return region_points.T
+		return bridge.from_frame_units(region_points, self.astObject)
 
 	@property
 	def uncertainty(self):
 		'''
-		Uncertainties associated with the boundary of the Box.
+		The uncertainty associated with the boundary of this region, as requested
+		at construction (a Quantity, a number, a Region, or ``None``).
 
-		The uncertainty in any point on the boundary of the Box is found by
-		shifting the supplied "uncertainty" Region so that it is centered at
-		the boundary point being considered. The area covered by the shifted
-		uncertainty Region then represents the uncertainty in the boundary
-		position. The uncertainty is assumed to be the same for all points.
+		The uncertainty in any point on the boundary of the region is found by
+		shifting the uncertainty region so that it is centered at the boundary
+		point being considered; the area it covers then represents the
+		uncertainty in the boundary position (assumed the same for all points).
+
+		This Python-side value was actually delivered to AST exactly when the
+		object was built through the cornish constructors/factories that accept
+		an ``uncertainty`` parameter (and it was not ``None``); for objects that
+		wrap an externally-created AST region it is ``None`` and AST's internal
+		default governs. (Historical note: before the SPEC-04 migration no
+		cornish uncertainty ever reached AST — the ``unc=`` keyword is silently
+		ignored by pyast.)
 		'''
 		return self._uncertainty
 
 	@uncertainty.setter
 	def uncertainty(self, unc):
-		raise Exception("Setting the uncertainty currently doesn't do anything.")
-		self._uncertainty = unc
+		raise NotImplementedError(
+			"The uncertainty of an existing region cannot be changed (no astSetUnc "
+			"exposure exists in pyast); pass 'uncertainty' to the region's constructor "
+			"or factory method instead."
+		)
 
 	@property
 	def isAdaptive(self):
@@ -357,7 +305,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		elif newValue in [False, 0, "0"]:
 			self.astObject.set("Adaptive=0")
 		else:
-			raise Exception("ASTRegion.adaptive property must be one of [True, False, 1, 0].")
+			raise ValueError("ASTRegion.isAdaptive property must be one of [True, False, 1, 0].")
 
 	@property
 	def isNegated(self):
@@ -371,7 +319,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		elif newValue in [False, 0, "0"]:
 			self.astObject.set("Negated=0")
 		else:
-			raise Exception("ASTRegion.isNegated property must be one of [True, False, 1, 0].")
+			raise ValueError("ASTRegion.isNegated property must be one of [True, False, 1, 0].")
 
 	def negate(self):
 		''' Negate the region, i.e. points inside the region will be outside, and vice versa. '''
@@ -391,7 +339,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		elif newValue in [False, 0, "0"]:
 			self.astObject.set("Closed=0")
 		else:
-			raise Exception("ASTRegion.isClosed property must be one of [True, False, 1, 0].")
+			raise ValueError("ASTRegion.isClosed property must be one of [True, False, 1, 0].")
 
 	@property
 	def isBounded(self) -> bool:
@@ -405,7 +353,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		elif newValue in [False, 0, "0"]:
 			self.astObject.set("Bounded=0")
 		else:
-			raise Exception("ASTRegion.isBounded property must be one of [True, False, 1, 0].")
+			raise ValueError("ASTRegion.isBounded property must be one of [True, False, 1, 0].")
 
 	def frame(self) -> ASTFrame:
 		'''
@@ -447,7 +395,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 				newValue = 5
 			self.astObject.set("MeshSize={0}".format(newValue))
 		else:
-			raise Exception("ASTRegion.meshSize: an integer value of at least 5 is required.")
+			raise TypeError("An integer value of at least 5 is required for 'meshSize'.")
 
 
 	@property
@@ -458,7 +406,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 	@fillFactor.setter
 	def fillFactor(self, newValue):
-		raise Exception("TODO: document and implement")
+		raise NotImplementedError("Setting 'fillFactor' is not yet implemented.")
 
 	@property
 	def bounds(self) -> Tuple:
@@ -472,9 +420,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# e.g. for a 2D image,
 		# [-10,5], [10,20] <- (ra, dec) or pixel bounds
 
-		if self.frame().isSkyFrame:
-			lower_bounds = np.rad2deg(self.astObject.norm(lower_bounds))
-			upper_bounds = np.rad2deg(self.astObject.norm(upper_bounds))
+		lower_bounds = bridge.from_frame_units(lower_bounds, self.astObject)
+		upper_bounds = bridge.from_frame_units(upper_bounds, self.astObject)
 
 		return (lower_bounds, upper_bounds)
 
@@ -499,114 +446,75 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			raise NotA2DRegion(f"A bounding circle can only be computed on a 2D region; this region has {self.naxes} axes.")
 
 		from .circle import ASTCircle
-		centre, radius = self.astObject.getregiondisc() # returns radians
-		# note that AST signals "no disc" with Ast.BAD (a large *finite* float), not NaN
+		centre, radius = self.astObject.getregiondisc() # returns frame units (radians on sky)
+		# note that AST signals "no disc" with Ast.BAD (a large *finite* float), not NaN;
+		# this guard stays ahead of the bridge call for its domain-specific message
 		if (Ast.BAD in centre) or (radius == Ast.BAD) or \
 		   not (np.all(np.isfinite(centre)) and math.isfinite(radius)):
 			# e.g. an empty region (such as a MOC of the AND of disjoint regions);
 			# fail here rather than let bad values propagate
 			raise ValueError(f"No bounding circle could be determined for this region (AST returned centre={centre}, radius={radius}); the region may be empty or unbounded.")
-		return ASTCircle(frame=self, center=np.rad2deg(centre), radius=rad2deg(radius))
+		return ASTCircle(frame=self,
+		                 center=bridge.from_frame_units(centre, self.astObject),
+		                 radius=bridge.from_frame_distance(radius, self.astObject))
+
+	def overlapType(self, region:Union[ASTRegion, starlink.Ast.Region]) -> OverlapType:
+		'''
+		Return the nature of the overlap between this region and the provided one
+		as an :class:`~cornish.enums.OverlapType` (the ``astOverlap`` return code).
+
+		Unlike the boolean predicates below, this includes
+		:attr:`OverlapType.NO_FRAME_MAPPING` rather than raising.
+
+		:param region: the region to compare against
+		'''
+		if region is None:
+			raise ValueError("'None' was provided as the second region.")
+		if isinstance(region, ASTRegion):
+			return_value = self.astObject.overlap(region.astObject)
+		elif isinstance(region, starlink.Ast.Region):
+			return_value = self.astObject.overlap(region)
+		else:
+			raise TypeError(f"Unexpected object given for region; expected either ASTRegion or starlink.Ast.Region (got '{type(region)}').")
+		return OverlapType(return_value)
+
+	def _checkedOverlapType(self, region) -> OverlapType:
+		''' overlapType, raising when the two regions' coordinate systems cannot be mapped. '''
+		overlap = self.overlapType(region)
+		if overlap == OverlapType.NO_FRAME_MAPPING:
+			raise CoordinateSystemsCouldNotBeMapped("The provided region's coordinate system could not be mapped to this region's system.")
+		return overlap
 
 	def overlaps(self, region) -> bool:
 		'''
 		Return ``True`` if this region overlaps with the provided one.
 		'''
-		if region is None:
-			raise ValueError("'None' was provided as the second region.")
-		if isinstance(region, ASTRegion):
-			return_value = self.astObject.overlap(region.astObject)
-		elif isinstance(region, starlink.Ast.Region):
-			return_value = self.astObject.overlap(region)
-		else:
-			raise ValueError(f"Unexpected object given for region; expected either ASTRegion or starlink.Ast.Region (got '{type(region)}').")
-
-		if return_value == 0:
-			raise CoordinateSystemsCouldNotBeMapped("The provided region's coordinate system could not be mapped to this region's system.")
-		elif return_value == 1:
-			return False 			# no overlap
-		elif return_value == 2:
-			return True 			# this region is completely inside the provded region
-		elif return_value == 3:
-			return True 			# the provded region is completely inside the first region
-		elif return_value == 4:
-			return True 			# there is partial overlap
-		elif return_value == 5:
-			return True				# the resions are identical to within their uncertainties
-		elif return_value == 6:
-			return False			# the second region is the exact negation of this region to within their uncertainties
+		return self._checkedOverlapType(region) in \
+			(OverlapType.INSIDE, OverlapType.CONTAINS, OverlapType.PARTIAL, OverlapType.IDENTICAL)
 
 	def isIdenticalTo(self, region:ASTRegion) -> bool:
 		'''
 		Returns 'True' if this region is identical (to within their uncertainties) to the provided region, 'False' otherwise.
 		'''
-		if region is None:
-			raise ValueError("'None' was provided as the second region.")
-		if isinstance(region, ASTRegion):
-			return_value = self.astObject.overlap(region.astObject)
-		elif isinstance(region, starlink.Ast.Region):
-			return_value = self.astObject.overlap(region)
-		else:
-			raise ValueError(f"Unexpected object given for region; expected either ASTRegion or starlink.Ast.Region (got '{type(region)}').")
-
-		if return_value == 0:
-			raise CoordinateSystemsCouldNotBeMapped("The provided region's coordinate system could not be mapped to this region's system.")
-		else:
-			return return_value == 5
+		return self._checkedOverlapType(region) == OverlapType.IDENTICAL
 
 	def isFullyWithin(self, region:ASTRegion) -> bool:
 		'''
 		Returns 'True' if this region is fully within the provided region.
 		'''
-		if region is None:
-			raise ValueError("'None' was provided as the second region.")
-		if isinstance(region, ASTRegion):
-			return_value = self.astObject.overlap(region.astObject)
-		elif isinstance(region, starlink.Ast.Region):
-			return_value = self.astObject.overlap(region)
-		else:
-			raise ValueError(f"Unexpected object given for region; expected either ASTRegion or starlink.Ast.Region (got '{type(region)}').")
-
-		if return_value == 0:
-			raise CoordinateSystemsCouldNotBeMapped("The provided region's coordinate system could not be mapped to this region's system.")
-		else:
-			return return_value == 2
+		return self._checkedOverlapType(region) == OverlapType.INSIDE
 
 	def fullyEncloses(self, region:ASTRegion) -> bool:
 		'''
 		Returns 'True' if this region fully encloses the provided region.
 		'''
-		if region is None:
-			raise ValueError("'None' was provided as the second region.")
-		if isinstance(region, ASTRegion):
-			return_value = self.astObject.overlap(region.astObject)
-		elif isinstance(region, starlink.Ast.Region):
-			return_value = self.astObject.overlap(region)
-		else:
-			raise ValueError(f"Unexpected object given for region; expected either ASTRegion or starlink.Ast.Region (got '{type(region)}').")
+		return self._checkedOverlapType(region) == OverlapType.CONTAINS
 
-		if return_value == 0:
-			raise CoordinateSystemsCouldNotBeMapped("The provided region's coordinate system could not be mapped to this region's system.")
-		else:
-			return return_value == 3
-
-	def isNegationOf(self, region):
+	def isNegationOf(self, region) -> bool:
 		'''
 		Returns 'True' if this region is the exact negation of the provided region.
 		'''
-		if region is None:
-			raise ValueError("'None' was provided as the second region.")
-		if isinstance(region, ASTRegion):
-			return_value = self.astObject.overlap(region.astObject)
-		elif isinstance(region, starlink.Ast.Region):
-			return_value = self.astObject.overlap(region)
-		else:
-			raise ValueError(f"Unexpected object given for region; expected either ASTRegion or starlink.Ast.Region (got '{type(region)}').")
-
-		if return_value == 0:
-			raise CoordinateSystemsCouldNotBeMapped("The provided region's coordinate system could not be mapped to this region's system.")
-		else:
-			return return_value == 6
+		return self._checkedOverlapType(region) == OverlapType.NEGATION
 
 	def maskOnto(self, image=None, mapping=None, fits_coordinates:bool=True, lower_bounds=None, mask_inside=True, mask_value=float("NaN")):
 		'''
@@ -623,11 +531,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 		# coded now for numpy arrays, but set ndim,shape for anything else
 		ndim = len(image.shape)
-		shape = image.shape # <-- unused variable!
 
 		# assert number of axes in image == # of outputs in the mapping
-		if ndim != mapping.number_of_output_coordinates:
-			raise Exception(f"The number of dimensions in the provided image ({ndim}) does not match the number of output dimensions of the provided mapping ({mapping.number_of_output_coordinates}).")
+		if ndim != mapping.numberOfOutputCoordinates:
+			raise ValueError(f"The number of dimensions in the provided image ({ndim}) does not match the number of output dimensions of the provided mapping ({mapping.numberOfOutputCoordinates}).")
 
 		if fits_coordinates:
 			# use the pixel coordinates for FITS files -> origin at [0.5, 0.5]
@@ -654,7 +561,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		:returns: new ASTRegion with a new coordinate system
 		'''
 		if frame is None:
-			raise Exception("A frame must be specified.")
+			raise ValueError("A frame must be specified.")
 		if map is None:
 			map = frame # attempt to use the frame as a mapper (an ASTFrame is a subclass of ASTMapper)
 
@@ -666,28 +573,29 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		elif isinstance(map, (ASTMapping, ASTFrameSet)): # frame sets contain mappings
 			ast_map = map.astObject
 		else:
-			raise Exception("Expected 'map' to be one of these two types: starlink.Ast.Mapping, ASTMap.")
+			raise TypeError("Expected 'map' to be one of these two types: starlink.Ast.Mapping, ASTMapping.")
 
 		if isinstance(frame, starlink.Ast.Frame):
 			ast_frame = frame
-		elif isinstance(map, (ASTFrame, ASTFrameSet)):
+		elif isinstance(frame, (ASTFrame, ASTFrameSet)):
 			ast_frame = frame.astObject
 		else:
-			raise Exception("Expected 'frame' to be one of these two types: starlink.Ast.Frame, ASTFrame.")
+			raise TypeError("Expected 'frame' to be one of these two types: starlink.Ast.Frame, ASTFrame.")
 
 		new_ast_region = self.astObject.mapregion(ast_map, ast_frame)
 
-		# This is temporary and probably fragile. Find a replacement for this ASAP.
-		# get the returned region type to create the correct wrapper
-		#
-		# -> make a deep copy, replace obj.astObject with new one (check any properties)
-		#
-		if new_ast_region.Class == 'Polygon' or isinstance(new_ast_region, starlink.Ast.Polygon):
-			return cornish.region.ASTPolygon(ast_object=new_ast_region)
-		elif new_ast_region.Class == 'Box' or isinstance(new_ast_region, starlink.Ast.Box):
-			return cornish.region.ASTBox(ast_object=new_ast_region)
+		# wrap in the appropriate cornish class
+		if isinstance(new_ast_region, starlink.Ast.Polygon):
+			new_region = cornish.region.ASTPolygon(ast_object=new_ast_region)
+		elif isinstance(new_ast_region, starlink.Ast.Box):
+			new_region = cornish.region.ASTBox(ast_object=new_ast_region)
+		elif isinstance(new_ast_region, starlink.Ast.Circle):
+			new_region = cornish.region.ASTCircle(ast_object=new_ast_region)
 		else:
-			raise Exception("ASTRegion.regionWithMapping: unhandled region type (easy fix).")
+			from ..exc import UnsupportedASTClass
+			raise UnsupportedASTClass(f"ASTRegion.regionWithMapping: unhandled region type '{new_ast_region.Class}'.")
+		new_region.wcs = self.wcs # propagate the originating WCS, when known (SPEC-04 §2)
+		return new_region
 
 	def mapRegionMesh(self, mapping=None, frame=None):
 		'''
@@ -711,14 +619,14 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			An exception is raised for missing parameters.
 		'''
 		if mapping is None or frame is None:
-			raise Exception("A mapping and frame is required to be passed to 'mapRegion'.")
+			raise ValueError("A mapping and frame is required to be passed to 'mapRegionMesh'.")
 
 		# check it's the correct type
 		if not isinstance(mapping, ASTMapping):
-			raise Exception("The object passed to 'mapping' needs to be an ASTMapping object.")
+			raise TypeError("The object passed to 'mapping' needs to be an ASTMapping object.")
 
 		if not isinstance(frame, ASTFrame):
-			raise Exception("The object passed to 'frame' needs to be an ASTFrame object.")
+			raise TypeError("The object passed to 'frame' needs to be an ASTFrame object.")
 
 		self.astObject.mapregionmesh( mapping, frame )
 
@@ -750,22 +658,17 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			self.meshSize = npoints
 
 		try:
-			mesh = self.astObject.getregionmesh(AST_BOUNDARY_MESH) # here "surface" means the boundary
-			# if a basic frame is used instead of a sky frame, the points need to be normalized on [0,360)
-			# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points; do not call norm again.
-			#mesh = self.astObject.norm(mesh)
+			mesh = self.astObject.getregionmesh(MeshType.BOUNDARY)
+			# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points;
+			# from_frame_units norms again, which is a harmless idempotent call (M14).
 		except Ast.MBBNF as e:
-			print(f"AST error: Mapping bounding box not found. ({e})")
-			raise e
+			raise ValueError("A mesh could not be generated: no bounding box could be found for this region's mapping.") from e
 
 		if npoints is not None:
 			# restore original value
-			self.meshSize = old_mesh_size #self.astObject.set("MeshSize={0}".format(old_mesh_size))
+			self.meshSize = old_mesh_size
 
-		if self.frame().isSkyFrame:
-			return np.rad2deg(mesh).T # returns as a list of pairs of points, not two parallel arrays
-		else:
-			return mesh.T
+		return bridge.from_frame_units(mesh, self.astObject) # a list of point pairs, not two parallel arrays
 
 	def interiorPointMesh(self, npoints:int=None):
 		'''
@@ -780,7 +683,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# See discussion of "MeshSize" in method "boundaryPointMesh".
 
 		if npoints is not None and not isinstance(npoints, int):
-			raise Exception(f"The parameter 'npoints' must be an integer ('{type(npoints)}' provided).")
+			raise TypeError(f"The parameter 'npoints' must be an integer ('{type(npoints)}' provided).")
 
 		if npoints is None:
 			pass # use default value
@@ -792,18 +695,15 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# The returned "points" array from getregionmesh() will be a 2-dimensional array with shape (ncoord,npoint),
 		# where "ncoord" is the number of axes within the Frame represented by the Region,
 		# and "npoint" is the number of points in the mesh (see attribute "MeshSize").
-		mesh = self.astObject.getregionmesh(AST_SURFACE_MESH) # here "surface" means the interior
-		# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points; do not call norm again.
-		#mesh = self.astObject.norm(mesh)
+		mesh = self.astObject.getregionmesh(MeshType.SURFACE) # AST's "surface" mesh is the interior
+		# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points;
+		# from_frame_units norms again, which is a harmless idempotent call (M14).
 
 		if npoints is not None:
 			# restore original value
 			self.astObject.set("MeshSize={0}".format(old_mesh_size))
 
-		if self.frame().isSkyFrame:
-			mesh = np.rad2deg(mesh)
-
-		return mesh.T
+		return bridge.from_frame_units(mesh, self.astObject)
 
 	def containsPoint(self, point:Union[Iterable, astropy.coordinates.SkyCoord]=None) -> bool:
 		'''
@@ -821,19 +721,16 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		'''
 		Returns ``True`` if the provided point lies inside this region, ``False`` otherwise.
 
-		If no units are specified degrees are assumed.
+		The point may be a SkyCoord (any system — converted), a Quantity pair, or
+		bare values: degrees when this region is in a sky frame, the frame's
+		native units otherwise (e.g. pixels for a pixel-frame region).
 
 		:param point: a coordinate point in the same frame as this region
 		'''
 		if point is None:
 			raise ValueError("A test point must be specified.")
 
-		if isinstance(point, astropy.coordinates.SkyCoord):
-			point = [point.ra.to(u.rad).value, point.dec.to(u.rad).value]
-		else:
-			point = np.deg2rad(point)
-
-		return self.astObject.pointinregion(point)
+		return self.astObject.pointinregion(bridge.to_frame_units(point, self.astObject, squeeze=True))
 
 	@abstractproperty
 	def area(self) -> astropy.units.quantity.Quantity:
