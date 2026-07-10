@@ -11,10 +11,11 @@ Cornish wraps the C-flavored `starlink-pyast` interface to the Starlink AST libr
 - Regions (box, circle, polygon) are fairly mature and the primary use case so far.
 - Compound regions are actively in progress — not recommended to use yet (see recent commits and `AST+Cornish Wish List.md`). Note: several wish-list blockers are fixed upstream in AST 9.3 (`getregiondisc` and boundary meshes now work on compound regions — verified 2026-07-09); converting to a MOC (`region.toMoc()`) is the recommended way to get bounding circles/areas for compound geometry.
 - `ASTMoc` (IVOA Multi-Order Coverage maps) and STC-S serialization (`region.toSTCS()` / `ASTRegion.fromSTCS()`) added 2026-07-09, with tests in `source/tests/test_moc_stcs.py`.
-- `addPoints` API is in flux — still being reworked, not settled.
-- FITS header handling (`ASTRegion.fromFITSHeader`, `channel/fits_channel.py`) is in active use. (`ASTRegion.fromFITSHeader` itself raises "deprecated" — use `ASTPolygon.fromFITSHeader`; the README's first example needs updating.)
-- A full project evaluation + implementation-ready spec corpus (API gaps, C-vs-pyast verdict, recipes, plotting/`cornish-view` design) lives in `local_development/2026-07-09 Claude Fable project review/` (gitignored; machine-local). **Resuming that effort? Read its `ORCHESTRATION.md` first** — it tracks what's done and the next action. The bridge-module design (`specs/SPEC-04A_bridge_design.md`) is frozen and double-reviewed to dry (2026-07-09); SPEC-04 implementation is unblocked.
-- Known latent issue recorded there (SPEC-04A §8): pyast silently ignores the `unc=` keyword on region constructors, so no cornish-built region has ever carried its stated uncertainty to AST — the fix ships with the SPEC-04 migration; until then treat documented "1 arcsec uncertainty" claims as aspirational.
+- **Branch `spec-04-bridge` (2026-07-10) implements SPEC-04 + SPEC-10**: the private `cornish/_pyast_bridge.py` module is now the ONLY place unit/shape conversions happen (machine-enforced by `test_no_conversions_outside_bridge`); `cornish/enums.py` holds AST-welded enums; all exceptions descend from `cornish.exc.CornishError` (no bare `Exception` raised — gate-enforced); regions pickle via `__reduce__`; `fromFITSHeader` has a fast mapregion path and carries `.wcs`. Suite 320/320 on the branch. Awaiting final review rounds + merge — read the review-state note in the local `ORCHESTRATION.md` before touching it.
+- `addPoints` accepts the full bridge input contract on the branch (SkyCoord/Quantity/bare degrees).
+- FITS header handling (`ASTRegion.fromFITSHeader`, `channel/fits_channel.py`) is in active use. On the branch, `ASTRegion.fromFITSHeader` works again as a dispatcher (the README's first example is valid there); on master it still raises "deprecated".
+- A full project evaluation + implementation-ready spec corpus (API gaps, C-vs-pyast verdict, recipes, plotting/`cornish-view` design) lives in `local_development/2026-07-09 Claude Fable project review/` (gitignored; machine-local). **Resuming that effort? Read its `ORCHESTRATION.md` first** — it tracks what's done and the next action.
+- The pyast `unc=`-keyword-silently-ignored bug (SPEC-04A §8): FIXED on the branch — uncertainties are delivered positionally and a 1-arcsec default is materialized on sky frames; on master no cornish-built region has ever carried its stated uncertainty to AST. Upstream bug report still to be filed (see local ORCHESTRATION loose ends).
 - Version: see `source/cornish/version.py` (currently 1.1).
 
 ## Where things are
@@ -29,4 +30,8 @@ Cornish wraps the C-flavored `starlink-pyast` interface to the Starlink AST libr
 
 ## Conventions a fresh session would otherwise violate
 
-- None identified yet — add here as they come up.
+- **All coordinate unit/shape conversions go through `cornish/_pyast_bridge.py`** (`to_frame_units`/`from_frame_units` and the distance pair). Never write `deg2rad`/`rad2deg`/`.to(u.rad)` in package code — a test gate fails the suite if you do (angle-of-result lines are the only allowlisted exception).
+- **Region constructors' uncertainty must be passed to pyast POSITIONALLY, appended only when non-None** — pyast silently ignores the `unc=` keyword and rejects a positional `None`. Every such call site carries a comment saying so; do not "clean it up" into kwarg form (D15).
+- **Values from fixed sets use the enums in `cornish/enums.py`** (OverlapType, RegionOperation, MeshType, …), not bare strings/ints; `cornish/constants.py` is a deprecated alias layer.
+- **No bare `raise Exception`** — TypeError for wrong types, ValueError for bad values, `cornish.exc` subclasses for domain errors (SPEC-10 policy; AST-walk gate enforces the unraised-exception pattern too).
+- Test channel/`FitsChan` objects with `is not None`, never truthiness — an empty `Ast.FitsChan` is falsy.
