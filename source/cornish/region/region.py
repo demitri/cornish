@@ -391,12 +391,12 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 	@meshSize.setter
 	def meshSize(self, newValue:int):
-		if isinstance(newValue, int):
-			if newValue < 5:
-				newValue = 5
-			self.astObject.set("MeshSize={0}".format(newValue))
-		else:
+		if isinstance(newValue, bool) or not isinstance(newValue, int):
 			raise TypeError("An integer value of at least 5 is required for 'meshSize'.")
+		if newValue < 5:
+			# raise rather than silently clamp: a rewritten value is a hidden surprise
+			raise ValueError(f"'meshSize' must be at least 5 (got {newValue}).")
+		self.astObject.set("MeshSize={0}".format(newValue))
 
 
 	@property

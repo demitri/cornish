@@ -452,3 +452,29 @@ def test_frame_both_ast_object_and_naxes_zero():
 	''' truthiness fix pin: naxes=0 alongside ast_object is still a conflict '''
 	with pytest.raises(ValueError):
 		CornishFrame(ast_object=Ast.Frame(2), naxes=0)
+
+
+def test_set_attribute_comma_injection_safe():
+	'''
+	sonnet round: astSet parses comma-separated settings lists, so an
+	unquoted value containing ", Attr=Val" silently truncated the value AND
+	set the other attribute. The seam quotes values; pin both halves.
+	'''
+	frame = CornishFrame(naxes=2)
+	frame.domain = "AAA"
+	frame.title = "Hello, Domain=BBB"
+	assert frame.title == "Hello, Domain=BBB" # value preserved verbatim
+	assert frame.domain == "AAA"              # other attribute untouched
+	frame.setLabelForAxis(axis=1, label="RA, deg")
+	assert frame.label(axis=1) == "RA, deg"
+
+
+def test_mesh_size_rejects_too_small():
+	''' sonnet round note: meshSize silently clamped values < 5 while claiming to require them '''
+	circle = ASTCircle(center=[30, 45], radius=2.0)
+	with pytest.raises(ValueError):
+		circle.meshSize = 3
+	with pytest.raises(TypeError):
+		circle.meshSize = True
+	circle.meshSize = 6
+	assert circle.meshSize == 6

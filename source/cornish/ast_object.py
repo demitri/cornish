@@ -27,9 +27,15 @@ class ASTObject(metaclass=ABCMeta):
 		All wrapper setters that forward user-provided values to
 		``astObject.set()`` must route through this single seam (found twice
 		leaking — Equinox and System — before it was mechanized).
+
+		The value is double-quoted: astSet parses its argument as a
+		COMMA-SEPARATED settings list, so an unquoted value containing
+		``", Attr=Val"`` would silently truncate the value AND set the other
+		attribute (verified; quoting preserves such values verbatim, including
+		for numeric and indexed attributes).
 		'''
 		try:
-			self.astObject.set(f"{name}={value}")
+			self.astObject.set(f'{name}="{value}"')
 		except Ast.AstError as e:
 			raise ValueError(f"AST could not set the attribute '{name}' to {value!r}.") from e
 
