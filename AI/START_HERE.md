@@ -13,7 +13,8 @@ Cornish wraps the C-flavored `starlink-pyast` interface to the Starlink AST libr
 - `ASTMoc` (IVOA Multi-Order Coverage maps) and STC-S serialization (`region.toSTCS()` / `ASTRegion.fromSTCS()`) added 2026-07-09, with tests in `source/tests/test_moc_stcs.py`.
 - `addPoints` API is in flux — still being reworked, not settled.
 - FITS header handling (`ASTRegion.fromFITSHeader`, `channel/fits_channel.py`) is in active use. (`ASTRegion.fromFITSHeader` itself raises "deprecated" — use `ASTPolygon.fromFITSHeader`; the README's first example needs updating.)
-- A full project evaluation + implementation-ready spec corpus (API gaps, C-vs-pyast verdict, recipes, plotting/`cornish-view` design) lives in `local_development/2026-07-09 Claude Fable project review/` (gitignored; machine-local). **Resuming that effort? Read its `ORCHESTRATION.md` first** — it tracks what's done and the next action.
+- A full project evaluation + implementation-ready spec corpus (API gaps, C-vs-pyast verdict, recipes, plotting/`cornish-view` design) lives in `local_development/2026-07-09 Claude Fable project review/` (gitignored; machine-local). **Resuming that effort? Read its `ORCHESTRATION.md` first** — it tracks what's done and the next action. The bridge-module design (`specs/SPEC-04A_bridge_design.md`) is frozen and double-reviewed to dry (2026-07-09); SPEC-04 implementation is unblocked.
+- Known latent issue recorded there (SPEC-04A §8): pyast silently ignores the `unc=` keyword on region constructors, so no cornish-built region has ever carried its stated uncertainty to AST — the fix ships with the SPEC-04 migration; until then treat documented "1 arcsec uncertainty" claims as aspirational.
 - Version: see `source/cornish/version.py` (currently 1.1).
 
 ## Where things are
