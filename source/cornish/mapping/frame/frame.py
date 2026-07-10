@@ -45,6 +45,9 @@ class ASTFrame(ASTMapping):
 			else:
 				raise TypeError(f"The provided 'ast_object' is not an Ast.Frame object (got class '{type(ast_object)}').")
 		else:
+			naxes = as_integer(naxes, "naxes")
+			if naxes < 1:
+				raise ValueError(f"'naxes' must be at least 1 (got {naxes}).")
 			super().__init__(ast_object=Ast.Frame(naxes))
 
 	@staticmethod

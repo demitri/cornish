@@ -111,9 +111,16 @@ class ASTPolygon(ASTRegion):
 		Create a polygon bounding the region of a 2D image.
 
 		:param path: the path to the FITS file
-		:param hdu: the HDU to open, first HDU = 1
+		:param hdu: the HDU to open, 1-based: first HDU = 1
 		'''
+		hdu = as_integer(hdu, "hdu")
+		if hdu < 1:
+			# guard the 0-based-indexing guess: hdu-1 == -1 would silently
+			# wrap around to the LAST extension via Python list indexing
+			raise ValueError(f"'hdu' is 1-based — the first HDU is 1 (got {hdu}).")
 		with astropy.io.fits.open(path) as hdu_list:
+			if hdu > len(hdu_list):
+				raise ValueError(f"'hdu' is {hdu} but the file contains only {len(hdu_list)} HDU(s).")
 			polygon = ASTPolygon.fromFITSHeader(hdu_list[hdu-1].header)
 		return polygon
 

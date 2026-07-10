@@ -566,3 +566,35 @@ def test_as_integer_directly():
 	for bad in (True, 5.0, "5", None):
 		with pytest.raises(TypeError):
 			as_integer(bad, "x")
+
+
+def test_frame_naxes_validation():
+	''' sonnet round: ASTFrame(naxes=True) silently created a 1-axis frame '''
+	with pytest.raises(TypeError):
+		CornishFrame(naxes=True)
+	with pytest.raises(ValueError):
+		CornishFrame(naxes=0)
+	assert CornishFrame(naxes=np.int64(3)).naxes == 3
+
+
+def test_fromFITSFilepath_hdu_validation(tmp_path):
+	''' sonnet round: hdu=0 silently wrapped around to the LAST extension '''
+	from cornish import ASTPolygon
+	import astropy.io.fits as fits
+	header = fits.Header()
+	for keyword, value in [("NAXIS", 2), ("NAXIS1", 64), ("NAXIS2", 64),
+	                       ("CRPIX1", 32.5), ("CRPIX2", 32.5), ("CRVAL1", 30.0), ("CRVAL2", 45.0),
+	                       ("CDELT1", -0.001), ("CDELT2", 0.001),
+	                       ("CTYPE1", "RA---TAN"), ("CTYPE2", "DEC--TAN")]:
+		header[keyword] = value
+	path = tmp_path / "test.fits"
+	fits.PrimaryHDU(data=np.zeros((64, 64)), header=header).writeto(path)
+	polygon = ASTPolygon.fromFITSFilepath(path, hdu=1)
+	assert polygon.pointInRegion([30.0, 45.0])
+	for bad in (0, -1):
+		with pytest.raises(ValueError):
+			ASTPolygon.fromFITSFilepath(path, hdu=bad)
+	with pytest.raises(ValueError):
+		ASTPolygon.fromFITSFilepath(path, hdu=2) # only 1 HDU in the file
+	with pytest.raises(TypeError):
+		ASTPolygon.fromFITSFilepath(path, hdu=True)
