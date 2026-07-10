@@ -104,8 +104,8 @@ class ASTFrame(ASTMapping):
 	def title(self, newTitle):
 		self._setAttribute("Title", newTitle)
 
-	def _validate_axis(self, axis):
-		''' Shared validation for the per-axis accessors below. '''
+	def _validate_axis(self, axis) -> int:
+		''' Shared validation for the per-axis accessors below; returns the normalized axis. '''
 		import operator
 		if axis is None:
 			raise ValueError("An axis number must be specified.")
@@ -115,29 +115,31 @@ class ASTFrame(ASTMapping):
 			axis = operator.index(axis) # accepts NumPy ints; rejects floats
 		except TypeError:
 			raise TypeError("The parameter 'axis' must be an integer (a '{0}' was provided).".format(type(axis))) from None
-		if axis > self.naxes:
-			raise ValueError("The axis provided ({0}) is larger than the number of axes ({1}).".format(axis, self.naxes))
+		if not (1 <= axis <= self.naxes):
+			# axes are 1-based; out-of-range values would leak a raw Ast.AXIIN
+			raise ValueError("The axis provided ({0}) must be between 1 and the number of axes ({1}).".format(axis, self.naxes))
+		return axis
 
 	def label(self, axis=None) -> str:
 		''' Return the label for the specified axis. '''
-		self._validate_axis(axis)
+		axis = self._validate_axis(axis)
 		return self.astObject.get("Label({0})".format(axis))
 
 	def setLabelForAxis(self, axis=None, label=None):
 		''' Set the label for the specified axis. '''
-		self._validate_axis(axis)
+		axis = self._validate_axis(axis)
 		if label is None:
 			raise ValueError("A new label must be specified.")
 		self._setAttribute(f"Label({axis})", label)
 
 	def unit(self, axis=None):
 		''' Return the unit for the specified axis. '''
-		self._validate_axis(axis)
+		axis = self._validate_axis(axis)
 		return self.astObject.get("Unit({0})".format(axis))
 
 	def setUnitForAxis(self, axis=None, unit=None):
 		''' Set the unit as a string value for the specified axis. '''
-		self._validate_axis(axis)
+		axis = self._validate_axis(axis)
 		if unit is None:
 			raise ValueError("A new unit must be specified.")
 		self._setAttribute(f"Unit({axis})", unit)

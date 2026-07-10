@@ -512,6 +512,10 @@ def test_integer_parameters_accept_numpy_ints():
 	# frame axis accessors
 	frame = CornishFrame(naxes=2)
 	assert frame.unit(axis=np.int64(1)) == frame.unit(axis=1)
+	# out-of-range axes are a loud ValueError, never a raw Ast.AXIIN leak
+	for bad_axis in (0, -1, 3):
+		with pytest.raises(ValueError):
+			frame.unit(axis=bad_axis)
 	# polygon downsize maxvert
 	polygon = circle.toPolygon(npoints=50)
 	import astropy.units as _u
