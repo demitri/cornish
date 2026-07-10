@@ -396,6 +396,9 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		if newValue < 5:
 			# raise rather than silently clamp: a rewritten value is a hidden surprise
 			raise ValueError(f"'meshSize' must be at least 5 (got {newValue}).")
+		if newValue > 2**31 - 1:
+			# MeshSize is a C int inside AST: larger values are silently rewritten
+			raise ValueError(f"'meshSize' must fit in a signed 32-bit integer (got {newValue}).")
 		self.astObject.set("MeshSize={0}".format(newValue))
 
 
@@ -683,15 +686,13 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		'''
 		# See discussion of "MeshSize" in method "boundaryPointMesh".
 
-		if npoints is not None and not isinstance(npoints, int):
-			raise TypeError(f"The parameter 'npoints' must be an integer ('{type(npoints)}' provided).")
-
 		if npoints is None:
 			pass # use default value
 		else:
-			# use provided value
-			old_mesh_size = self.astObject.get("MeshSize")
-			self.astObject.set("MeshSize={0}".format(npoints))
+			# route through the property so its validation (type, bounds)
+			# applies identically to boundaryPointMesh and interiorPointMesh
+			old_mesh_size = self.meshSize
+			self.meshSize = npoints
 
 		# The returned "points" array from getregionmesh() will be a 2-dimensional array with shape (ncoord,npoint),
 		# where "ncoord" is the number of axes within the Frame represented by the Region,
@@ -703,7 +704,7 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		finally:
 			if npoints is not None:
 				# restore original value even when the mesh generation fails
-				self.astObject.set("MeshSize={0}".format(old_mesh_size))
+				self.meshSize = old_mesh_size
 
 		return bridge.from_frame_units(mesh, self.astObject)
 

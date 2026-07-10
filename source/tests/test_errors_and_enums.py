@@ -478,3 +478,13 @@ def test_mesh_size_rejects_too_small():
 		circle.meshSize = True
 	circle.meshSize = 6
 	assert circle.meshSize == 6
+	# AST silently rewrites values beyond C int range — the setter is the gate
+	with pytest.raises(ValueError):
+		circle.meshSize = 2**31
+	# both mesh methods route npoints through the same validated setter
+	with pytest.raises(ValueError):
+		circle.interiorPointMesh(npoints=3)
+	with pytest.raises(ValueError):
+		circle.boundaryPointMesh(npoints=3)
+	with pytest.raises(TypeError):
+		circle.interiorPointMesh(npoints=True)
