@@ -36,7 +36,9 @@ class ASTSkyFrame(ASTFrame):
 
 		# TODO: if ast_frame provided, check it is a sky frame (see below)
 
-		if ast_object is not None and any([equinox, system, epoch]):
+		# `is not None`, not truthiness: an empty-string parameter is still a
+		# conflicting (or invalid) parameter, not an omitted one
+		if ast_object is not None and (equinox is not None or system is not None or epoch is not None):
 			raise ValueError("If 'ast_object' is provided, none of the other parameters ('equinox', 'system', 'epoch') can be specified.")
 
 		if ast_object is not None:
@@ -49,16 +51,17 @@ class ASTSkyFrame(ASTFrame):
 		else:
 			self.astObject = Ast.SkyFrame()
 
-		if system:
+		if system is not None:
 			if isinstance(system, SkySystem):
 				self.system = system.value
 			elif isinstance(system, str) and system.upper() in _ACCEPTED_SKY_SYSTEMS:
 				self.system = system
 			else:
+				# an empty or unknown string lands here rather than being silently ignored
 				raise ValueError(f"The provided system must be one of: [{sorted(_ACCEPTED_SKY_SYSTEMS)}].")
-		if equinox:
+		if equinox is not None:
 			self.equinox = equinox
-		if epoch:
+		if epoch is not None:
 			self.epoch = epoch
 
 	@classmethod

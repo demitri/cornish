@@ -393,3 +393,12 @@ def test_wrong_ast_class_ast_object_rejected(wrapper_class):
 	''' a genuine AST object of the WRONG class must also be rejected with TypeError '''
 	with pytest.raises(TypeError):
 		wrapper_class(ast_object=Ast.UnitMap(2))
+
+
+def test_skyframe_empty_string_params_not_ignored():
+	''' codex follow-up: falsy-but-provided parameters must conflict or fail, never be silently ignored '''
+	from cornish.mapping.frame.sky_frame import ASTSkyFrame
+	with pytest.raises(ValueError):
+		ASTSkyFrame(ast_object=Ast.SkyFrame(), system="") # conflicting even when falsy
+	with pytest.raises(ValueError):
+		ASTSkyFrame(system="") # empty string is not a valid system, not an omitted one
