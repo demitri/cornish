@@ -125,17 +125,46 @@ class ASTFrameSet(ASTFrame):
 		else:
 			raise FrameNotFoundException("A valid frame set could not be read from the provided FITS header (no WCS?).")
 
+	def _validate_frame_index(self, frame_index) -> int:
+		'''
+		Validate a frame index: 1-based up to Nframe, plus the two AST sentinels
+		``Ast.BASE`` (0) and ``Ast.CURRENT`` (-1) — deliberate, documented values
+		matching astGetFrame's own contract. Anything else raises loudly rather
+		than leaking a raw Ast.FRMIN (or, worse, silently reading 0/-1 as a
+		Python-style index).
+		'''
+		import operator
+		if isinstance(frame_index, bool):
+			raise TypeError("The frame index must be an integer, not a bool.")
+		try:
+			frame_index = operator.index(frame_index) # accepts NumPy ints; rejects floats
+		except TypeError:
+			raise TypeError(f"The frame index must be an integer (got '{type(frame_index).__name__}').") from None
+		number_of_frames = int(self.astObject.get("Nframe"))
+		if frame_index in (Ast.BASE, Ast.CURRENT):
+			return frame_index
+		if not (1 <= frame_index <= number_of_frames):
+			raise ValueError(f"The frame index must be between 1 and {number_of_frames} "
+			                 f"(or the sentinels Ast.BASE/Ast.CURRENT); got {frame_index}.")
+		return frame_index
+
 	def _get_frame(self, frame_index:int) -> starlink.Ast.Frame:
 		'''
 		Internal method to retrieve a ``starlink.Ast.Frame`` frame by its index value within this frame set.
 		'''
-		return self.astObject.getframe(frame_index)
+		return self.astObject.getframe(self._validate_frame_index(frame_index))
 
 	def frameAtIndex(self, frame_index:int) -> ASTFrame:
 		'''
 		Return the frame at the specified index within this frame set.
+
+		Indices are 1-based (AST convention), 1..Nframe; the AST sentinels
+		``Ast.BASE`` (0) and ``Ast.CURRENT`` (-1) are also accepted and mean
+		the base/current frame respectively (see :attr:`baseFrame` and
+		:attr:`currentFrame`). NOTE: these are AST sentinels, not Python-style
+		indices — 0 is not "the first frame" and -1 is not "the last".
 		'''
-		frame = self.astObject.getframe(frame_index)
+		frame = self.astObject.getframe(self._validate_frame_index(frame_index))
 
 		if frame.isaskyframe():
 			from .sky_frame import ASTSkyFrame

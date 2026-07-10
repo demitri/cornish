@@ -523,3 +523,35 @@ def test_integer_parameters_accept_numpy_ints():
 	assert len(downsized.points) <= 10
 	with pytest.raises(TypeError):
 		polygon.downsize(maxerr=1 * _u.arcsec, maxvert=10.5)
+
+
+def test_frame_index_validation():
+	'''
+	sonnet round: frameAtIndex leaked raw Ast.FRMIN for out-of-range indices
+	and SILENTLY read 0/-1 as the AST BASE/CURRENT sentinels. The sentinels
+	stay (AST's own astGetFrame contract, used by baseFrame/currentFrame) but
+	are now documented and deliberate; everything else out of 1..Nframe raises.
+	'''
+	from cornish import ASTFrameSet, ASTICRSFrame
+	fs = ASTFrameSet(base_frame=ASTICRSFrame())
+	assert fs.frameAtIndex(1).system == "ICRS"
+	assert fs.frameAtIndex(Ast.BASE).system == "ICRS"     # documented sentinel (0)
+	assert fs.frameAtIndex(Ast.CURRENT).system == "ICRS"  # documented sentinel (-1)
+	assert fs.frameAtIndex(np.int64(1)).system == "ICRS"
+	for bad in (2, 99, -2):
+		with pytest.raises(ValueError):
+			fs.frameAtIndex(bad)
+	with pytest.raises(TypeError):
+		fs.frameAtIndex(1.5)
+	with pytest.raises(TypeError):
+		fs.frameAtIndex(True)
+
+
+def test_compound_operation_numpy_int():
+	''' sonnet round: the integer-parameter rule applies to 'operation' too '''
+	from cornish import ASTCompoundRegion
+	c1 = ASTCircle(center=[30, 45], radius=2.0)
+	c2 = ASTCircle(center=[32, 45], radius=2.0)
+	compound = ASTCompoundRegion(regions=[c1, c2], operation=np.int64(Ast.AND))
+	from cornish import _pyast_bridge as bridge_module
+	assert int(bridge_module.dump_value(compound.astObject, "Operator")) == Ast.AND

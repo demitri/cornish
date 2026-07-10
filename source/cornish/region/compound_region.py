@@ -53,10 +53,15 @@ class ASTCompoundRegion(ASTRegion):
 			if not isinstance(r, (ASTRegion, Ast.Region)):
 				raise TypeError("The regions provided must be of type ASTRegion or starlink.Ast.Region.")
 
+		import operator
 		if operation is None:
 			raise ValueError("An 'operation' must be specified (one of RegionOperation.AND/OR/XOR).")
-		if isinstance(operation, bool) or not isinstance(operation, int):
-			raise TypeError(f"'operation' must be a RegionOperation (or Ast.AND/OR/XOR integer); got '{type(operation).__name__}'.")
+		if isinstance(operation, bool):
+			raise TypeError("'operation' must be a RegionOperation (or Ast.AND/OR/XOR integer), not a bool.")
+		try:
+			operation = operator.index(operation) # accepts NumPy ints; rejects floats
+		except TypeError:
+			raise TypeError(f"'operation' must be a RegionOperation (or Ast.AND/OR/XOR integer); got '{type(operation).__name__}'.") from None
 		operation = RegionOperation(operation) # ValueError for out-of-range ints
 
 		# Maintain a list of regions that make up the compound region.
