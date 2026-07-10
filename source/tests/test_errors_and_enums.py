@@ -555,3 +555,14 @@ def test_compound_operation_numpy_int():
 	compound = ASTCompoundRegion(regions=[c1, c2], operation=np.int64(Ast.AND))
 	from cornish import _pyast_bridge as bridge_module
 	assert int(bridge_module.dump_value(compound.astObject, "Operator")) == Ast.AND
+
+
+def test_as_integer_directly():
+	''' direct unit coverage for the shared integer-policy seam '''
+	from cornish._validation import as_integer
+	assert as_integer(5, "x") == 5
+	assert as_integer(np.int64(5), "x") == 5
+	assert as_integer(RegionOperation.AND, "x") == 1 # IntEnums pass through
+	for bad in (True, 5.0, "5", None):
+		with pytest.raises(TypeError):
+			as_integer(bad, "x")
