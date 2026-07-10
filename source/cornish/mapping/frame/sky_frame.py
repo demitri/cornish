@@ -102,7 +102,12 @@ class ASTSkyFrame(ASTFrame):
 			raise ValueError("An 'equinox' parameter must be specified.")
 		elif not isinstance(equinox, str):
 			raise TypeError("A string value was expected for 'equinox' (got '{0}').".format(type(equinox)))
-		self.astObject.set(f"Equinox={equinox}")
+		try:
+			self.astObject.set(f"Equinox={equinox}")
+		except Ast.AstError as e:
+			# surface AST's parse failure (e.g. an empty or malformed string) per
+			# the type-vs-value policy rather than leaking a raw Ast.DTERR
+			raise ValueError(f"AST could not interpret '{equinox}' as an equinox.") from e
 
 	@property
 	def epoch(self):

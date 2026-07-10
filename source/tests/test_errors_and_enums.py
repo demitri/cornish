@@ -402,3 +402,7 @@ def test_skyframe_empty_string_params_not_ignored():
 		ASTSkyFrame(ast_object=Ast.SkyFrame(), system="") # conflicting even when falsy
 	with pytest.raises(ValueError):
 		ASTSkyFrame(system="") # empty string is not a valid system, not an omitted one
+	with pytest.raises(ValueError):
+		ASTSkyFrame(equinox="") # chained from AST's parse error, not a raw Ast.DTERR
+	with pytest.raises(ValueError):
+		ASTSkyFrame(epoch="")
