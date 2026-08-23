@@ -74,6 +74,13 @@ setup(
     ],
     #packages=['cornish'],
     packages=setuptools.find_packages(include=["cornish", "cornish.*"]),#exclude=["tests"]), # https://setuptools.readthedocs.io/en/latest/setuptools.html#id15
+    # SPEC-09A: the font-metrics table (§6) and the cornish-view static assets
+    # (§1 module map) are read at runtime via importlib.resources, so they must
+    # ship in the wheel — without this they are silently absent from an install.
+    package_data={
+        "cornish.plot.data": ["*.json"],
+        "cornish.view.static": ["*.js", "*.mjs", "*.html", "*.json"],
+    },
     data_files=data_files,
     #ext_package="cornish", # will compile the methods from the extension to the namespace "cornish"
     #ext_modules=[c_extension], # alternative: cythonize(etc), needs "from Cython.Build import cythonize"

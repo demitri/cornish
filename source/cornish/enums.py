@@ -17,6 +17,7 @@ from enum import IntEnum, StrEnum
 import starlink.Ast as Ast
 
 __all__ = ['OverlapType', 'RegionOperation', 'MeshType', 'PixelComparison', 'Marker',
+           'LineStyle', 'FontStyle', 'MARKER_INPUT_NAMES',
            'SkySystem', 'SpecSystem', 'TimeSystem',
            'SKY_SYSTEM_INPUT_ALIASES', 'SPEC_SYSTEM_INPUT_ALIASES']
 
@@ -81,6 +82,70 @@ class Marker(IntEnum):
 	TRIANGLE_DOWN = 8
 	TRIANGLE_LEFT = 9
 	TRIANGLE_RIGHT = 10
+
+#: Complete string-name -> :class:`Marker` mapping accepted by the plotting
+#: API's ``marker=`` parameters (SPEC-09A §2.4). :class:`Marker` is an IntEnum
+#: with no string values of its own, so this is a full table rather than an
+#: alias delta like :data:`SKY_SYSTEM_INPUT_ALIASES`. The same name -> code
+#: pairs as the frozen ``cornish.plot.matplotlib.markerstr2value``, which stays
+#: local to that superseded module and dies with it at 2.0.
+MARKER_INPUT_NAMES = {
+	"small circle": Marker.SMALL_CIRCLE,
+	"cross": Marker.CROSS,
+	"star": Marker.STAR,
+	"circle": Marker.CIRCLE,
+	"x": Marker.X,
+	"dot": Marker.DOT,
+	"triangle": Marker.TRIANGLE,
+	"triangle down": Marker.TRIANGLE_DOWN,
+	"triangle left": Marker.TRIANGLE_LEFT,
+	"triangle right": Marker.TRIANGLE_RIGHT,
+}
+
+class LineStyle(IntEnum):
+	'''
+	Line styles for the plotting stack, with **PGPLOT semantics** — the values
+	AST's Grf interface passes through and the ones the envelope schema
+	(SPEC-09A §3.3) freezes:
+
+	==== ===================
+	code style
+	==== ===================
+	1    solid
+	2    dashed
+	3    dash-dot
+	4    dotted
+	5    dash-dot-dot-dot
+	==== ===================
+
+	.. warning::
+	   ``starlink.Grf.grf_matplotlib`` interprets these integers *differently*
+	   (its 2/3/4/5 map to solid/dashed/dotted/dash-dot). The same integer
+	   therefore draws a different dash pattern in a v1 matplotlib plot than in
+	   an envelope-rendered SVG. This divergence is deliberate and documented
+	   (SPEC-09A §8.11): the envelope contract follows PGPLOT/astplot-js, which
+	   is what every envelope consumer implements; grf_matplotlib is a live
+	   backend detail that SkyPlot v2 never routes through.
+	'''
+	SOLID = 1
+	DASHED = 2
+	DASH_DOT = 3
+	DOTTED = 4
+	DASH_DOT_DOT_DOT = 5
+
+class FontStyle(IntEnum):
+	'''
+	Text font indices for the envelope schema (SPEC-09A §3.3), matching
+	astplot-js's ``DEFAULT_FONTS`` weight/style table. Note this is a
+	weight/style axis, not a family axis — ``grf_matplotlib``'s font integers
+	select families (serif/sans/mono) instead (SPEC-09A §8.2).
+	'''
+	NORMAL = 1
+	BOLD = 2
+	ITALIC = 3
+	BOLD_ITALIC = 4
+	MEDIUM = 5     #: CSS font-weight 500
+	SEMIBOLD = 6   #: CSS font-weight 600
 
 class SkySystem(StrEnum):
 	'''

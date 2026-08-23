@@ -12,7 +12,8 @@ more specific :class:`CornishError` subclass.
 
 __all__ = ['CornishError', 'FrameNotFoundException', 'NotA2DRegion', 'NotASkyRegion',
            'CoordinateSystemsCouldNotBeMapped', 'NoWCSFound', 'IncompleteHeader',
-           'UnsupportedASTClass', 'SerializationNotPossible', 'RegionNotConnected']
+           'UnsupportedASTClass', 'SerializationNotPossible', 'RegionNotConnected',
+           'EnvelopeError']
 
 class CornishError(Exception):
 	''' Root of the cornish exception hierarchy. '''
@@ -52,6 +53,15 @@ class SerializationNotPossible(CornishError):
 
 class RegionNotConnected(CornishError):
 	''' Raised when an operation requires a simply-connected region but the region has multiple patches. '''
+	pass
+
+class EnvelopeError(CornishError):
+	'''
+	Raised when a draw-stream envelope or document violates the envelope schema
+	v1.0 (SPEC-09A §3) — bad version, wrong shape, out-of-domain field, or a
+	non-finite coordinate. The message carries a JSON-pointer-ish path to the
+	offending field.
+	'''
 	pass
 
 NoWCSFoumd = NoWCSFound # deprecated alias (original misspelling), kept for compatibility
