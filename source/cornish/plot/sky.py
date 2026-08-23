@@ -24,7 +24,7 @@ import starlink.Ast as Ast
 
 from .. import _pyast_bridge as bridge
 from ..enums import FontStyle, LineStyle, MARKER_INPUT_NAMES, Marker, SkySystem
-from ..exc import IncompleteHeader
+from ..exc import FrameNotFoundException, IncompleteHeader
 from ..mapping.frame.frame_set import ASTFrameSet
 from ..region.circle import ASTCircle
 from ..region.region import ASTRegion
@@ -88,6 +88,22 @@ def _set_plot_attribute(ast_plot: Ast.Plot, name: str, value) -> None:
 		ast_plot.set(f'{name}="{value}"')
 	except Ast.AstError as error:
 		raise ValueError(f"AST could not set the plot attribute '{name}' to {value!r}.") from error
+
+
+def _in_notebook() -> bool:
+	'''
+	Whether we are running inside an IPython kernel with rich display.
+
+	``get_ipython`` exists in a plain IPython terminal too, so the kernel class
+	is what distinguishes a notebook (where an SVG mimebundle renders) from a
+	terminal (where it does not).
+	'''
+	try:
+		from IPython import get_ipython
+	except ImportError:
+		return False
+	shell = get_ipython()
+	return shell is not None and shell.__class__.__name__ == "ZMQInteractiveShell"
 
 
 def _validate_common_parameters(*, char_height: float, margin: float, width: int,
@@ -191,7 +207,10 @@ class SkyPlot(CornishPlot):
 				aspect=aspect, rotation_deg=rotation_deg)
 
 		self._cards = cards
-		self._build(cards=cards, aspect=effective_aspect, naxis=naxis, width=width,
+		description = (f"projection '{cards['CTYPE1'][5:]}' / system "
+		               f"{cards['CTYPE1'][:5].rstrip('-')}")
+		self._build(synthetic_description=description,
+		            cards=cards, aspect=effective_aspect, naxis=naxis, width=width,
 		            char_height=char_height, margin=margin, palette=palette,
 		            background=background, plot_id=plot_id, grid=grid)
 
@@ -398,11 +417,15 @@ class SkyPlot(CornishPlot):
 		return float(degrees[0]), float(degrees[1])
 
 	def _build(self, *, cards, aspect, naxis, width, char_height, margin,
-	           palette, background, plot_id, grid) -> None:
-		''' Shared final construction, used by ``__init__`` and ``fromFITSHeader``. '''
+	           palette, background, plot_id, grid, synthetic_description=None) -> None:
+		'''
+		Shared final construction, used by ``__init__`` and ``fromFITSHeader``.
+
+		:param synthetic_description: describes the synthetic header being built (e.g. "projection 'ZZZ' / system ICRS"), used to turn an AST read failure into an actionable ValueError. ``None`` on the ``fromFITSHeader`` path, where the header is the caller's own and its own exception types are more informative.
+		'''
 		naxis1, naxis2 = naxis
 
-		self._frameset = ASTFrameSet.fromFITSHeader(fits_header=dict(cards))
+		self._frameset = self._frameset_from_cards(cards, synthetic_description)
 		self._aspect = aspect
 		self._width = width
 		self._char_height = char_height
@@ -432,7 +455,23 @@ class SkyPlot(CornishPlot):
 
 		self._layers = {}
 		self._layer_sequence = 0
+		#: (base_url, token) once show(view='browser') has switched this plot to live mode
+		self._live = None
 
+		# Whether the caller NAMED this plot. An auto-generated id is a local
+		# handle for the viewer, not a property of the picture, so it is
+		# deliberately kept OUT of the emitted document (§3.1 makes plot_id
+		# optional). Two consequences, both wanted:
+		#
+		#   * `save('x.json')` stays portable — `curl -d @x.json .../plot/demo`
+		#     works, where an embedded auto id would 409 against any URL but its
+		#     own (this is the §9 exit criterion, and it failed before the fix);
+		#   * structurally identical plots hash identically, so an ETag built
+		#     from envelope_hash(document()) actually matches on a repeat request.
+		#
+		# An id the caller DID supply is emitted, so a genuine mismatch is still
+		# caught rather than quietly ignored.
+		self._plot_id_is_explicit = plot_id is not None
 		if plot_id is None:
 			SkyPlot._plot_counter += 1
 			plot_id = f"plot-{os.getpid()}-{SkyPlot._plot_counter}"
@@ -446,6 +485,39 @@ class SkyPlot(CornishPlot):
 	# ------------------------------------------------------------------
 	# layer plumbing
 	# ------------------------------------------------------------------
+
+	@staticmethod
+	def _frameset_from_cards(cards, synthetic_description: Optional[str]) -> ASTFrameSet:
+		'''
+		Read a frameset from *cards*.
+
+		§2.1: there is deliberately **no hand-maintained projection whitelist**
+		for the finite case — the synthetic header is built and AST is the source
+		of truth on whether the projection exists. AST signals rejection in
+		THREE different ways, all of which are mapped, because leaving any of
+		them unmapped would leak a raw AST error to the caller — the bug class
+		this package has mechanized against elsewhere:
+
+		* a raw ``Ast.AstError`` (e.g. ``BDFTS``);
+		* ``read()`` yielding no frameset, which cornish surfaces as
+		  ``FrameNotFoundException``;
+		* a ``UnicodeDecodeError`` raised *inside* pyast's ``FitsChan.read()``.
+		  That last one is a **pyast-level defect**, not a cornish one: for some
+		  invalid projection codes (``ZZZ`` reproduces it; ``QQQ`` does not) AST
+		  produces a byte string that pyast then fails to decode as UTF-8, so
+		  the caller sees "'utf-8' codec can't decode byte 0xc7" instead of
+		  anything about projections. It is a ``ValueError`` subclass, so it
+		  would otherwise sail past a ``ValueError``-based test while telling the
+		  user nothing. Worth adding to the upstream pyast report queue.
+		'''
+		header = dict(cards) if isinstance(cards, dict) else cards
+		try:
+			return ASTFrameSet.fromFITSHeader(fits_header=header)
+		except (Ast.AstError, FrameNotFoundException, UnicodeDecodeError) as error:
+			if synthetic_description is None:
+				raise
+			raise ValueError(f"AST would not read the synthetic header for {synthetic_description}; "
+			                 "the projection is most likely not one AST supports.") from error
 
 	def _next_layer_id(self, kind: str, name: Optional[str]) -> str:
 		'''
@@ -490,7 +562,13 @@ class SkyPlot(CornishPlot):
 			"commands": commands,
 			"seq": sequence,
 		}
+		self._push_live(layer_id)
 		return layer_id
+
+	def _push_live(self, layer_id: str) -> None:
+		''' In live mode, send this one layer's envelope to the daemon. '''
+		if self._live is not None:
+			self._live_post(self.envelope_for(layer_id))
 
 	def _next_creation_sequence(self) -> int:
 		return 1 + max((layer["seq"] for layer in self._layers.values()), default=0)
@@ -836,6 +914,7 @@ class SkyPlot(CornishPlot):
 		            else self._next_creation_sequence())
 		self._layers[layer_id] = {"kind": "image", "z": DEFAULT_Z["image"],
 		                          "commands": [command], "seq": sequence}
+		self._push_live(layer_id)
 		return layer_id
 
 	def addCompass(self, *, position=None, length: Optional[u.Quantity] = None,
@@ -1149,6 +1228,10 @@ class SkyPlot(CornishPlot):
 		if name not in self._layers:
 			raise KeyError(f"No layer '{name}' on this plot; live layers are {sorted(self._layers)}.")
 		del self._layers[name]
+		if self._live is not None:
+			# a viewer must not keep showing a layer this plot no longer has
+			self._live_post(make_envelope(layer_id=name, action=LayerAction.DELETE,
+			                              plot_id=self._emitted_plot_id()))
 
 	def _ordered_layers(self) -> list:
 		''' Layers sorted by (z, creation sequence) — §3.5. '''
@@ -1175,17 +1258,22 @@ class SkyPlot(CornishPlot):
 		block["background"] = self._background
 		return block
 
+	def _emitted_plot_id(self) -> Optional[str]:
+		''' The plot id to write into a body: only one the caller chose. '''
+		return self._plot_id if self._plot_id_is_explicit else None
+
 	def document(self) -> dict:
 		''' The full draw-stream document — canvas plus every live layer in render order. '''
 		document = {
 			"cornish_view": SCHEMA_VERSION,
 			"type": "draw_stream",
-			"plot_id": self._plot_id,
 			"canvas": self.canvas(),
 			"layers": [{"id": layer["id"], "kind": layer["kind"], "z": layer["z"],
 			            "commands": layer["commands"]}
 			           for layer in self._ordered_layers()],
 		}
+		if self._plot_id_is_explicit:
+			document["plot_id"] = self._plot_id
 		validate_document(document)
 		return document
 
@@ -1193,12 +1281,12 @@ class SkyPlot(CornishPlot):
 		''' The same content as a per-layer envelope list, canvas on the first. '''
 		ordered = self._ordered_layers()
 		if not ordered:
-			return [make_envelope(canvas=self.canvas(), plot_id=self._plot_id)]
+			return [make_envelope(canvas=self.canvas(), plot_id=self._emitted_plot_id())]
 		results = []
 		for index, layer in enumerate(ordered):
 			results.append(make_envelope(
 				layer_id=layer["id"], action=LayerAction.REPLACE, kind=layer["kind"],
-				z=layer["z"], commands=layer["commands"], plot_id=self._plot_id,
+				z=layer["z"], commands=layer["commands"], plot_id=self._emitted_plot_id(),
 				canvas=self.canvas() if index == 0 else None))
 		return results
 
@@ -1208,7 +1296,8 @@ class SkyPlot(CornishPlot):
 			raise KeyError(f"No layer '{layer_id}' on this plot.")
 		layer = self._layers[layer_id]
 		return make_envelope(layer_id=layer_id, action=LayerAction.REPLACE, kind=layer["kind"],
-		                     z=layer["z"], commands=layer["commands"], plot_id=self._plot_id)
+		                     z=layer["z"], commands=layer["commands"],
+		                     plot_id=self._emitted_plot_id())
 
 	def svg(self, *, width: Optional[int] = None) -> str:
 		''' Render the plot to an SVG string. '''
@@ -1236,6 +1325,91 @@ class SkyPlot(CornishPlot):
 	def _repr_mimebundle_(self, include=None, exclude=None) -> dict:
 		''' Rich display in Jupyter: the plot renders itself as SVG. '''
 		return {"image/svg+xml": self.svg()}
+
+	@property
+	def live(self) -> bool:
+		''' Whether this plot is mirroring its layers to a running viewer. '''
+		return self._live is not None
+
+	def show(self, view: str = "auto") -> None:
+		'''
+		Display the plot.
+
+		``'auto'``     — inside IPython/Jupyter, display through
+		                 :meth:`_repr_mimebundle_`; otherwise behave as
+		                 ``'browser'``.
+		``'browser'``  — ensure the daemon is running, POST the full document,
+		                 open a browser at ``/view/{plot_id}``, and switch this
+		                 plot to **live mode**: every subsequent draw method also
+		                 POSTs its single-layer envelope SYNCHRONOUSLY.
+		``'matplotlib'`` — replay into matplotlib and show the figure.
+
+		Live posts are synchronous on purpose. A background, fire-and-forget
+		design was rejected because a failure on the LAST draw call of a session
+		would have no next call to raise on — the one plot state the user most
+		cares about would be the one silently lost.
+
+		This method and :meth:`_live_post` are the ONE sanctioned exception to
+		the render/serve separation (§1): they use function-local transport
+		imports, mirroring ``to_matplotlib``'s "imports matplotlib here, and only
+		here" pattern. The §7.4 gate names both, so a third occurrence fails.
+		'''
+		if view == "matplotlib":
+			from matplotlib import pyplot
+			self.to_matplotlib()
+			pyplot.show()
+			return
+
+		if view not in ("auto", "browser"):
+			raise ValueError(f"'{view}' is not a known view; expected 'auto', 'browser' "
+			                 "or 'matplotlib'.")
+
+		if view == "auto" and _in_notebook():
+			from IPython.display import display
+			display(self)
+			return
+
+		import webbrowser
+
+		from ..view.server import ensure_daemon      # sanctioned function-local import
+
+		base_url, token = ensure_daemon()
+		self._live = (base_url, token)
+		try:
+			# a document atomically replaces the whole plot, which is what makes
+			# the bootstrap a single request
+			self._live_post(self.document())
+		except Exception:
+			self._live = None                       # do not leave a half-armed live mode
+			raise
+		webbrowser.open(f"{base_url}/view/{self._plot_id}")
+
+	def _live_post(self, body: dict) -> None:
+		'''
+		POST one envelope or document to the running daemon.
+
+		Raises immediately on failure — see :meth:`show` for why this is
+		synchronous rather than fire-and-forget.
+		'''
+		import urllib.error
+		import urllib.request                       # sanctioned function-local import
+
+		base_url, token = self._live
+		payload = canonical_json(body).encode("utf-8")
+		request = urllib.request.Request(f"{base_url}/plot/{self._plot_id}",
+		                                 data=payload, method="POST")
+		request.add_header("Content-Type", "application/json")
+		request.add_header("Authorization", f"Bearer {token}")
+		try:
+			with urllib.request.urlopen(request, timeout=2.0) as response:
+				response.read()
+		except urllib.error.HTTPError as error:
+			detail = error.read().decode("utf-8", "replace")
+			raise RuntimeError(f"The cornish-view daemon rejected a live update for plot "
+			                   f"'{self._plot_id}' ({error.code}): {detail}") from error
+		except OSError as error:
+			raise RuntimeError(f"Could not reach the cornish-view daemon at {base_url} to send a "
+			                   f"live update for plot '{self._plot_id}'.") from error
 
 	def to_matplotlib(self, axes=None):
 		'''

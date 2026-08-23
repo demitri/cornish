@@ -40,13 +40,13 @@ COUNT_TOLERANCE = 0.10
 def build_golden1() -> dict:
 	''' The PoC TAN field (CRVAL 30/45, 2° radius), grid only. '''
 	extent = ASTCircle(frame=ASTICRSFrame(), center=[30.0, 45.0], radius=2 * u.deg)
-	return SkyPlot(extent=extent, plot_id="golden1").document()
+	return SkyPlot(extent=extent).document()
 
 
 def build_golden2() -> dict:
 	''' TAN + a circle region outline + 3 markers — the §9 curl example. '''
 	extent = ASTCircle(frame=ASTICRSFrame(), center=[30.0, 45.0], radius=2 * u.deg)
-	plot = SkyPlot(extent=extent, plot_id="golden2")
+	plot = SkyPlot(extent=extent)
 	plot.addRegionOutline(ASTCircle(frame=ASTICRSFrame(), center=[30.0, 45.0], radius=1 * u.deg))
 	plot.addPoints(ra=[29.5, 30.0, 30.5], dec=[44.8, 45.0, 45.2])
 	return plot.document()
@@ -54,7 +54,7 @@ def build_golden2() -> dict:
 
 def build_golden3() -> dict:
 	''' All-sky AIT, galactic. '''
-	return SkyPlot(all_sky=True, system="GALACTIC", plot_id="golden3").document()
+	return SkyPlot(all_sky=True, system="GALACTIC").document()
 
 
 GOLDEN_BUILDERS = {
@@ -264,3 +264,14 @@ def test_golden3_is_all_sky_galactic():
 def test_fixtures_readme_exists():
 	''' §7.6: the fixture directory documents its own compare and regeneration rules. '''
 	assert os.path.exists(os.path.join(FIXTURE_DIRECTORY, "FIXTURES.md"))
+
+
+def test_no_golden_pins_a_plot_id():
+	'''
+	A shared conformance fixture must not dictate which plot id a consumer
+	POSTs it to. An embedded plot_id makes the §9 exit criterion
+	(`curl -d @golden2.json .../plot/demo`) fail with 409 against any URL but
+	its own, and makes the fixture non-portable for astplot-js's vendored copy.
+	'''
+	for name in sorted(GOLDEN_BUILDERS):
+		assert "plot_id" not in load_golden(name), f"{name} pins a plot_id"

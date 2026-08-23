@@ -1,0 +1,103 @@
+<!doctype html>
+<!--
+  The cornish-view viewer page (SPEC-09A §4.1, §5.2).
+
+  This page is itself the pattern-3 reference embedding: it uses exactly the
+  public CornishView contract — `new CornishView(svg)` plus `apply()` — over an
+  EventSource, and nothing else.
+
+  Opening a viewer BEFORE the first POST is a supported workflow: the server
+  returns this page for any well-formed id, the page subscribes, and the
+  snapshot is deferred until the plot is created.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cornish-view</title>
+<style>
+	:root { color-scheme: light dark; }
+	body {
+		margin: 0;
+		font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+		display: flex;
+		flex-direction: column;
+		min-height: 100vh;
+	}
+	header {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+		padding: 0.6rem 1rem;
+		border-bottom: 1px solid rgba(127, 127, 127, 0.35);
+	}
+	header h1 { font-size: 0.95rem; font-weight: 600; margin: 0; }
+	#plot-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; opacity: 0.75; }
+	#status { margin-left: auto; font-size: 0.8rem; opacity: 0.7; }
+	#status.waiting::before { content: "\25CB\00a0"; }
+	#status.live::before { content: "\25CF\00a0"; color: #2ca02c; }
+	#status.error::before { content: "\25CF\00a0"; color: #d62728; }
+	main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+	svg { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<header>
+	<h1>cornish-view</h1>
+	<span id="plot-id"></span>
+	<span id="status" class="waiting">connecting</span>
+</header>
+<main><svg id="plot" xmlns="http://www.w3.org/2000/svg"></svg></main>
+
+<script type="module">
+import { CornishView } from "/static/cornish-view.js";
+
+// /view/{plot_id} — the id is the last path segment
+const plotId = decodeURIComponent(window.location.pathname.split("/").filter(Boolean).pop() || "");
+document.getElementById("plot-id").textContent = plotId;
+document.title = `${plotId} — cornish-view`;
+
+const statusElement = document.getElementById("status");
+function setStatus(text, className) {
+	statusElement.textContent = text;
+	statusElement.className = className;
+}
+
+const view = new CornishView(document.getElementById("plot"));
+const events = new EventSource(`/events/${encodeURIComponent(plotId)}`);
+
+events.addEventListener("open", () => setStatus("waiting for data", "waiting"));
+
+// snapshot-then-deltas: a snapshot always fully replaces what we hold, so an
+// EventSource auto-reconnect mid-stream is always consistent
+events.addEventListener("snapshot", (message) => {
+	try {
+		view.clear();
+		view.apply(JSON.parse(message.data));
+		setStatus("live", "live");
+	} catch (error) {
+		setStatus(`bad snapshot: ${error.message}`, "error");
+		console.error(error);
+	}
+});
+
+events.addEventListener("envelope", (message) => {
+	try {
+		view.apply(JSON.parse(message.data));
+		setStatus("live", "live");
+	} catch (error) {
+		setStatus(`bad envelope: ${error.message}`, "error");
+		console.error(error);
+	}
+});
+
+events.addEventListener("plot_deleted", () => {
+	view.clear();
+	setStatus("plot deleted", "waiting");
+});
+
+// EventSource reconnects on its own; the next snapshot restores consistency
+events.addEventListener("error", () => setStatus("reconnecting", "error"));
+</script>
+</body>
+</html>

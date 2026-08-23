@@ -172,13 +172,25 @@ def test_unsupported_system_raises():
 		SkyPlot(extent=circle(), system="nonsense")
 
 
-def test_bad_projection_is_refused_by_ast():
+@pytest.mark.parametrize("projection", ["ZZZ", "QQQ"])
+def test_bad_projection_is_refused_by_ast(projection):
 	'''
 	§2.1: no hand-maintained projection whitelist for the finite case — the
 	synthetic header is built and AST is the source of truth.
+
+	Both codes are exercised because AST fails them by DIFFERENT routes: 'QQQ'
+	yields no frameset, while 'ZZZ' makes pyast's own FitsChan.read() raise a
+	UnicodeDecodeError on an undecodable byte string (a pyast-level defect).
+	Both must arrive as an actionable message rather than a raw AST error.
 	'''
-	with pytest.raises(ValueError):
-		SkyPlot(extent=circle(), projection="ZZZ")
+	with pytest.raises(ValueError, match="synthetic header"):
+		SkyPlot(extent=circle(), projection=projection)
+
+
+@pytest.mark.parametrize("projection", ["TAN", "SIN", "STG", "AIT"])
+def test_projections_ast_accepts_are_accepted(projection):
+	''' The other half of "AST is the source of truth": no whitelist rejects these. '''
+	assert SkyPlot(extent=circle(), projection=projection)._cards["CTYPE1"].endswith(projection)
 
 
 @pytest.mark.parametrize("kwargs", [
@@ -204,6 +216,30 @@ def test_palette_uses_the_wider_entry_grammar():
 def test_bad_plot_id_raises():
 	with pytest.raises(ValueError, match="legal plot id"):
 		SkyPlot(extent=circle(), plot_id="not a plot id")
+
+
+def test_auto_plot_ids_are_unique_but_stay_out_of_the_document():
+	"""
+	An auto id is a local handle for the viewer, not a property of the picture,
+	so it is not emitted (§3.1 makes plot_id optional). That keeps a saved
+	document POSTable to any plot id — the §9 curl exit criterion, which a
+	pinned auto id defeats with a 409 — and keeps structurally identical plots
+	hashing identically, so an ETag built from the document actually matches.
+	"""
+	from cornish.plot.envelope import envelope_hash
+
+	first, second = SkyPlot(extent=circle()), SkyPlot(extent=circle())
+	assert first.plot_id != second.plot_id
+	assert "plot_id" not in first.document()
+	assert envelope_hash(first.document()) == envelope_hash(second.document())
+	assert first.svg() == second.svg()
+
+
+def test_an_explicit_plot_id_is_emitted():
+	""" A named plot keeps its name, so a genuine mismatch is still caught. """
+	plot = SkyPlot(extent=circle(), plot_id="named")
+	assert plot.document()["plot_id"] == "named"
+	assert plot.envelopes()[0]["plot_id"] == "named"
 
 
 # ---------------------------------------------------------------------------

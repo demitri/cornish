@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cornish.readthedocs.io/schemas/envelope-1.0.json",
+  "title": "cornish draw-stream envelope / document, schema v1.0",
+  "description": "HAND-MAINTAINED (SPEC-09A §3 intro, §3.7): this file is not generated. test_envelope_schema.py holds it in sync with the Python codec by validating every conformance fixture against it AND asserting schema/codec agreement on the invalid-document battery. jsonschema is a test-only dependency.",
+  "oneOf": [
+    { "$ref": "#/$defs/envelope" },
+    { "$ref": "#/$defs/document" }
+  ],
+  "$defs": {
+    "version": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$",
+      "description": "Consumers MUST reject an unknown major and MUST accept an unknown minor."
+    },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+    "finiteNumber": {
+      "type": "number",
+      "description": "NaN/Infinity are illegal in JSON and in this schema; an Ast.BAD-contaminated point must never be emitted."
+    },
+    "canvas": {
+      "type": "object",
+      "properties": {
+        "gbox": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/finiteNumber" },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "aspect": { "type": "number", "exclusiveMinimum": 0 },
+        "margin": { "type": "number", "minimum": 0, "maximum": 0.5 },
+        "char_height": { "type": "number", "exclusiveMinimum": 0 },
+        "font_family": { "type": "string" },
+        "palette": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
+        "background": { "type": ["string", "null"] },
+        "width": { "type": "integer", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "attrCommand": {
+      "type": "object",
+      "properties": {
+        "op": { "const": "attr" },
+        "prim": { "enum": ["line", "mark", "text"] },
+        "colour": { "type": ["integer", "string"] },
+        "width": { "$ref": "#/$defs/finiteNumber" },
+        "style": { "type": "integer" },
+        "size": { "$ref": "#/$defs/finiteNumber" },
+        "font": { "type": "integer" }
+      },
+      "required": ["op", "prim"],
+      "additionalProperties": true
+    },
+    "lineCommand": {
+      "type": "object",
+      "properties": {
+        "op": { "const": "line" },
+        "x": { "type": "array", "items": { "$ref": "#/$defs/finiteNumber" }, "minItems": 2 },
+        "y": { "type": "array", "items": { "$ref": "#/$defs/finiteNumber" }, "minItems": 2 }
+      },
+      "required": ["op", "x", "y"],
+      "additionalProperties": true
+    },
+    "markCommand": {
+      "type": "object",
+      "properties": {
+        "op": { "const": "mark" },
+        "x": { "type": "array", "items": { "$ref": "#/$defs/finiteNumber" }, "minItems": 1 },
+        "y": { "type": "array", "items": { "$ref": "#/$defs/finiteNumber" }, "minItems": 1 },
+        "marker": { "type": "integer" }
+      },
+      "required": ["op", "x", "y", "marker"],
+      "additionalProperties": true
+    },
+    "textCommand": {
+      "type": "object",
+      "properties": {
+        "op": { "const": "text" },
+        "text": { "type": "string" },
+        "x": { "$ref": "#/$defs/finiteNumber" },
+        "y": { "$ref": "#/$defs/finiteNumber" },
+        "just": { "type": "string", "pattern": "^[TCBM][LCR]$" },
+        "up": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/finiteNumber" },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "required": ["op", "text", "x", "y", "just", "up"],
+      "additionalProperties": true
+    },
+    "imageCommand": {
+      "type": "object",
+      "properties": {
+        "op": { "const": "image" },
+        "x1": { "$ref": "#/$defs/finiteNumber" },
+        "y1": { "$ref": "#/$defs/finiteNumber" },
+        "x2": { "$ref": "#/$defs/finiteNumber" },
+        "y2": { "$ref": "#/$defs/finiteNumber" },
+        "href": {
+          "type": "string",
+          "pattern": "^data:",
+          "description": "MUST be a data: URI — envelopes are self-contained documents."
+        }
+      },
+      "required": ["op", "x1", "y1", "x2", "y2", "href"],
+      "additionalProperties": true
+    },
+    "unknownCommand": {
+      "type": "object",
+      "description": "§3.7: an unknown op is skipped with a diagnostic by a 1.0 consumer, not rejected — that is how an old viewer survives a slightly-newer stream.",
+      "properties": {
+        "op": {
+          "type": "string",
+          "not": { "enum": ["attr", "line", "mark", "text", "image"] }
+        }
+      },
+      "required": ["op"],
+      "additionalProperties": true
+    },
+    "command": {
+      "anyOf": [
+        { "$ref": "#/$defs/attrCommand" },
+        { "$ref": "#/$defs/lineCommand" },
+        { "$ref": "#/$defs/markCommand" },
+        { "$ref": "#/$defs/textCommand" },
+        { "$ref": "#/$defs/imageCommand" },
+        { "$ref": "#/$defs/unknownCommand" }
+      ]
+    },
+    "commands": { "type": "array", "items": { "$ref": "#/$defs/command" } },
+    "envelope": {
+      "type": "object",
+      "description": "One message about one layer. Carrying a 'layers' key is a hard error: that is the document shape.",
+      "properties": {
+        "cornish_view": { "$ref": "#/$defs/version" },
+        "type": { "const": "draw_stream" },
+        "plot_id": { "$ref": "#/$defs/id" },
+        "canvas": { "$ref": "#/$defs/canvas" },
+        "layer": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/$defs/id" },
+            "action": { "enum": ["replace", "append", "delete"] },
+            "kind": { "type": "string" },
+            "z": { "type": "integer" }
+          },
+          "required": ["id", "action"],
+          "additionalProperties": true
+        },
+        "commands": { "$ref": "#/$defs/commands" },
+        "layers": false
+      },
+      "required": ["cornish_view", "type"],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "description": "A delete envelope must not carry commands.",
+          "if": {
+            "properties": { "layer": { "properties": { "action": { "const": "delete" } }, "required": ["action"] } },
+            "required": ["layer"]
+          },
+          "then": { "not": { "required": ["commands"] } }
+        },
+        {
+          "description": "A replace/append envelope requires commands.",
+          "if": {
+            "properties": { "layer": { "properties": { "action": { "enum": ["replace", "append"] } }, "required": ["action"] } },
+            "required": ["layer"]
+          },
+          "then": { "required": ["commands"] }
+        },
+        {
+          "description": "Without a layer, the only legal shape is the canvas-only envelope: canvas present, commands absent.",
+          "if": { "not": { "required": ["layer"] } },
+          "then": {
+            "allOf": [
+              { "required": ["canvas"] },
+              { "not": { "required": ["commands"] } }
+            ]
+          }
+        }
+      ]
+    },
+    "document": {
+      "type": "object",
+      "description": "The whole plot. Carrying a 'layer' key is a hard error: that is the envelope shape.",
+      "properties": {
+        "cornish_view": { "$ref": "#/$defs/version" },
+        "type": { "const": "draw_stream" },
+        "plot_id": { "$ref": "#/$defs/id" },
+        "canvas": { "$ref": "#/$defs/canvas" },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "kind": { "type": "string" },
+              "z": { "type": "integer" },
+              "commands": { "$ref": "#/$defs/commands" },
+              "action": false
+            },
+            "required": ["id", "commands"],
+            "additionalProperties": true
+          }
+        },
+        "layer": false
+      },
+      "required": ["cornish_view", "type", "canvas", "layers"],
+      "additionalProperties": true
+    }
+  }
+}
