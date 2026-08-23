@@ -168,6 +168,40 @@ def test_importing_cornish_plot_pulls_in_no_transport():
 	assert result.stdout.strip() == "", f"cornish.plot imported transport modules: {result.stdout}"
 
 
+def test_importing_cornish_plot_does_not_import_matplotlib():
+	'''
+	The stage-0 exit criterion is that ``SkyPlot(extent=…).save("x.svg")`` works
+	in a venv with **no matplotlib installed**. matplotlib is imported only
+	inside ``to_matplotlib()``; the frozen v1 module that does import it at
+	module level is deliberately not re-exported from ``cornish.plot``.
+	'''
+	source_directory = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+	program = ("import sys\n"
+	           "import cornish.plot\n"
+	           "print('matplotlib' in sys.modules)\n")
+	result = subprocess.run([sys.executable, "-c", program], cwd=source_directory,
+	                        capture_output=True, text=True, check=True)
+	assert result.stdout.strip() == "False"
+
+
+def test_rendering_an_svg_does_not_import_matplotlib():
+	''' The whole render path, exercised end to end, stays matplotlib-free. '''
+	source_directory = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+	program = (
+		"import sys\n"
+		"import astropy.units as u\n"
+		"from cornish import ASTCircle, ASTICRSFrame\n"
+		"from cornish.plot import SkyPlot\n"
+		"plot = SkyPlot(extent=ASTCircle(frame=ASTICRSFrame(), center=[30.0, 45.0], "
+		"radius=2 * u.deg))\n"
+		"svg = plot.svg()\n"
+		"print(svg.startswith('<svg'), 'matplotlib' in sys.modules)\n"
+	)
+	result = subprocess.run([sys.executable, "-c", program], cwd=source_directory,
+	                        capture_output=True, text=True, check=True)
+	assert result.stdout.strip() == "True False"
+
+
 def test_astropy_is_the_source_of_the_stdlib_transport_imports():
 	'''
 	Pins the reason ``RUNTIME_BANNED_IMPORTS`` is narrower than

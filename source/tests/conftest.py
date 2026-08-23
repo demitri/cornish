@@ -54,3 +54,12 @@ def golden_ast_plot(grf, options: str = GOLDEN_PLOT_OPTIONS):
 @pytest.fixture
 def golden_cards():
 	return dict(GOLDEN_TAN_CARDS)
+
+
+def pytest_addoption(parser):
+	'''
+	Golden draw streams are never refreshed silently (SPEC-09A §7.3): rewriting
+	them takes an explicit flag, and the run prints what changed.
+	'''
+	parser.addoption("--regenerate-goldens", action="store_true", default=False,
+	                 help="rewrite the draw-stream golden fixtures and print a diff summary")
