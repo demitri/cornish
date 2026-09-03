@@ -18,11 +18,16 @@ from ..mapping import ASTMapping
 from ...exc import FrameNotFoundException
 from ... import _pyast_bridge as bridge
 from ..._validation import as_integer
+from ..._registry import register_frame, frame_from_ast
 
 __all__ = ['ASTFrameSet']
 
 logger = logging.getLogger("cornish") # cornish logger
 
+# an Ast.Plot IS an Ast.FrameSet (SPEC-03A delta2); no dedicated Plot wrapper
+# exists or is needed here, so both dispatch to ASTFrameSet
+@register_frame("FrameSet")
+@register_frame("Plot")
 class ASTFrameSet(ASTFrame):
 	'''
 	Create a new AST frame set.
@@ -161,32 +166,11 @@ class ASTFrameSet(ASTFrame):
 		'''
 		frame = self.astObject.getframe(self._validate_frame_index(frame_index))
 
-		if frame.isaskyframe():
-			from .sky_frame import ASTSkyFrame
-			return ASTSkyFrame(ast_object=frame)
-		elif frame.isacmpframe():
-			#from .compound_frame import ASTCompoundFrame
-			#return ASTCompoundFrame(ast_object=frame)
-			logger.info("A compound frame is being returned as an ASTFrame instead of the ASTCompoundFrame subclass (not yet implemented).")
-			pass
-		elif frame.isadsbspecframe(): # dual sideband instrument
-			logger.info("A compound frame is being returned as an ASTFrame instead of the ASTDSBSpectrumFrame subclass (not yet implemented).")
-			pass
-		elif frame.isafluxframe():
-			logger.info("A compound frame is being returned as an ASTFrame instead of the ASTFluxFrame subclass (not yet implemented).")
-			pass
-		elif frame.isaspecfluxframe():
-			logger.info("A compound frame is being returned as an ASTFrame instead of the ASTSpectrumFluxFrame subclass (not yet implemented).")
-			pass
-		elif frame.isaspecframe():
-			logger.info("A compound frame is being returned as an ASTFrame instead of the ASTSpectrumFrame subclass (not yet implemented).")
-			pass
-		elif frame.isatimeframe():
-			#from .time_frame import ASTTimeFrame
-			logger.info("A compound frame is being returned as an ASTFrame instead of the ASTTimeFrame subclass (not yet implemented).")
-			pass
-
-		return ASTFrame(ast_object=frame)
+		# SPEC-03A L6: a seven-branch isa*() ladder (with dead commented-out
+		# branches) used to live here; the registry answers the same question
+		# from one table, and unregistered classes fall back to the generic
+		# ASTFrame with a DEBUG record rather than five copies of an info log.
+		return frame_from_ast(frame)
 
 	@property
 	def baseFrame(self):

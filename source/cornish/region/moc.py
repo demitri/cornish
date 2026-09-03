@@ -12,11 +12,13 @@ import starlink.Ast as Ast
 from .region import ASTRegion
 from ..exc import NotASkyRegion
 from .._validation import as_integer
+from .._registry import register_region
 
 __all__ = ['ASTMoc']
 
 logger = logging.getLogger("cornish")
 
+@register_region("Moc")
 class ASTMoc(ASTRegion):
 	'''
 	An IVOA Multi-Order Coverage (MOC) map: a HEALPix-based description of an

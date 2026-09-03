@@ -23,6 +23,7 @@ from .region import ASTRegion, DEFAULT_UNCERTAINTY
 from ..mapping import ASTMapping
 from ..mapping import ASTFrame, ASTFrameSet
 from .. import _pyast_bridge as bridge
+from .._registry import register_region
 
 __all__ = ["ASTBox"]
 
@@ -31,6 +32,7 @@ CORNER_CORNER = 1
 
 logger = logging.getLogger("cornish")
 
+@register_region("Box")
 class ASTBox(ASTRegion):
 	'''
 	ASTBox is an ASTRegion that represents a box with sides parallel to the axes of an ASTFrame.

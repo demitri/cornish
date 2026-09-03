@@ -18,11 +18,13 @@ from .region import ASTRegion
 from ..mapping import ASTFrame, ASTSkyFrame, ASTFrameSet
 from .. import _pyast_bridge as bridge
 from .._validation import as_integer
+from .._registry import register_region
 
 __all__ = ["ASTPolygon"]
 
 logger = logging.getLogger('cornish')
 
+@register_region("Polygon")
 class ASTPolygon(ASTRegion):
 	'''
 	ASTPolygon is an ASTRegion that represents a polygon, a collection of vertices on a sphere in a 2D plane.

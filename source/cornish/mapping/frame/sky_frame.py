@@ -4,6 +4,7 @@ import starlink.Ast as Ast
 
 from .frame import ASTFrame
 from ...enums import SkySystem, SKY_SYSTEM_INPUT_ALIASES
+from ..._registry import register_frame
 
 __all__ = ['ASTSkyFrame', 'ASTICRSFrame']
 
@@ -12,6 +13,7 @@ __all__ = ['ASTSkyFrame', 'ASTICRSFrame']
 #: on set (e.g. "EQUATORIAL" -> "FK5"); see SUN/211 §SkyFrame.System.
 _ACCEPTED_SKY_SYSTEMS = {member.value.upper() for member in SkySystem} | set(SKY_SYSTEM_INPUT_ALIASES)
 
+@register_frame("SkyFrame")
 class ASTSkyFrame(ASTFrame):
 	'''
 

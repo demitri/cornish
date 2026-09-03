@@ -7,6 +7,7 @@ unraised-exception AST-walk gate.
 import ast as python_ast
 import glob
 import os
+import re
 import warnings
 
 import numpy as np
@@ -598,3 +599,139 @@ def test_fromFITSFilepath_hdu_validation(tmp_path):
 		ASTPolygon.fromFITSFilepath(path, hdu=2) # only 1 HDU in the file
 	with pytest.raises(TypeError):
 		ASTPolygon.fromFITSFilepath(path, hdu=True)
+
+
+# ---------------------------------------------------------------------------
+# SPEC-03A §1.4 gate: region/frame class ladders belong to the registry
+# ---------------------------------------------------------------------------
+
+#: Function bodies (module-relative path, qualified name) allowed to hold a
+#: multi-class isinstance test, and modules allowed to use pyast's ``isa*()``
+#: predicates. Each entry names WHY it is not wrap-dispatch. ``"*"`` allowlists
+#: a whole module.
+LADDER_ALLOWLIST = {
+	# The bridge is the effective-frame-KIND resolver (SPEC-04A §3): its
+	# isaskyframe() calls throughout to/from_frame_units, to/from_frame_distance
+	# and astropy_frame_for are unit-conversion policy, and its plain
+	# Frame/FrameSet/Region isinstance tests are kind resolution — never
+	# wrap-dispatch. Allowlisted as a MODULE; a *new* wrap-dispatch ladder added
+	# here would evade this gate and is therefore a standing review duty.
+	("_pyast_bridge.py", "*"),
+	# The registry itself: the one sanctioned place where an AST class decides a
+	# wrapper. Its two isinstance tests are input-kind validation.
+	("_registry.py", "*"),
+	# L5: a POLICY dispatch (Polygon -> return, Box -> toPolygon, anything else
+	# -> fall through to the mesh recipe), not a wrap ladder; both arms need the
+	# concrete types.
+	("region/polygon.py", "ASTPolygon._fromParsedWCS"),
+	# Wrapper constructor validation: a self-class check plus one parameter-type
+	# check. Construction, not dispatch.
+	("mapping/frame/frame_set.py", "ASTFrameSet.__init__"),
+	("region/compound_region.py", "ASTCompoundRegion.__init__"),
+}
+
+#: pyast predicates of the form ``x.isasomething()``.
+ISA_PREDICATE = re.compile(r"isa[a-z]+")
+
+
+def _qualified_name(node, parents) -> str:
+	''' dotted class/function path of `node` within its module '''
+	parts = []
+	current = node
+	while current is not None:
+		if isinstance(current, (python_ast.FunctionDef, python_ast.AsyncFunctionDef, python_ast.ClassDef)):
+			parts.append(current.name)
+		current = parents.get(current)
+	return ".".join(reversed(parts))
+
+
+def _referenced_ast_classes(node, banned:set) -> list:
+	''' the banned ``Ast.<Name>`` / ``starlink.Ast.<Name>`` classes named anywhere under `node` '''
+	names = []
+	for sub in python_ast.walk(node):
+		if not isinstance(sub, python_ast.Attribute) or sub.attr not in banned:
+			continue
+		value = sub.value
+		if isinstance(value, python_ast.Name) and value.id == "Ast":
+			names.append(sub.attr)
+		elif isinstance(value, python_ast.Attribute) and value.attr == "Ast" \
+				and isinstance(value.value, python_ast.Name) and value.value.id == "starlink":
+			names.append(sub.attr)
+	return names
+
+
+def _allowlisted(rel_path:str, qualified_name:str) -> bool:
+	return (rel_path, "*") in LADDER_ALLOWLIST or (rel_path, qualified_name) in LADDER_ALLOWLIST
+
+
+def test_no_region_class_ladders():
+	'''
+	SPEC-03A §1.4, the rule-of-two mechanization of "wrapping an AST object in a
+	cornish class happens in _registry.py, nowhere else".
+
+	The banned class set is INTROSPECTION-BACKED, not an enumeration: three
+	successive hand-written lists each missed branches (the frame ladder's seven
+	isa* arms, then the region side's five isinstance names, then FrameSet/Plot,
+	which are Frame subclasses). The set is derived from starlink.Ast at test
+	time, so every class pyast adds in future is covered automatically.
+
+	Two patterns fail:
+
+	a) any pyast ``isa*()`` predicate call in package code, and
+	b) a LADDER — two or more DISTINCT banned classes tested by ``isinstance``
+	   within one function body. A single isinstance is legitimate parameter-type
+	   validation and stays allowed without listing; two or more is dispatch,
+	   which belongs to the registry.
+
+	Stated blind spot: dispatch written as ``.Class == "Polygon"`` string
+	comparison evades both patterns. Rejecting new string dispatch is a standing
+	review duty; the registry is the only sanctioned place ``.Class`` strings
+	appear.
+	'''
+	banned = {name for name, obj in vars(Ast).items()
+	          if isinstance(obj, type) and issubclass(obj, (Ast.Region, Ast.Frame))}
+	# sanity: the derived set must be non-trivial and must include the classes
+	# whose omission from hand-written lists caused this gate to be widened
+	assert {"Box", "Circle", "Polygon", "CmpRegion", "Moc", "SkyFrame",
+	        "FrameSet", "Plot", "DSBSpecFrame"} <= banned
+
+	package_dir = os.path.join(os.path.dirname(__file__), "..", "cornish")
+	violations = []
+	for path in sorted(glob.glob(os.path.join(package_dir, "**", "*.py"), recursive=True)):
+		rel_path = os.path.relpath(path, package_dir)
+		with open(path) as source_file:
+			tree = python_ast.parse(source_file.read(), filename=path)
+		parents = {}
+		for node in python_ast.walk(tree):
+			for child in python_ast.iter_child_nodes(node):
+				parents[child] = node
+
+		# (a) isa*() predicate calls
+		for node in python_ast.walk(tree):
+			if isinstance(node, python_ast.Call) and isinstance(node.func, python_ast.Attribute) \
+					and ISA_PREDICATE.fullmatch(node.func.attr):
+				qualified = _qualified_name(node, parents)
+				if _allowlisted(rel_path, qualified):
+					continue
+				violations.append(f"{rel_path}:{node.lineno}: {qualified or '<module>'} calls "
+				                  f".{node.func.attr}() — use the registry (or bridge.is_sky)")
+
+		# (b) isinstance ladders
+		for node in python_ast.walk(tree):
+			if not isinstance(node, (python_ast.FunctionDef, python_ast.AsyncFunctionDef)):
+				continue
+			referenced = []
+			for sub in python_ast.walk(node):
+				if isinstance(sub, python_ast.Call) and isinstance(sub.func, python_ast.Name) \
+						and sub.func.id == "isinstance" and len(sub.args) == 2:
+					referenced.extend(_referenced_ast_classes(sub.args[1], banned))
+			distinct = sorted(set(referenced))
+			if len(distinct) < 2:
+				continue
+			qualified = _qualified_name(node, parents)
+			if _allowlisted(rel_path, qualified):
+				continue
+			violations.append(f"{rel_path}:{node.lineno}: {qualified} dispatches on "
+			                  f"{distinct} — use cornish._registry.region_from_ast/frame_from_ast")
+
+	assert not violations, ("AST class ladders found outside the registry:\n" + "\n".join(violations))

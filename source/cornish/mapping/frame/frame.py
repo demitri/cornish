@@ -8,6 +8,7 @@ from ... import ASTObject
 from ..mapping import ASTMapping
 from ... import _pyast_bridge as bridge
 from ..._validation import as_integer
+from ..._registry import register_frame, frame_from_ast
 
 import numpy as np
 import astropy
@@ -17,6 +18,8 @@ from astropy.coordinates import SkyCoord
 
 __all__ = ['ASTFrame']
 
+# also the registry fallback for any unregistered frame class (SPEC-03A section 1.1)
+@register_frame("Frame")
 class ASTFrame(ASTMapping):
 	'''
 	A Frame is a representation of a coordinate system, e.g. Cartesian, RA/dec.
@@ -59,31 +62,14 @@ class ASTFrame(ASTMapping):
 		'''
 		if ast_object is None:
 			raise ValueError("An ast_object must be specified.")
-		elif not isinstance(ast_object, Ast.Frame):
-			raise TypeError(f"Expected 'ast_object' to be some kind of Ast frame, but got {type(ast_object)}")
 
-		# the order might need to be rearranged depending on the object hierarchy
-
-		if isinstance(ast_object, Ast.SkyFrame):
-			from .sky_frame import ASTSkyFrame
-			return ASTSkyFrame(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.SpecFrame):
-			from .spec_frame import ASTSpecFrame
-			return ASTSpecFrame(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.TimeFrame):
-			from .time_frame import ASTTimeFrame
-			return ASTTimeFrame(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.CmpFrame):
-			from .compound_frame import ASTCompoundFrame
-			return ASTCompoundFrame(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.FluxFrame):
-			raise NotImplementedError("ASTFluxFrame not yet implemented.")
-			#return ASTFluxFrame(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.SpecFluxFrame):
-			raise NotImplementedError("ASTSpecFluxFrame not yet implemented.")
-			#return ASTSpecFluxFrame(ast_object=ast_object)
-		else:
-			return ASTFrame(ast_object=ast_object)
+		# SPEC-03A L4: the isinstance ladder that used to live here dispatched on
+		# the pyast class hierarchy and got it wrong in three ways — Ast.DSBSpecFrame
+		# is an Ast.SpecFrame subclass and was routed into the unimportable
+		# spec_frame module, Ast.TimeFrame raised NotImplementedError, and
+		# Ast.FrameSet was never checked at all. Dispatch is now on the
+		# authoritative .Class string, in one place.
+		return frame_from_ast(ast_object)
 
 	@staticmethod
 	def frameFromFITSHeader(header):
@@ -163,9 +149,16 @@ class ASTFrame(ASTMapping):
 	@property
 	def isSkyFrame(self) -> bool:
 		'''
-		Returns ``True`` if this is a SkyFrame, ``False`` otherwise.
+		Returns ``True`` if this object's EFFECTIVE frame is a sky frame,
+		``False`` otherwise.
+
+		Routed through the bridge rather than ``astObject.isaskyframe()``: pyast's
+		predicate answers about the object itself, so it returns ``False`` for an
+		:class:`ASTFrameSet` whose CURRENT frame is a SkyFrame and for an
+		:class:`~cornish.region.region.ASTRegion` defined on one (SPEC-04A V1) —
+		both of which inherit this property.
 		'''
-		return self.astObject.isaskyframe()
+		return bridge.is_sky(self.astObject)
 
 	@property
 	def domain(self) -> str:

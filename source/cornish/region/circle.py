@@ -19,6 +19,7 @@ from .polygon import ASTPolygon
 from ..mapping.frame import ASTFrame
 from ..mapping.frame.sky_frame import ASTICRSFrame
 from .. import _pyast_bridge as bridge
+from .._registry import register_region
 
 __all__ = ["ASTCircle"]
 
@@ -27,6 +28,7 @@ CENTER_RADIUS = 1
 
 logger = logging.getLogger("cornish")
 
+@register_region("Circle")
 class ASTCircle(ASTRegion):
 	'''
 	ASTCircle is an :class:`ASTRegion` that represents a circle.

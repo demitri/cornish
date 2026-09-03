@@ -2,7 +2,11 @@
 from ... import ASTObject
 
 from .frame import ASTFrame
-		
+from ..._registry import register_frame
+
+__all__ = ['ASTCompoundFrame']
+
+@register_frame("CmpFrame")
 class ASTCompoundFrame(ASTFrame):
 	'''
 	A compound frame is the merging of two existing :class:`ASTFrame` objects.

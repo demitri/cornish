@@ -1,6 +1,7 @@
 
 import logging
-from typing import Iterable, Union, List
+import warnings
+from typing import Iterable, Union, List, Tuple
 
 import astropy.units as u
 import starlink.Ast as Ast
@@ -11,11 +12,13 @@ from .region import ASTRegion
 from .polygon import ASTPolygon
 from ..enums import RegionOperation
 from .._validation import as_integer
+from .._registry import register_region, region_from_ast
 
 __all__ = ["ASTCompoundRegion"]
 
 logger = logging.getLogger("cornish")
 
+@register_region("CmpRegion")
 class ASTCompoundRegion(ASTRegion):
 	'''
 	A region that is created as the composite of multiple regions.
@@ -103,28 +106,70 @@ class ASTCompoundRegion(ASTRegion):
 		'''
 		raise NotImplementedError()
 
+	@property
+	def components(self) -> Tuple[ASTRegion, ASTRegion]:
+		'''
+		The two child regions (copies, registry-wrapped).
+
+		AST composes regions pairwise, so a compound always has exactly two
+		children; the children of an n-ary cornish union are themselves
+		:class:`ASTCompoundRegion` objects (use :meth:`flattened` for the
+		leaves).
+
+		The children are COPIES: ``decompose()`` returns live pointers into this
+		compound (verified), and handing those out would let
+		``compound.components[0].negate()`` silently corrupt the parent.
+
+		Foreign native-XOR compounds decompose to AST's internal composition —
+		(¬A ∧ B) and (A ∧ ¬B) — not the two original operands (the originals are
+		not recoverable through the sanctioned ``decompose`` API).
+		cornish-built symmetric differences have the same structure, so the two
+		cases introspect identically.
+
+		This property does not cache: each access re-decomposes and re-copies,
+		so a child is never stale after the parent is negated or re-attributed.
+		'''
+		a, b, *_ = self.astObject.decompose()
+		return (region_from_ast(a.copy()), region_from_ast(b.copy()))
+
 	def componentRegions(self) -> List[ASTRegion]:
 		'''
-		Returns a list of region objects that comprise this component region.
+		Deprecated alias for :attr:`components` (returns a list rather than a tuple).
+
+		.. deprecated::
+			Use :attr:`components`.
 		'''
-		(map1, map2, series, invert1, invert2) = self.astObject.decompose()
-		regions = list()
-		for r in [map1, map2]:
-			if r.isapolygon():
-				regions.append(ASTPolygon(ast_object=r))
-			elif r.isabox():
-				regions.append(ASTBox(ast_object=r))
-			elif r.isacircle():
-				regions.append(ASTCircle(ast_object=r))
-			elif r.isacmpregion():
-				regions.append(ASTCompoundRegion(ast_object=r))
-			#elif r.isaellipse():
-			#	regions.append(ASTEllipse(r))
-			#elif r.isanullregion():
-			#	regions.append( ... ?)
+		warnings.warn("ASTCompoundRegion.componentRegions() is deprecated; use the "
+		              "'components' property instead.", DeprecationWarning, stacklevel=2)
+		return list(self.components)
+
+	def flattened(self) -> Tuple[ASTRegion, ...]:
+		'''
+		All non-compound leaf regions of this tree, left-to-right, as copies.
+
+		The walk is iterative (an explicit stack): a deep foreign left-fold
+		compound must not hit Python's recursion limit. The compound-vs-leaf test
+		is class-free — ``decompose()`` on a LEAF region returns ``None`` as its
+		second element (verified across Circle/Box/Polygon/Moc) — which also
+		keeps the region-class-ladder gate intact.
+
+		Leaves carry their effective negation state as stored (e.g. the leaves of
+		a difference or symmetric difference include negated copies). Flattening
+		loses the operator structure by design — it answers "which pieces", not
+		"which formula"; use :attr:`components` to walk structure.
+		'''
+		leaves = []
+		stack = [self.astObject]
+		while stack:
+			node = stack.pop()
+			a, b, *_ = node.decompose()
+			if b is None:
+				# a leaf: copy at emission (every decompose() return is live)
+				leaves.append(region_from_ast(node.copy()))
 			else:
-				raise NotImplementedError(f"A region type was found that is not yet handled: {type(r)}")
-		return regions
+				stack.append(b)
+				stack.append(a) # a on top => left-to-right emission
+		return tuple(leaves)
 
 	def toPolygon(self, npoints=200, maxerr:u.Quantity=1.0*u.arcsec) -> ASTPolygon:
 		'''

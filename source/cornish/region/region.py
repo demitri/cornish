@@ -21,6 +21,7 @@ from ..exc import NotA2DRegion, CoordinateSystemsCouldNotBeMapped
 from ..enums import MeshType, OverlapType
 from .._validation import as_integer
 from .. import _pyast_bridge as bridge
+from .._registry import region_from_ast
 
 #: Module-level default for region constructors' ``uncertainty`` parameter.
 #: Identity against this singleton distinguishes "parameter omitted" (the 1
@@ -123,6 +124,31 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		return ASTPolygon.fromFITSHeader(header=fits_header, maxerr=maxerr, maxvert=maxvert)
 
 	@classmethod
+	def fromAstObject(cls, ast_object:Ast.Region) -> ASTRegion:
+		'''
+		Wrap an existing ``starlink.Ast`` region in the appropriate cornish class.
+
+		Called on :class:`ASTRegion` this returns whatever the registry dispatches
+		to; called on a SUBCLASS it additionally validates the result, e.g.
+		``ASTCircle.fromAstObject`` raises :class:`TypeError` if the registry did
+		not produce an :class:`ASTCircle`.
+
+		The returned wrapper holds ``ast_object`` BY REFERENCE (it is not copied).
+
+		:param ast_object: a ``starlink.Ast.Region``
+		:raises TypeError: the object is not a pyast region, is already a cornish
+			wrapper, or is not of the class this subclass wraps
+		:raises cornish.exc.UnsupportedASTClass: no cornish wrapper is registered
+			for the object's AST class
+		'''
+		region = region_from_ast(ast_object)
+		if not isinstance(region, cls):
+			raise TypeError(f"{cls.__name__}.fromAstObject: the AST class "
+			                f"'{ast_object.Class}' wraps as '{type(region).__name__}', "
+			                f"not '{cls.__name__}'.")
+		return region
+
+	@classmethod
 	def fromSTCS(cls, stcs:str) -> ASTRegion:
 		'''
 		Factory method that creates a region from an STC-S description string.
@@ -155,17 +181,10 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		if ast_object is None or not isinstance(ast_object, Ast.Region):
 			raise ValueError(f"The provided string could not be read as an STC-S region: '{stcs}'")
 
-		# wrap in the appropriate cornish class
-		if isinstance(ast_object, Ast.Polygon):
-			return cr.ASTPolygon(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.Circle):
-			return cr.ASTCircle(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.Box):
-			return cr.ASTBox(ast_object=ast_object)
-		elif isinstance(ast_object, Ast.CmpRegion):
-			return cr.ASTCompoundRegion(ast_object=ast_object)
-		else:
-			raise NotImplementedError(f"STC-S produced a region class not yet wrapped by cornish: '{ast_object.Class}'")
+		# wrap in the appropriate cornish class (SPEC-03A L1: the isinstance ladder
+		# that used to live here is now the registry; delta3 — an unwrapped class
+		# raises UnsupportedASTClass rather than NotImplementedError)
+		return region_from_ast(ast_object)
 
 	def toMoc(self, max_order:int=10) -> "cornish.region.ASTMoc":
 		'''
@@ -596,16 +615,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 		new_ast_region = self.astObject.mapregion(ast_map, ast_frame)
 
-		# wrap in the appropriate cornish class
-		if isinstance(new_ast_region, starlink.Ast.Polygon):
-			new_region = cornish.region.ASTPolygon(ast_object=new_ast_region)
-		elif isinstance(new_ast_region, starlink.Ast.Box):
-			new_region = cornish.region.ASTBox(ast_object=new_ast_region)
-		elif isinstance(new_ast_region, starlink.Ast.Circle):
-			new_region = cornish.region.ASTCircle(ast_object=new_ast_region)
-		else:
-			from ..exc import UnsupportedASTClass
-			raise UnsupportedASTClass(f"ASTRegion.regionWithMapping: unhandled region type '{new_ast_region.Class}'.")
+		# wrap in the appropriate cornish class (SPEC-03A L2)
+		new_region = region_from_ast(new_ast_region)
 		new_region.wcs = self.wcs # propagate the originating WCS, when known (SPEC-04 §2)
 		return new_region
 

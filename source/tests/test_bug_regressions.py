@@ -27,9 +27,14 @@ def test_compound_region_component_regions():
 	c1 = ASTCircle(center=[30, 45], radius=2.0)
 	c2 = ASTCircle(center=[32, 44], radius=1.0)
 	compound = ASTCompoundRegion(regions=[c1, c2], operation=Ast.AND)
-	components = compound.componentRegions()
+	# componentRegions() is the deprecated delegate for the 'components' property
+	# (SPEC-03A L3); B2's regression is pinned through both
+	with pytest.warns(DeprecationWarning):
+		components = compound.componentRegions()
 	assert len(components) == 2
 	assert all(isinstance(c, ASTCircle) for c in components)
+	assert len(compound.components) == 2
+	assert all(isinstance(c, ASTCircle) for c in compound.components)
 
 
 def test_compound_region_does_not_consume_callers_list():
