@@ -8,15 +8,82 @@ import starlink.Ast as Ast
 
 from .box import ASTBox
 from .circle import ASTCircle
-from .region import ASTRegion
+from .region import (ASTRegion, _unwrap_region, _require_compatible_frames,
+                     _collect_wcs, _AST_COMBINE_FAILED_MSG)
 from .polygon import ASTPolygon
 from ..enums import RegionOperation
+from ..exc import CoordinateSystemsCouldNotBeMapped
+from .. import _pyast_bridge as bridge
 from .._validation import as_integer
 from .._registry import register_region, region_from_ast
 
 __all__ = ["ASTCompoundRegion"]
 
 logger = logging.getLogger("cornish")
+
+def _symmetric_difference_ast(first: Ast.Region, second: Ast.Region) -> Ast.CmpRegion:
+	'''
+	``(first & ~second) | (~first & second)``, entirely at the pyast level.
+
+	Operands must already be unwrapped and frame-gated by the caller. Raw pyast
+	regions have no Python operators, so the composition is hand-built; the
+	negations act on COPIES (``decompose()`` hands out live pointers, and the
+	caller's operands must not be mutated), and every ``Ast.CmpRegion`` argument
+	is positional because pyast silently ignores the ``oper=`` keyword.
+
+	cornish builds symmetric differences this way rather than as a native
+	``Ast.XOR`` node because AST serializes a native XOR to STC-S as
+	``Difference``, which IVOA STC 1.33 defines as the ASYMMETRIC difference
+	(SPEC-03A §2.7 / D25). AST's own internal storage of an XOR *is* this
+	composition, so nothing is lost but the top-level ``Operator = 3`` label.
+	'''
+	not_first = first.copy();   not_first.negate()
+	not_second = second.copy(); not_second.negate()
+	left = Ast.CmpRegion(first, not_second, int(RegionOperation.AND))
+	right = Ast.CmpRegion(not_first, second, int(RegionOperation.AND))
+	return Ast.CmpRegion(left, right, int(RegionOperation.OR))
+
+
+def _balanced_fold(operands, operation: RegionOperation) -> Ast.CmpRegion:
+	'''
+	Reduce an already-gated flat operand list to one ``Ast.CmpRegion``, pairwise,
+	in ceil(log2 n) levels (SPEC-03A §3.2).
+
+	The shape matters: every ``Ast.CmpRegion`` deep-copies its operands, so a
+	left fold re-copies the growing tree (O(n^2) copy volume). Measured at
+	n = 1000: 1.34 s to build left-folded versus 37 ms balanced, and
+	``overlap``/``getregiondisc`` blow a two-minute budget on the left fold
+	versus ~8 s balanced. ``pointinregion`` is shape-INsensitive (it tests every
+	leaf regardless of nesting), which is why it is not the metric a regression
+	test should watch.
+
+	No ``.wcs``, uncertainty or gate logic lives here: the frame gate runs once
+	per input against the first operand up front (compound intermediates inherit
+	their children's frames, so re-gating per level is redundant), and the
+	``.wcs`` rule is computed once by the caller over the flat input list.
+
+	:param operands: cornish and/or raw regions; never XOR-composed here (the
+		caller routes XOR through :func:`_symmetric_difference_ast`, since this
+		fold would build native ``Ast.XOR`` nodes)
+	'''
+	def combine(first, second):
+		# unwrapping defensively at every call: `regs` may hold cornish wrappers,
+		# raw operands, and — at later levels — raw intermediates alongside a
+		# still-wrapped odd survivor riding up.
+		# kwarg-swallowing trap: `oper=` is silently ignored — positional only.
+		return Ast.CmpRegion(bridge._unwrap(first), bridge._unwrap(second), int(operation))
+
+	regs = list(operands)
+	while len(regs) > 1:
+		nxt = [combine(regs[i], regs[i + 1]) for i in range(0, len(regs) - 1, 2)]
+		if len(regs) % 2:
+			nxt.append(regs[-1]) # the odd leftover rides up a level
+		regs = nxt
+	# the n == 1 edge is unreachable from the frozen call sites (the constructor
+	# requires >= 2 regions and union()/intersection() require >= 1 other); the
+	# unwrap exists so this helper is total
+	return bridge._unwrap(regs[0])
+
 
 @register_region("CmpRegion")
 class ASTCompoundRegion(ASTRegion):
@@ -51,60 +118,102 @@ class ASTCompoundRegion(ASTRegion):
 		if len(regions) < 2:
 			raise ValueError("The 'regions' parameter must contain at least two regions.")
 		for r in regions:
-			if not isinstance(r, (ASTRegion, Ast.Region)):
-				raise TypeError("The regions provided must be of type ASTRegion or starlink.Ast.Region.")
+			_unwrap_region(r) # TypeError naming the type; a frame operand must not
+			                  # reach the frame gate, which it would satisfy (§2.2)
 
 		if operation is None:
 			raise ValueError("An 'operation' must be specified (one of RegionOperation.AND/OR/XOR).")
 		operation = RegionOperation(as_integer(operation, "operation")) # ValueError for out-of-range ints
 
-		# Maintain a list of regions that make up the compound region.
-		# How will this work with different types of chained operations?
-		# Postpone: too much effort for an initial version...
-		#self._regions = list()
+		# The SPEC-03A §2.2 frame gate runs UNCONDITIONALLY, before the operation
+		# split: a gate scoped to the non-XOR arm would leave XOR ungated, and
+		# this constructor is the most ordinary construction path in the codebase.
+		first = _unwrap_region(regions[0])
+		for r in regions[1:]:
+			_require_compatible_frames(first, _unwrap_region(r))
 
-		r1 = None
-		r2 = None
-		compound_region = None
+		if operation == RegionOperation.XOR and len(regions) != 2:
+			raise ValueError(f"operation=XOR requires exactly 2 regions (got "
+			                 f"{len(regions)}); n-ary symmetric differences are "
+			                 f"not supported — compose explicitly")
 
-		while len(regions) > 0:
-			if r1 is None:
-				r1 = regions.pop(0) # get first item
-				r2 = regions.pop(0)
+		wcs = _collect_wcs(regions) # §2.3, ONCE over the input list
+
+		try: # §2.2 boundary catch, spanning both arms
+			if operation == RegionOperation.XOR:
+				# never a native Ast.XOR node (§2.7 / D25) — the explicit composition
+				super().__init__(ast_object=_symmetric_difference_ast(first, _unwrap_region(regions[1])))
 			else:
-				r1 = compound_region
-				r2 = regions.pop(0)
+				super().__init__(ast_object=_balanced_fold(regions, operation))
+		except Ast.AstError as e:
+			raise CoordinateSystemsCouldNotBeMapped(_AST_COMBINE_FAILED_MSG) from e
 
-			if isinstance(r1, ASTRegion):
-				r1 = r1.astObject
-			if isinstance(r2, ASTRegion):
-				r2 = r2.astObject
+		self.wcs = wcs
 
-			# pyast SILENTLY IGNORES the `oper=` keyword on Ast.CmpRegion (the same
-			# argument-parsing bug class as region constructors' `unc=`): a kwarg
-			# form parses fine and always builds an OR region. The operation MUST
-			# be passed positionally — verified 2026-07-10; do not "clean this up".
-			compound_region = Ast.CmpRegion( r1, r2, operation ) # todo: 'series' parameter?
-			if compound_region is None:
-				# not observed in practice (Ast.CmpRegion raises on error), but if it
-				# ever happens a half-built object must not escape
-				raise ValueError(f"AST could not combine the provided regions (Ast.CmpRegion returned None for {r1.Class} and {r2.Class}).")
+	@property
+	def operation(self) -> RegionOperation:
+		'''
+		How this compound's two children combine: AND, OR, or XOR.
 
-		super().__init__(ast_object=compound_region)
+		Read from the object's text dump: pyast exposes no attribute for it
+		(``get("Oper")`` raises ``BADAT``), and the dump's label is ``Operator``,
+		not the C attribute name ``Oper``.
+
+		Note that XOR is not exclusive to foreign compounds: AST's own
+		``CmpRegion`` constructor recognizes the ``(a & ~b) | (~a & b)``
+		composition that cornish builds for a symmetric difference and stores it
+		as a native XOR node, so ``(a ^ b).operation`` reads XOR too (verified
+		2026-09-03 — SPEC-03A §2.7 predicted OR here and was corrected).
+		'''
+		return RegionOperation(int(bridge.dump_value(self.astObject, "Operator")))
+
+	@property
+	def uncertainty(self):
+		'''
+		Always ``None``: a compound's boundary uncertainty is COMPONENT-BORNE (D26).
+
+		``Ast.CmpRegion`` accepts no uncertainty argument (a fourth positional is
+		parsed as an attribute-settings string) and a compound's dump carries no
+		top-level ``Unc``. What governs a compound's overlap semantics is the
+		components' own uncertainties, which are copied in with the operands:
+		verified — compounds of circles carrying 0.05 deg uncertainties, offset
+		by 0.005 deg, report IDENTICAL, where the same geometry with AST-default
+		uncertainties reports PARTIAL.
+
+		So :class:`ASTCompoundRegion` takes no ``uncertainty`` parameter, and the
+		three-way D15 default does not apply to compounds. Set the uncertainty
+		you want on the operands before combining them.
+		'''
+		return None
+
+	@uncertainty.setter
+	def uncertainty(self, unc):
+		raise NotImplementedError(
+			"A compound region's uncertainty is component-borne (D26): set 'uncertainty' "
+			"on the component regions before combining them."
+		)
 
 	@property
 	def points(self):
 		raise NotImplementedError(
-			"Compound regions do not return points (Ast.CmpRegion objects do not carry them); "
-			"call componentRegions() and read .points from each component instead."
+			"Compound regions do not return points (Ast.CmpRegion objects do not carry them — "
+			"AST returns an empty array, which would be a silent nothing); walk the tree with "
+			"the 'components' property (or 'flattened()') and read .points from each leaf."
 		)
 
 	@property
 	def area(self):
 		'''
-		The area of the compound region on the sphere. [Not yet implemented.]
+		Not implemented for compound regions.
+
+		No approximation is returned behind a property: use
+		``region.toMoc(max_order=...).area``, which is exact to the MOC's
+		resolution and says what that resolution is.
 		'''
-		raise NotImplementedError()
+		raise NotImplementedError(
+			"exact areas of compound regions are not implemented; "
+			"region.toMoc(max_order=...).area gives the area to the MOC's resolution"
+		)
 
 	@property
 	def components(self) -> Tuple[ASTRegion, ASTRegion]:

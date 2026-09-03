@@ -14,7 +14,7 @@ import numpy as np
 import starlink
 import starlink.Ast as Ast
 
-from .region import ASTRegion, DEFAULT_UNCERTAINTY
+from .region import ASTRegion, DEFAULT_UNCERTAINTY, _PLUS_REMOVED_MSG
 from .polygon import ASTPolygon
 from ..mapping.frame import ASTFrame
 from ..mapping.frame.sky_frame import ASTICRSFrame
@@ -127,41 +127,103 @@ class ASTCircle(ASTRegion):
 			raise TypeError(f"Cannot {operation} a circle's radius by an object of type '{type(value).__name__}'.")
 		return value
 
-	def __add__(self, value):
+	def _withRadius(self, new_radius) -> "ASTCircle":
 		'''
-		Return a new ASTCircle with its radius increased by the provided distance.
+		A new circle of this one's frame and centre with the given radius.
 
-		On a sky-frame circle the value may be an angular :class:`astropy.units.Quantity`
-		or a bare number read as degrees. On a basic-frame circle the value must be
-		a bare number in the frame's native units (a Quantity raises ValueError —
-		its unit cannot be reconciled with unknowable native units).
+		The uncertainty must be threaded through explicitly: omitting it would
+		re-run the D15 three-way default and silently replace the source
+		circle's uncertainty with a freshly-materialized 1 arcsec one — turning
+		an explicit ``None`` opt-out into a delivered default. Passing
+		``self._uncertainty`` is faithful for all three states, because the
+		DEFAULT_UNCERTAINTY sentinel passes through by identity.
 		'''
-		value = self._validateDilationOperand(value, "dilate")
+		new = ASTCircle(frame=self.frame(), center=self.centre, radius=new_radius,
+		                uncertainty=self._uncertainty)
+		new.wcs = self.wcs # single-parent operation preserves provenance (§2.3)
+		return new
+
+	def dilatedBy(self, distance:Union[float, u.Quantity]) -> "ASTCircle":
+		'''
+		A new circle with its radius increased by ``distance`` (negative shrinks).
+
+		On a sky frame ``distance`` may be an angular
+		:class:`astropy.units.Quantity` or a bare number read as DEGREES. On a
+		basic frame it must be a bare number in the frame's native units — a
+		Quantity's unit cannot be reconciled with unknowable native units (D12).
+
+		This region is untouched; ``.wcs`` and the uncertainty are carried over.
+
+		:raises TypeError: a bool or a region operand
+		:raises ValueError: a Quantity on a basic frame, or a resulting radius
+			that is not positive
+		'''
+		distance = self._validateDilationOperand(distance, "dilate")
 		if bridge.is_sky(self.astObject):
-			if not isinstance(value, u.Quantity):
-				value = float(value) * u.deg
-			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius + value)
+			if not isinstance(distance, u.Quantity):
+				distance = float(distance) * u.deg
+			new_radius = self.radius + distance
+			old_value = float(self.radius.to_value(u.deg))
+			new_value = float(new_radius.to_value(u.deg))
+			units = " deg"
 		else:
-			if isinstance(value, u.Quantity):
+			if isinstance(distance, u.Quantity):
 				raise ValueError("A Quantity cannot dilate a circle on a non-sky frame: its unit "
 				                 "cannot be reconciled with unknowable native frame units — pass a bare number.")
-			return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius + float(value))
+			new_radius = self.radius + float(distance)
+			old_value, new_value = float(self.radius), float(new_radius)
+			units = ""
+		if not (np.isfinite(new_value) and new_value > 0):
+			raise ValueError(f"Dilating a circle of radius {old_value:g}{units} by {distance} would "
+			                 f"give a radius of {new_value:g}{units}; a circle's radius must be "
+			                 f"positive and finite.")
+		return self._withRadius(new_radius)
+
+	def scaledBy(self, factor:float) -> "ASTCircle":
+		'''
+		A new circle with its radius multiplied by ``factor``.
+
+		``factor`` is dimensionless, finite and positive. This region is
+		untouched; ``.wcs`` and the uncertainty are carried over.
+
+		:raises TypeError: a bool, a Quantity, or a region operand
+		:raises ValueError: a non-positive or non-finite factor
+		'''
+		factor = self._validateDilationOperand(factor, "scale")
+		if isinstance(factor, u.Quantity):
+			raise TypeError("A circle's radius can only be scaled by a plain number, not a Quantity.")
+		if not (np.isfinite(factor) and factor > 0):
+			raise ValueError(f"A circle's radius can only be scaled by a positive, finite value (got {factor!r}).")
+		return self._withRadius(self.radius * float(factor))
+
+	def __add__(self, value):
+		'''
+		``circle + distance`` — documented sugar for :meth:`dilatedBy`.
+
+		A region operand raises: ``+`` between regions was removed (D4), and its
+		old base-class meaning (intersection) is what contradicted this
+		dilation meaning in the first place.
+
+		Note the deliberate asymmetry: ``5 + circle`` raises. The dilation
+		operators are sugar for named methods, and sugar is not owed
+		commutativity; the base-class message already points at ``dilatedBy``.
+		'''
+		if isinstance(value, (ASTRegion, Ast.Region)):
+			raise TypeError(_PLUS_REMOVED_MSG)
+		return self.dilatedBy(value)
 
 	def __mul__(self, value):
 		'''
-		Return a new ASTCircle with a radius scaled by the value provided.
+		``circle * factor`` — documented sugar for :meth:`scaledBy`.
+
 		:param value: numeric value to scale the radius by, e.g. 1.2 increases the radius by 20%
 		'''
-		value = self._validateDilationOperand(value, "scale")
-		if isinstance(value, u.Quantity):
-			raise TypeError("A circle's radius can only be scaled by a plain number, not a Quantity.")
-		if not (np.isfinite(value) and value > 0):
-			raise ValueError(f"A circle's radius can only be scaled by a positive, finite value (got {value!r}).")
-		return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius * float(value))
+		return self.scaledBy(value)
 
 	def __truediv__(self, value):
 		'''
-		Return a new ASTCircle with a radius divided by the value provided.
+		``circle / factor`` — documented sugar for ``scaledBy(1 / factor)``.
+
 		:param value: numeric value to divide the radius by, e.g. 2 decreases the radius by 50%
 		'''
 		value = self._validateDilationOperand(value, "scale")
@@ -169,7 +231,7 @@ class ASTCircle(ASTRegion):
 			raise TypeError("A circle's radius can only be scaled by a plain number, not a Quantity.")
 		if not (np.isfinite(value) and value > 0):
 			raise ValueError(f"A circle's radius can only be divided by a positive, finite value (got {value!r}).")
-		return ASTCircle(frame=self.frame(), center=self.center, radius=self.radius / float(value))
+		return self.scaledBy(1.0 / float(value))
 
 	@property
 	def radius(self) -> Union[astropy.units.quantity.Quantity, float]:

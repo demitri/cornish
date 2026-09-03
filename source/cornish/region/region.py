@@ -5,7 +5,8 @@ from __future__ import annotations # remove in Python 3.10
 
 import logging
 from abc import ABCMeta, abstractproperty, abstractmethod
-from typing import Union, Iterable, Tuple
+from enum import Enum
+from typing import Union, Iterable, Optional, Tuple
 
 import math
 
@@ -18,7 +19,7 @@ import starlink.Ast as Ast
 import cornish.region # to avoid circular imports below - better way?
 from ..mapping import ASTFrame, ASTFrameSet, ASTMapping
 from ..exc import NotA2DRegion, CoordinateSystemsCouldNotBeMapped
-from ..enums import MeshType, OverlapType
+from ..enums import MeshType, OverlapType, RegionOperation
 from .._validation import as_integer
 from .. import _pyast_bridge as bridge
 from .._registry import region_from_ast
@@ -73,6 +74,157 @@ Region-specific methods:
 
 '''
 
+#: Frozen text for the removal of ``+`` as a region operator (SPEC-03A §2.5 /
+#: D4). ``circle.py`` imports this constant so the two raise sites cannot drift.
+_PLUS_REMOVED_MSG = (
+	"Regions no longer support '+': its old base-class meaning (intersection) contradicted\n"
+	"ASTCircle's '+' (grow the radius). Use '|' for union, '&' for intersection, '-' for\n"
+	"difference, '^' for symmetric difference — or circle.dilatedBy(...) to grow a circle."
+)
+
+
+class _BinaryOperation(Enum):
+	'''
+	What a binary combining call builds. Distinct from
+	:class:`~cornish.enums.RegionOperation` (the AST-level operator): a
+	difference is an AND against a negated copy, and a symmetric difference is a
+	three-node composition, so neither is expressible as a single AST operator.
+	'''
+	UNION = "union"
+	INTERSECTION = "intersection"
+	DIFFERENCE = "difference"
+	SYMMETRIC_DIFFERENCE = "symmetricDifference"
+
+
+def _unwrap_region(obj) -> Ast.Region:
+	'''
+	An operand's pyast region: ``ASTRegion`` -> its ``.astObject``,
+	``Ast.Region`` -> itself.
+
+	Deliberately narrower than :func:`cornish._pyast_bridge._unwrap`, which
+	accepts any ``Ast.Object``: a frame or frame set passed as an operand would
+	otherwise slip past the §2.2 frame gate (a frame satisfies the ``is_sky``
+	and naxes checks!) and die later inside ``Ast.CmpRegion`` with the wrong
+	exception. A non-region operand is a TYPE error at the operand boundary,
+	never a frame-compatibility question.
+
+	:raises TypeError: naming the received type
+	'''
+	if isinstance(obj, ASTRegion):
+		return obj.astObject
+	if isinstance(obj, Ast.Region):
+		return obj
+	raise TypeError(f"Expected a region (cornish ASTRegion or starlink.Ast.Region) "
+	                f"as an operand; got '{type(obj).__name__}'.")
+
+
+def _require_compatible_frames(first: Ast.Region, other: Ast.Region) -> None:
+	'''
+	The SPEC-03A §2.2 frame gate, run on every path that builds a compound.
+
+	AST does NOT refuse a sky x basic mix at the same number of axes: it
+	identity-maps the basic frame's native values *as radians* into the sky
+	frame, so a pixel-frame circle at (50, 50) silently becomes a sky region at
+	wherever (50 rad, 50 rad) wraps to, and every downstream answer —
+	containment, overlap, disc, mesh — is garbage with no exception anywhere.
+	``overlap()`` even reports NONE (1) rather than NO_FRAME_MAPPING (0) for
+	such a pair, so AST's own acceptance cannot be trusted here (verified
+	2026-07-10; SPEC-03A X8 / D24).
+
+	Domain is deliberately NOT checked: AST polices that honestly (a
+	``Domain=PIXEL`` x ``Domain=GRID`` pair raises), and those escapes are
+	chained into the same exception at the public construction boundary.
+
+	:raises cornish.exc.CoordinateSystemsCouldNotBeMapped: sky/basic mix, or
+		differing numbers of axes
+	'''
+	first_is_sky = bridge.is_sky(first)
+	other_is_sky = bridge.is_sky(other)
+	if first_is_sky != other_is_sky:
+		sky_region, basic_region = ((first, other) if first_is_sky else (other, first))
+		raise CoordinateSystemsCouldNotBeMapped(
+			f"A sky region ('{sky_region.Class}') and a non-sky region "
+			f"('{basic_region.Class}') cannot be combined: AST would accept the pair "
+			f"silently and read the basic frame's native values AS RADIANS in the sky "
+			f"frame, producing geometry that is wrong everywhere with no error. Map one "
+			f"region into the other's frame first (see ASTRegion.regionWithMapping).")
+	if first.Naxes != other.Naxes:
+		raise CoordinateSystemsCouldNotBeMapped(
+			f"Regions with different numbers of axes cannot be combined "
+			f"('{first.Class}' has {first.Naxes}, '{other.Class}' has {other.Naxes}).")
+
+
+def _collect_wcs(operands):
+	'''
+	The SPEC-03A §2.3 unanimous-or-nothing ``.wcs`` rule over a FLAT operand list.
+
+	Exactly one distinct (by identity) non-``None`` ``.wcs`` among the operands
+	propagates; zero or two-or-more give ``None`` — a union of two different
+	images' footprints has no single originating WCS, and guessing one would be
+	a silent wrong answer. Raw pyast operands contribute nothing.
+
+	This must be evaluated ONCE over the flat input list, never re-derived
+	pairwise inside a fold: unanimity is not transitive through ``None``, so
+	``[W, W2, W]`` folded pairwise would resurrect ``W``.
+	'''
+	distinct = []
+	for region in operands:
+		wcs = getattr(region, "wcs", None) # cornish wrappers only; raw Ast.Region -> None
+		if wcs is not None and all(wcs is not seen for seen in distinct):
+			distinct.append(wcs)
+	return distinct[0] if len(distinct) == 1 else None
+
+
+#: The frozen message for an Ast.AstError escaping a compound construction that
+#: passed the §2.2 gate (e.g. AST's own Domain check).
+_AST_COMBINE_FAILED_MSG = ("AST could not combine these regions (frames incompatible, "
+                           "e.g. mismatched Domains)")
+
+
+def _combine(first, second, operation: "_BinaryOperation"):
+	'''
+	The single construction seam behind every binary operator and every binary
+	named method (SPEC-03A §2.1/§2.2/§2.3).
+
+	``first`` and `second` are the operands in the order the user WROTE them —
+	the reflected operators pass the raw left operand as ``first`` — because the
+	result's frame is the first operand's and ``-`` is not commutative.
+
+	Everything the §2 decision table promises happens here exactly once: operand
+	coercion (region-only), the frame gate, the AST construction with every
+	argument positional, the chained boundary catch, and the ``.wcs`` rule
+	computed over the original operands.
+	'''
+	from .compound_region import ASTCompoundRegion, _symmetric_difference_ast # avoid circular import
+
+	first_ast = _unwrap_region(first)
+	second_ast = _unwrap_region(second)
+	_require_compatible_frames(first_ast, second_ast)
+
+	try:
+		if operation is _BinaryOperation.UNION:
+			# kwarg-swallowing trap: Ast.CmpRegion's `oper=` is silently ignored
+			# and always builds OR — every argument POSITIONAL (D15 / X1)
+			ast_compound = Ast.CmpRegion(first_ast, second_ast, int(RegionOperation.OR))
+		elif operation is _BinaryOperation.INTERSECTION:
+			ast_compound = Ast.CmpRegion(first_ast, second_ast, int(RegionOperation.AND))
+		elif operation is _BinaryOperation.DIFFERENCE:
+			# a - b == a & ~b; negate a COPY so the caller's operand is untouched
+			negated = second_ast.copy()
+			negated.negate()
+			ast_compound = Ast.CmpRegion(first_ast, negated, int(RegionOperation.AND))
+		elif operation is _BinaryOperation.SYMMETRIC_DIFFERENCE:
+			ast_compound = _symmetric_difference_ast(first_ast, second_ast)
+		else: # pragma: no cover - the enum is closed
+			raise ValueError(f"Unhandled binary region operation: {operation!r}")
+	except Ast.AstError as e:
+		raise CoordinateSystemsCouldNotBeMapped(_AST_COMBINE_FAILED_MSG) from e
+
+	result = ASTCompoundRegion(ast_object=ast_compound)
+	result.wcs = _collect_wcs([first, second])
+	return result
+
+
 class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	'''
 	Represents a region within a coordinate system.
@@ -95,10 +247,177 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		#: known (e.g. set by ``fromFITSHeader``); ``None`` otherwise (SPEC-04 §2).
 		self.wcs = None
 
-	def __add__(self, other_region):
-		# TODO: check data type, handle both ASTRegion and the ast_object region?
-		from .compound_region import ASTCompoundRegion # forward import to avoid circular import error
-		return ASTCompoundRegion(regions=[self, other_region], operation=Ast.AND)
+	# ------------------------------------------------------------------
+	# region algebra (SPEC-03A §2). Every operator returns a NEW object and
+	# leaves both operands untouched (AST deep-copies operands at CmpRegion
+	# construction; '~' and '-' negate copies).
+	#
+	# Raw starlink.Ast regions define no bitwise dunders, so a raw left operand
+	# always reaches the reflected form here — which is why all four reflected
+	# operators are implemented, and why each preserves the WRITTEN order: the
+	# result's frame is the first-written operand's, and '-' is not commutative.
+	# ------------------------------------------------------------------
+
+	@staticmethod
+	def _is_region_operand(other) -> bool:
+		return isinstance(other, (ASTRegion, Ast.Region))
+
+	def __or__(self, other) -> "ASTCompoundRegion":
+		''' ``a | b`` — the union of this region and ``other``. '''
+		if not self._is_region_operand(other):
+			return NotImplemented
+		return _combine(self, other, _BinaryOperation.UNION)
+
+	def __ror__(self, other) -> "ASTCompoundRegion":
+		''' ``p | a`` for a raw pyast left operand; ``p`` stays first. '''
+		if not self._is_region_operand(other):
+			return NotImplemented
+		return _combine(other, self, _BinaryOperation.UNION)
+
+	def __and__(self, other) -> "ASTCompoundRegion":
+		''' ``a & b`` — the intersection of this region and ``other``. '''
+		if not self._is_region_operand(other):
+			return NotImplemented
+		return _combine(self, other, _BinaryOperation.INTERSECTION)
+
+	def __rand__(self, other) -> "ASTCompoundRegion":
+		''' ``p & a`` for a raw pyast left operand; ``p`` stays first. '''
+		if not self._is_region_operand(other):
+			return NotImplemented
+		return _combine(other, self, _BinaryOperation.INTERSECTION)
+
+	def __sub__(self, other) -> "ASTCompoundRegion":
+		''' ``a - b`` — this region with ``other`` removed (``a & ~b``). '''
+		if not self._is_region_operand(other):
+			return NotImplemented
+		return _combine(self, other, _BinaryOperation.DIFFERENCE)
+
+	def __rsub__(self, other) -> "ASTCompoundRegion":
+		''' ``p - a`` for a raw pyast left operand: ``p`` is the MINUEND. '''
+		if not self._is_region_operand(other):
+			return NotImplemented
+		return _combine(other, self, _BinaryOperation.DIFFERENCE)
+
+	def __xor__(self, other) -> "ASTCompoundRegion":
+		''' ``a ^ b`` — the symmetric difference, built as ``(a & ~b) | (~a & b)``. '''
+		if not self._is_region_operand(other):
+			return NotImplemented
+		return _combine(self, other, _BinaryOperation.SYMMETRIC_DIFFERENCE)
+
+	def __rxor__(self, other) -> "ASTCompoundRegion":
+		''' ``p ^ a`` for a raw pyast left operand; ``p`` stays first. '''
+		if not self._is_region_operand(other):
+			return NotImplemented
+		return _combine(other, self, _BinaryOperation.SYMMETRIC_DIFFERENCE)
+
+	def __invert__(self) -> "ASTRegion":
+		'''
+		``~a`` — a negated COPY of this region: the same wrapper class, not a
+		compound. ``self`` is untouched.
+
+		The membership and mesh machinery fully respects negation; AST's
+		``getregiondisc``/``getregionbounds`` do NOT, which is why
+		:meth:`boundingCircle`, :meth:`boundingBox` and :attr:`bounds` verify
+		their answers rather than trusting them (§4.4).
+		'''
+		negated = self.copy() # carries .wcs and _uncertainty by reference
+		negated.negate()
+		return negated
+
+	def __add__(self, other):
+		'''
+		Removed (D4): ``+`` raises for every operand.
+
+		:raises TypeError: always
+		'''
+		raise TypeError(_PLUS_REMOVED_MSG)
+
+	def __radd__(self, other):
+		'''
+		Removed (D4): ``+`` raises for every operand, in either direction.
+
+		:raises TypeError: always
+		'''
+		raise TypeError(_PLUS_REMOVED_MSG)
+
+	def union(self, *others: Union["ASTRegion", Ast.Region]) -> "ASTCompoundRegion":
+		'''
+		The union of this region and all ``others``, as one balanced tree (§3.2).
+
+		:raises ValueError: no operands were given
+		:raises TypeError: an operand is not a region (named methods raise
+			directly, naming the type — they cannot return ``NotImplemented``)
+		:raises cornish.exc.CoordinateSystemsCouldNotBeMapped: an operand fails
+			the §2.2 frame gate
+		'''
+		return self._nary(others, RegionOperation.OR, "union")
+
+	def intersection(self, *others: Union["ASTRegion", Ast.Region]) -> "ASTCompoundRegion":
+		'''
+		The intersection of this region and all ``others``, as one balanced tree.
+
+		Same contract as :meth:`union`.
+		'''
+		return self._nary(others, RegionOperation.AND, "intersection")
+
+	def difference(self, other: Union["ASTRegion", Ast.Region]) -> "ASTCompoundRegion":
+		'''
+		This region with ``other`` removed — identical to ``self - other``.
+
+		Binary only: ``-`` is not associative in any useful reading, so an n-ary
+		form would invite silent misreadings. ``other`` itself is untouched.
+		'''
+		return _combine(self, other, _BinaryOperation.DIFFERENCE)
+
+	def symmetricDifference(self, other: Union["ASTRegion", Ast.Region]) -> "ASTCompoundRegion":
+		'''
+		The symmetric difference of this region and ``other`` — identical to
+		``self ^ other``.
+
+		Built as the explicit composition ``(self & ~other) | (~self & other)``;
+		cornish never constructs a native ``Ast.XOR`` node, because AST
+		serializes one to STC-S as ``Difference``, which IVOA STC 1.33 defines
+		as the ASYMMETRIC difference (§2.7 / D25).
+		'''
+		return _combine(self, other, _BinaryOperation.SYMMETRIC_DIFFERENCE)
+
+	def _nary(self, others, operation: RegionOperation, method_name: str) -> "ASTCompoundRegion":
+		''' shared body of :meth:`union` and :meth:`intersection` (§3.2). '''
+		from .compound_region import ASTCompoundRegion, _balanced_fold # avoid circular import
+
+		if not others:
+			# without this guard the fold's n == 1 edge would wrap self's own
+			# ast_object as a "compound"
+			raise ValueError(f"{method_name}() needs at least one other region.")
+		operands = [self, *others] # order preserved; the leftmost governs frame and .wcs
+
+		for other in others:
+			_require_compatible_frames(self.astObject, _unwrap_region(other)) # §2.2, once per input
+		wcs = _collect_wcs(operands) # §2.3, ONCE over the flat list
+
+		try:
+			result = ASTCompoundRegion(ast_object=_balanced_fold(operands, operation))
+		except Ast.AstError as e: # §2.2 boundary catch (AST's own Domain refusals)
+			raise CoordinateSystemsCouldNotBeMapped(_AST_COMBINE_FAILED_MSG) from e
+		result.wcs = wcs # attached to the FINAL compound only
+		return result    # _uncertainty is None via the ast_object ctor path (§2.4)
+
+	def simplified(self) -> "ASTRegion":
+		'''
+		This region with AST's ``simplify()`` applied.
+
+		Compounds of coincident or degenerate pieces may collapse to simpler
+		classes (a union of a circle with itself becomes a Circle), so the
+		result may be a different cornish class from ``self``. ``self`` is
+		untouched and ``.wcs`` is propagated.
+
+		Unlike the disc/bounds machinery, AST's ``simplify()`` handles negation
+		honestly — ``Negated`` is preserved and membership stays correct — so no
+		verification layer is needed here.
+		'''
+		result = region_from_ast(self.astObject.simplify())
+		result.wcs = self.wcs # single-parent operation (§2.3)
+		return result
 
 	@classmethod
 	def fromFITSHeader(cls, fits_header=None, maxerr:astropy.units.Quantity=1*u.arcsec, maxvert:int=200) -> ASTRegion:
@@ -497,17 +816,27 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		Unlike the boolean predicates below, this includes
 		:attr:`OverlapType.NO_FRAME_MAPPING` rather than raising.
 
+		A sky region compared against a non-sky one returns
+		:attr:`OverlapType.NO_FRAME_MAPPING` without consulting AST — AST would
+		answer ``NONE``, having silently read the basic frame's native values as
+		radians (SPEC-03A §2.2 / D24).
+
 		:param region: the region to compare against
+		:raises TypeError: ``region`` is not a region
 		'''
 		if region is None:
 			raise ValueError("'None' was provided as the second region.")
-		if isinstance(region, ASTRegion):
-			return_value = self.astObject.overlap(region.astObject)
-		elif isinstance(region, starlink.Ast.Region):
-			return_value = self.astObject.overlap(region)
-		else:
-			raise TypeError(f"Unexpected object given for region; expected either ASTRegion or starlink.Ast.Region (got '{type(region)}').")
-		return OverlapType(return_value)
+		other = _unwrap_region(region)
+
+		# SPEC-03A §2.2: for a sky x basic pair AST answers NONE (1), not
+		# NO_FRAME_MAPPING (0) — it considers the frames mapped, having silently
+		# read the basic frame's values as radians. This method is documented as
+		# the honest, non-raising enum API, so it must not relay that wrong
+		# answer: the mixed case is decided here, without calling AST.
+		if bridge.is_sky(self.astObject) != bridge.is_sky(other):
+			return OverlapType.NO_FRAME_MAPPING
+
+		return OverlapType(self.astObject.overlap(other))
 
 	def _checkedOverlapType(self, region) -> OverlapType:
 		''' overlapType, raising when the two regions' coordinate systems cannot be mapped. '''

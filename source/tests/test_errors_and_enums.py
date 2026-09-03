@@ -294,18 +294,26 @@ class TestCompoundRegionOperationTruthTable:
 		from cornish import _pyast_bridge as bridge
 		compound = ASTCompoundRegion(regions=overlapping_circles, operation=RegionOperation.XOR)
 		self.check(compound, in_both=False, in_first_only=True)
+		# cornish builds the explicit composition (a & ~b) | (~a & b); AST's
+		# CmpRegion constructor recognizes that pattern and stores it as a native
+		# XOR node, so the dumped Operator is 3 either way (verified 2026-09-03 —
+		# SPEC-03A §2.7 predicted 2/OR here and was wrong; see the spec's
+		# corrected §2.7)
 		assert int(bridge.dump_value(compound.astObject, "Operator")) == Ast.XOR
 
-	def test_region_add_operator_is_genuinely_and(self, overlapping_circles):
+	def test_region_add_operator_removed(self, overlapping_circles):
 		'''
-		the public `region1 + region2` (base-class ASTRegion.__add__) requests
-		AND — and now actually gets it. (Circles override + for dilation and
-		refuse region operands per D5, so exercise it via polygons.)
+		SPEC-03A §2.5 / D4: `+` between regions is REMOVED. Its old base-class
+		meaning (intersection) contradicted ASTCircle's `+` (grow the radius),
+		and no meaning is coherent across subclasses. `&` is the intersection.
 		'''
+		from cornish.region.region import _PLUS_REMOVED_MSG
 		p1 = overlapping_circles[0].toPolygon(npoints=60)
 		p2 = overlapping_circles[1].toPolygon(npoints=60)
-		compound = p1 + p2
-		self.check(compound, in_both=True, in_first_only=False)
+		with pytest.raises(TypeError) as excinfo:
+			p1 + p2
+		assert str(excinfo.value) == _PLUS_REMOVED_MSG
+		self.check(p1 & p2, in_both=True, in_first_only=False)
 
 	def test_operation_validation(self, overlapping_circles):
 		from cornish import ASTCompoundRegion
