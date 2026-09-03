@@ -713,9 +713,9 @@ class ASTCompoundRegion(ASTRegion):
 		# combined threshold; each side has to be meaningful on its own, or
 		# "verified" is the silent-skip this check exists to prevent.
 		unverified = []
-		if interior.size and missed_excused * 2 > len(interior):
+		if len(interior) and missed_excused * 2 > len(interior):
 			unverified.append(f"{missed_excused} of {len(interior)} interior")
-		if exterior.size and included_excused * 2 > len(exterior):
+		if len(exterior) and included_excused * 2 > len(exterior):
 			unverified.append(f"{included_excused} of {len(exterior)} exterior")
 		if unverified:
 			raise ValueError(
