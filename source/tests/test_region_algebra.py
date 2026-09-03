@@ -1494,6 +1494,9 @@ def test_audit_verification_refuses_an_empty_sample(c1, c2, monkeypatch):
 	polygon = union.toPolygon(npoints=200)
 	boundary = np.asarray(union.boundaryPointMesh(npoints=200), dtype=float)
 	boundary_frame = np.asarray(bridge.to_frame_units(boundary, union.astObject), dtype=float).T
+	# captured BEFORE any patching: a patched method captured here would call
+	# itself once the next case installs another patch over it
+	original_mesh = ASTCompoundRegion.interiorPointMesh
 
 	# Case 1 — BOTH sides empty. Patching at class level also empties the
 	# complement's mesh, since ~self is a compound too.
@@ -1513,7 +1516,6 @@ def test_audit_verification_refuses_an_empty_sample(c1, c2, monkeypatch):
 	# ~self goes through ASTObject.copy(), which carries __dict__ across by
 	# reference, so the patched bound method would ride along onto the
 	# complement and empty both sides again.)
-	original_mesh = ASTCompoundRegion.interiorPointMesh
 	monkeypatch.setattr(ASTCompoundRegion, "interiorPointMesh",
 	                    lambda self, npoints=None: (np.empty((0, 2)) if not self.isNegated
 	                                                else original_mesh(self, npoints=npoints)))
@@ -1526,3 +1528,17 @@ def test_audit_verification_refuses_an_empty_sample(c1, c2, monkeypatch):
 	# one-sided case
 	exterior_count = int(message.split("0 interior, ")[1].split(" ")[0])
 	assert exterior_count > 0
+	monkeypatch.undo()
+
+	# Case 3 — the MIRROR of case 2. Each arm of the guard has to be pinned on
+	# its own: with only case 2, dropping `or not len(exterior)` still passes.
+	monkeypatch.setattr(ASTCompoundRegion, "interiorPointMesh",
+	                    lambda self, npoints=None: (np.empty((0, 2)) if self.isNegated
+	                                                else original_mesh(self, npoints=npoints)))
+	with pytest.raises(ValueError) as excinfo:
+		union._verifyPolygonAgrees(polygon, 200, boundary_frame, True)
+	message = str(excinfo.value)
+	assert "sample is empty" in message
+	assert "0 exterior" in message
+	interior_count = int(message.split("(")[1].split(" ")[0])
+	assert interior_count > 0
