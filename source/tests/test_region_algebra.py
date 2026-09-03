@@ -1475,3 +1475,6 @@ def test_audit_verification_refuses_when_the_boundary_band_dominates(c1, c2, mon
 	message = str(excinfo.value)
 	assert "could not be verified" in message
 	assert "increase npoints" in message
+	# ...and it names WHICH side was unverifiable — the per-side reporting is the
+	# substance of the fix, not just the raise
+	assert "interior" in message

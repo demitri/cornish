@@ -637,10 +637,13 @@ class ASTCompoundRegion(ASTRegion):
 		inside the polygon, and every interior mesh point of its complement must
 		lie outside.
 
-		Stated blind spot: agreement is checked at a finite sample, so a
-		disagreement confined to a region smaller than the mesh spacing can pass.
-		That is the same resolution limit ``npoints`` sets everywhere in this
-		method, not an additional one.
+		Stated blind spots. Agreement is checked at a finite sample, so a
+		disagreement confined to a region smaller than the mesh spacing can pass
+		— the same resolution limit ``npoints`` sets everywhere in this method,
+		not an additional one. And the two halves are not equally powerful: on a
+		basic frame the complement cannot be meshed, so the exterior sample falls
+		back to the eight-point escape ring, which makes the exterior half of the
+		majority test a 5-of-8 statistic where the interior half is 100-of-200.
 
 		:raises ValueError: the polygon and the compound disagree
 		'''
@@ -667,7 +670,11 @@ class ASTCompoundRegion(ASTRegion):
 			''' (real disagreements, disagreements excused as boundary-band) '''
 			real = excused = 0
 			for point in points:
-				if polygon.pointInRegion(list(point)) is expected_inside:
+				# equality, not identity: pyast returns a real Python bool today,
+				# but an `is` test against a numpy bool would make EVERY point a
+				# disagreement and turn this into a confident "sampling too
+				# coarse" diagnosis rather than a loud failure
+				if bool(polygon.pointInRegion(list(point))) == expected_inside:
 					continue
 				frame_point = np.asarray(bridge.to_frame_units(point, self.astObject, squeeze=True),
 				                         dtype=float)
@@ -712,10 +719,12 @@ class ASTCompoundRegion(ASTRegion):
 		# about the exterior sample pools to just under half and would slip past a
 		# combined threshold; each side has to be meaningful on its own, or
 		# "verified" is the silent-skip this check exists to prevent.
+		# no emptiness guard is needed on either side: an empty sample forces its
+		# excused count to zero, and 0 > 0 is false
 		unverified = []
-		if len(interior) and missed_excused * 2 > len(interior):
+		if missed_excused * 2 > len(interior):
 			unverified.append(f"{missed_excused} of {len(interior)} interior")
-		if len(exterior) and included_excused * 2 > len(exterior):
+		if included_excused * 2 > len(exterior):
 			unverified.append(f"{included_excused} of {len(exterior)} exterior")
 		if unverified:
 			raise ValueError(
