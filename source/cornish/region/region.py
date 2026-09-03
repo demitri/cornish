@@ -312,7 +312,8 @@ def _box_escape_points(ast_region: Ast.Region, lower, upper) -> Tuple[list, floa
 			point = centre.copy()
 			point[axis] = centre[axis] + sign * reach[axis]
 			points.append(point)
-	if naxes <= _MAX_CORNER_PROBE_AXES:             # one past each corner, while 2**naxes is small
+	if 2 <= naxes <= _MAX_CORNER_PROBE_AXES:        # one past each corner, while 2**naxes is small
+	                                                # (at naxes == 1 the corners ARE the faces)
 		for signs in itertools.product((-1.0, +1.0), repeat=naxes):
 			points.append(centre + np.asarray(signs, dtype=float) * reach)
 	frame = bridge.current_frame_of(ast_region)

@@ -16,6 +16,7 @@ from astropy.coordinates import SkyCoord
 import starlink.Ast as Ast
 
 import cornish
+from cornish import _pyast_bridge as bridge
 from cornish import (ASTBox, ASTCircle, ASTPolygon, ASTRegion, ASTCompoundRegion,
                      ASTMoc, ASTFrameSet, ASTICRSFrame)
 from cornish import ASTFrame as CornishFrame
@@ -1444,3 +1445,33 @@ def test_audit_complement_mesh_fallback_is_narrow(c1, c2, monkeypatch):
 	monkeypatch.setattr(ASTCompoundRegion, "interiorPointMesh", raise_unrelated)
 	with pytest.raises(ValueError, match="something else went wrong entirely"):
 		union.toPolygon(npoints=200)
+
+
+def test_audit_verification_refuses_when_the_boundary_band_dominates(c1, c2, monkeypatch):
+	'''
+	The third audit fix, pinned directly: the boundary band EXCUSES disagreements,
+	so if excused disagreements dominate the sample the polygon is unverifiable
+	and must be reported as such — otherwise the post-condition silently passes
+	on a polygon it never actually checked.
+
+	Forced synthetically because no natural geometry reaches it: the two
+	resolution preconditions upstream raise first, so across the whole suite this
+	branch is otherwise never taken (measured: excused > 0 exactly once, at
+	4 of 397 points).
+	'''
+	import cornish.region.compound_region as compound_module
+
+	union = c1 | c2
+	# a polygon that disagrees with the union nearly everywhere
+	wrong_polygon = ASTCircle(center=[40, 20], radius=1.0).toPolygon(npoints=60)
+	boundary = np.asarray(union.boundaryPointMesh(npoints=200), dtype=float)
+	boundary_frame = np.asarray(bridge.to_frame_units(boundary, union.astObject), dtype=float).T
+
+	# ...and a metric that calls every one of those disagreements boundary-adjacent
+	monkeypatch.setattr(compound_module, "_min_separation", lambda *args, **kwargs: 0.0)
+
+	with pytest.raises(ValueError) as excinfo:
+		union._verifyPolygonAgrees(wrong_polygon, 200, boundary_frame, True)
+	message = str(excinfo.value)
+	assert "could not be verified" in message
+	assert "increase npoints" in message

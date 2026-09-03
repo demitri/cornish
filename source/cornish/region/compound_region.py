@@ -705,13 +705,21 @@ class ASTCompoundRegion(ASTRegion):
 				f"{included} of {len(exterior)} exterior points fall inside it); the boundary "
 				f"sampling is too coarse to polygonize this compound — increase npoints")
 
-		# The boundary band above EXCUSES disagreements, so it must not be where
-		# most of the sample lands: if it is, nothing was verified and saying
-		# "verified" would be the silent-skip this check exists to prevent.
-		excused = missed_excused + included_excused
-		sampled = len(interior) + len(exterior)
-		if sampled and excused * 2 > sampled:
+		# The boundary band above EXCUSES disagreements, so excused disagreements
+		# must not dominate — and the test is PER SIDE, because the two sides
+		# answer different questions and either alone can be uninformative. A
+		# polygon that is wrong about the entire interior but happens to be right
+		# about the exterior sample pools to just under half and would slip past a
+		# combined threshold; each side has to be meaningful on its own, or
+		# "verified" is the silent-skip this check exists to prevent.
+		unverified = []
+		if interior.size and missed_excused * 2 > len(interior):
+			unverified.append(f"{missed_excused} of {len(interior)} interior")
+		if exterior.size and included_excused * 2 > len(exterior):
+			unverified.append(f"{included_excused} of {len(exterior)} exterior")
+		if unverified:
 			raise ValueError(
 				f"the polygon built from this compound region's boundary could not be verified: "
-				f"{excused} of {sampled} probe points disagree with the region but lie within one "
-				f"seam-width of the boundary, where the sampling cannot decide — increase npoints")
+				f"{' and '.join(unverified)} probe points disagree with the region but lie within "
+				f"one seam-width of the boundary, where the sampling cannot decide — "
+				f"increase npoints")
