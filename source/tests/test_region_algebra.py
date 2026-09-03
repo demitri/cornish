@@ -1495,9 +1495,34 @@ def test_audit_verification_refuses_an_empty_sample(c1, c2, monkeypatch):
 	boundary = np.asarray(union.boundaryPointMesh(npoints=200), dtype=float)
 	boundary_frame = np.asarray(bridge.to_frame_units(boundary, union.astObject), dtype=float).T
 
+	# Case 1 — BOTH sides empty. Patching at class level also empties the
+	# complement's mesh, since ~self is a compound too.
 	monkeypatch.setattr(ASTCompoundRegion, "interiorPointMesh",
 	                    lambda self, npoints=None: np.empty((0, 2)))
 	with pytest.raises(ValueError) as excinfo:
 		union._verifyPolygonAgrees(polygon, 200, boundary_frame, True)
 	assert "sample is empty" in str(excinfo.value)
 	assert "nothing was actually checked" in str(excinfo.value)
+	assert "0 interior, 0 exterior" in str(excinfo.value)
+	monkeypatch.undo()
+
+	# Case 2 — only ONE side empty, which case 1 cannot distinguish: with both
+	# sides empty a guard weakened from `or` to `and` still raises. Empty only
+	# the un-negated side, so the complement keeps its real mesh.
+	# (An instance-level patch does NOT work here, and instructively so:
+	# ~self goes through ASTObject.copy(), which carries __dict__ across by
+	# reference, so the patched bound method would ride along onto the
+	# complement and empty both sides again.)
+	original_mesh = ASTCompoundRegion.interiorPointMesh
+	monkeypatch.setattr(ASTCompoundRegion, "interiorPointMesh",
+	                    lambda self, npoints=None: (np.empty((0, 2)) if not self.isNegated
+	                                                else original_mesh(self, npoints=npoints)))
+	with pytest.raises(ValueError) as excinfo:
+		union._verifyPolygonAgrees(polygon, 200, boundary_frame, True)
+	message = str(excinfo.value)
+	assert "sample is empty" in message
+	assert "0 interior" in message
+	# ...and the other side is genuinely populated, so this really is the
+	# one-sided case
+	exterior_count = int(message.split("0 interior, ")[1].split(" ")[0])
+	assert exterior_count > 0
