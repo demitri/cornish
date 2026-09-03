@@ -216,12 +216,19 @@ class ASTBox(ASTRegion):
 		'''
 		Returns a four-vertex ASTPolygon that describes this box in the same frame.
 
+		A NEGATED box polygonizes to the complement — the same four vertices,
+		wound the other way. The guard that used to stand here looked like it
+		did that and did not: it tested ``containsPoint(centre)`` on the freshly
+		built, never-negated box-shaped polygon against the box's own structural
+		centre, which is trivially always True, so its ``negate()`` branch never
+		fired and ``(~box).toPolygon()`` silently returned the un-negated box's
+		polygon (§4.6). The orientation is now decided against an interior point
+		of THIS region, taken from its negation-aware mesh.
+
 		The parameters 'npoints' and 'maxerr' are ignored.
 		'''
 		# Note: other region methods use the boundary mesh points technique to get a polygon.
 		# A box is a simple enough shape to get a precise polygon from the provided points.
-
-		from .polygon import ASTPolygon # avoid circular import
 
 		centre_point, corner_point = bridge.from_frame_units(self.astObject.getregionpoints(), self.astObject)
 		d_x, d_y = centre_point - corner_point
@@ -233,11 +240,7 @@ class ASTBox(ASTRegion):
 			[centre_point[0] + d_x, centre_point[1] - d_y]
 		])
 
-		polygon = ASTPolygon(frame=self.frame(), points=polygon_points)
-		if polygon.containsPoint(centre_point) is False:
-			polygon.negate()
-		polygon.wcs = self.wcs # propagate the originating WCS, when known (SPEC-04 §2)
-		return polygon
+		return self._orientedPolygon(polygon_points)
 
 	@property
 	def area(self) -> u.Quantity:

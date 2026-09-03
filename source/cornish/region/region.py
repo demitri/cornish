@@ -175,6 +175,175 @@ def _collect_wcs(operands):
 	return distinct[0] if len(distinct) == 1 else None
 
 
+#: Escape-probe geometry for the §4.4 bound verification. AST's
+#: ``getregiondisc``/``getregionbounds`` are NEGATION-BLIND — they answer about
+#: the un-negated shape while the membership machinery honours the negation — so
+#: every claimed bound is tested by probing just outside it. The defended class
+#: escapes at EVERY probe (9/9 verified for ``~a`` and ``~(a|b)``), which is what
+#: makes the corroboration step below able to separate it from numerical noise.
+_ESCAPE_PROBE_COUNT = 8
+_ESCAPE_RING_FACTOR = 1.05
+_ESCAPE_RING_PAD_DEG = 1.0
+_ESCAPE_RING_MAX_DEG = 179.0
+
+#: Each escape probe must agree with four neighbours this far away (as a
+#: fraction of the probe ring) before it counts. AST's spherical-polygon
+#: containment has isolated, measure-zero True answers at points that are
+#: demonstrably outside the polygon — one was found on the ordinary FITS-field
+#: polygon of a 512x512 TAN header, where the eight neighbours 0.02 deg away all
+#: answer False (verified 2026-09-03). A single such flicker must not condemn an
+#: honest region, and an escaped MEMBERSHIP — the thing being detected — is an
+#: area, never an isolated point, so corroboration costs the detector nothing.
+_CORROBORATION_FRACTION = 1e-3
+_CORROBORATION_MIN_ARCSEC = 1.0
+
+#: The frozen message for a bound that does not actually bound the region.
+_NEGATION_BLIND_MSG = (
+	"AST's bounds machinery ignored this region's negation state (verified): the "
+	"values it returned do not enclose the region's membership, so no bounding "
+	"box or circle can be derived for it. Note that toMoc() is NOT a reliable "
+	"escape either — Moc.addregion can silently contribute nothing for a region "
+	"that is small relative to the MOC cell scale."
+)
+
+
+def _degenerate_disc(centre, radius) -> bool:
+	'''
+	True when AST's ``getregiondisc`` answer cannot describe any region.
+
+	Three conditions, all of which have been observed or are unrepresentable:
+	the ``Ast.BAD`` sentinel in the radius (the disjoint-AND empty class) or in
+	the CENTRE (the negated exact-tiling degenerate, whose radius reads a
+	plausible number), any non-finite value, and a radius of exactly zero.
+
+	The zero-radius arm is defence in depth, not a verified distinct class: no
+	construction with a finite non-BAD centre and a zero radius is known, and
+	honest compounds never return radius 0 (verified down to 7 arcsec-scale
+	unions). It is here because a disc of zero extent can never be polygonized
+	or used as a bound however it arises — and it is factored out so it can be
+	unit-tested with synthetic inputs despite having no natural trigger.
+	'''
+	centre = np.asarray(centre, dtype=float)
+	if np.any(centre == Ast.BAD) or radius == Ast.BAD:
+		return True
+	if not (np.all(np.isfinite(centre)) and math.isfinite(radius)):
+		return True
+	return radius == 0
+
+
+def _corroboration_offset(ast_region: Ast.Region, scale:float) -> float:
+	''' the neighbour offset for :func:`_verify_encloses`, in frame units '''
+	floor = (bridge.to_frame_distance(_CORROBORATION_MIN_ARCSEC / 3600.0, ast_region)
+	         if bridge.is_sky(ast_region) else abs(scale) * _CORROBORATION_FRACTION)
+	return max(abs(scale) * _CORROBORATION_FRACTION, floor)
+
+
+def _ring_points(ast_region: Ast.Region, centre, ring_radius:float) -> list:
+	''' ``_ESCAPE_PROBE_COUNT`` points at ``ring_radius`` around ``centre``, in frame units. '''
+	frame = bridge.current_frame_of(ast_region)
+	return [np.asarray(frame.offset2(centre, 2 * math.pi * i / _ESCAPE_PROBE_COUNT, ring_radius)[1],
+	                   dtype=float)
+	        for i in range(_ESCAPE_PROBE_COUNT)]
+
+
+def _disc_escape_points(ast_region: Ast.Region, centre, radius:float) -> Tuple[list, float]:
+	'''
+	Probe points that lie OUTSIDE the claimed bounding disc, in frame units,
+	with the corroboration offset to use for them.
+
+	On a sky frame the ring sits at ``1.05 r`` plus a degree (capped at 179 deg,
+	since nothing on a sphere is further away than that) and the antipode of the
+	disc centre is added: a negated region covers most of the sphere, so the
+	antipode is the single most informative probe. On a basic frame there is no
+	antipode — the complement of a bounded region is unbounded there, so the
+	ring alone already proves the failure.
+	'''
+	frame = bridge.current_frame_of(ast_region)
+	if bridge.is_sky(ast_region):
+		ring_radius = min(_ESCAPE_RING_FACTOR * radius
+		                  + bridge.to_frame_distance(_ESCAPE_RING_PAD_DEG, ast_region),
+		                  bridge.to_frame_distance(_ESCAPE_RING_MAX_DEG, ast_region))
+		points = _ring_points(ast_region, centre, ring_radius)
+		points.append(np.asarray(frame.norm([centre[0] + math.pi, -centre[1]]), dtype=float))
+	else:
+		ring_radius = _ESCAPE_RING_FACTOR * radius
+		points = _ring_points(ast_region, centre, ring_radius)
+	return points, _corroboration_offset(ast_region, ring_radius)
+
+
+def _box_escape_points(ast_region: Ast.Region, lower, upper) -> Tuple[list, float]:
+	'''
+	Probe points just outside the claimed bounding box, in frame units (with the
+	corroboration offset): one past the middle of each face, one past each
+	corner, plus the antipode of the box centre on a sky frame.
+	'''
+	lower = np.asarray(lower, dtype=float)
+	upper = np.asarray(upper, dtype=float)
+	centre = 0.5 * (lower + upper)
+	half = 0.5 * (upper - lower)
+	# a pad that is meaningful whether the box is tiny or huge
+	pad = np.maximum(_ESCAPE_RING_FACTOR * half, np.abs(half) + 1e-6) - half
+	points = []
+	for axis in range(len(centre)):
+		for sign in (-1.0, +1.0):
+			point = centre.copy()
+			point[axis] = centre[axis] + sign * (half[axis] + pad[axis])
+			points.append(point)
+	for sign_0 in (-1.0, +1.0):
+		for sign_1 in (-1.0, +1.0):
+			points.append(np.array([centre[0] + sign_0 * (half[0] + pad[0]),
+			                        centre[1] + sign_1 * (half[1] + pad[1])]))
+	frame = bridge.current_frame_of(ast_region)
+	if bridge.is_sky(ast_region):
+		points.append(np.array([centre[0] + math.pi, -centre[1]]))
+	normed = [np.asarray(frame.norm(list(point)), dtype=float) for point in points]
+	return normed, _corroboration_offset(ast_region, float(np.max(half + pad)))
+
+
+def _corroborated_member(ast_region: Ast.Region, point, offset:float) -> bool:
+	'''
+	True when ``point`` AND four neighbours ``offset`` away are all members.
+
+	See :data:`_CORROBORATION_FRACTION`: AST's spherical-polygon containment has
+	isolated True answers at points that are outside the polygon, so a lone hit
+	is not evidence. Escaped membership is an area and survives this; a flicker
+	does not.
+	'''
+	if not ast_region.pointinregion(point):
+		return False
+	frame = bridge.current_frame_of(ast_region)
+	for quadrant in range(4):
+		neighbour = np.asarray(frame.offset2(point, math.pi * quadrant / 2, offset)[1], dtype=float)
+		if not ast_region.pointinregion(neighbour):
+			return False
+	return True
+
+
+def _verify_encloses(ast_region: Ast.Region, probe_points, offset:float, what:str) -> None:
+	'''
+	Raise if the region genuinely has members OUTSIDE a claimed bound.
+
+	This is the runtime guard for AST's negation blindness (D30): a docstring
+	warning is not loud, and ``(~a).bounds`` would otherwise silently hand back
+	``a``'s own box while ``~a`` covers the rest of the sky.
+
+	Stated blind spots: a region whose outside-bound membership is confined to a
+	sliver thinner than the corroboration offset would pass, as would one that
+	evades every probe direction. The class this defends against — negation
+	blindness — leaves the escaped membership covering most of the frame, which
+	spread probes do not miss; and the check is loud on a hit, never loud on an
+	honest region.
+
+	:raises ValueError: the claimed bound does not enclose the region
+	'''
+	escaped = [point for point in probe_points
+	           if _corroborated_member(ast_region, point, offset)]
+	if escaped:
+		raise ValueError(f"{what}: {_NEGATION_BLIND_MSG} "
+		                 f"({len(escaped)} of {len(probe_points)} probe points outside the "
+		                 f"claimed bound test as members of the region.)")
+
+
 #: The frozen message for an Ast.AstError escaping a compound construction that
 #: passed the §2.2 gate (e.g. AST's own Domain check).
 _AST_COMBINE_FAILED_MSG = ("AST could not combine these regions (frames incompatible, "
@@ -761,7 +930,15 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 	@property
 	def bounds(self) -> Tuple:
 		'''
-		Returns lower and upper coordinate points that bound this region.
+		Lower and upper coordinate points that bound this region.
+
+		The values AST returns are VERIFIED before they are handed back:
+		``getregionbounds`` ignores the region's ``Negated`` state entirely,
+		while containment does not, so ``(~a).bounds`` would otherwise silently
+		return ``a``'s own box (§4.4 / D30).
+
+		:raises ValueError: the bounds AST returned do not enclose this region's
+			membership (a negated region, in every case observed)
 		'''
 
 		lower_bounds, upper_bounds = self.astObject.getregionbounds()
@@ -769,6 +946,17 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# lower_bounds and upper_bounds are n-dimensional arrays
 		# e.g. for a 2D image,
 		# [-10,5], [10,20] <- (ra, dec) or pixel bounds
+
+		if len(lower_bounds) == 2:
+			# the escape-probe geometry (offset2, antipode) is 2D; higher
+			# dimensions are out of the verified class rather than silently
+			# unverified — say so, loudly, at the one place it matters
+			probe_points, offset = _box_escape_points(self.astObject, lower_bounds, upper_bounds)
+			_verify_encloses(self.astObject, probe_points, offset, "bounds")
+		else:
+			logger.warning("bounds: the negation-blindness verification (§4.4) is only "
+			               "defined for 2D regions; this %dD region's bounds are unverified.",
+			               len(lower_bounds))
 
 		lower_bounds = bridge.from_frame_units(lower_bounds, self.astObject)
 		upper_bounds = bridge.from_frame_units(upper_bounds, self.astObject)
@@ -797,16 +985,106 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 		from .circle import ASTCircle
 		centre, radius = self.astObject.getregiondisc() # returns frame units (radians on sky)
-		# note that AST signals "no disc" with Ast.BAD (a large *finite* float), not NaN;
-		# this guard stays ahead of the bridge call for its domain-specific message
-		if (Ast.BAD in centre) or (radius == Ast.BAD) or \
-		   not (np.all(np.isfinite(centre)) and math.isfinite(radius)):
-			# e.g. an empty region (such as a MOC of the AND of disjoint regions);
-			# fail here rather than let bad values propagate
-			raise ValueError(f"No bounding circle could be determined for this region (AST returned centre={centre}, radius={radius}); the region may be empty or unbounded.")
+
+		# Layer 1 — AST signals "no disc" with Ast.BAD (a large *finite* float),
+		# not NaN, and the sentinel can land in the radius OR in the centre
+		# depending on which empty class this is. This guard stays ahead of the
+		# bridge call for its domain-specific message.
+		if _degenerate_disc(centre, radius):
+			raise ValueError(f"No bounding circle could be determined for this region (AST returned "
+			                 f"centre={centre}, radius={radius}); the region may be empty or unbounded.")
+
+		# Layer 2 — the other empty class returns a FINITE, entirely plausible
+		# disc: `a ^ a` reports a radius of about the operand's own scale and an
+		# ordinary-looking boundary mesh, and only the SURFACE mesh gives it away.
+		# Without this an empty region gets a confident bogus bounding circle.
+		self._interiorProbePoint()
+
+		# Layer 3 — getregiondisc is NEGATION-BLIND: verify that the disc it
+		# returned actually bounds the region's membership.
+		probe_points, offset = _disc_escape_points(self.astObject, centre, radius)
+		_verify_encloses(self.astObject, probe_points, offset, "boundingCircle")
+
 		return ASTCircle(frame=self,
 		                 center=bridge.from_frame_units(centre, self.astObject),
 		                 radius=bridge.from_frame_distance(radius, self.astObject))
+
+	def _orientedPolygon(self, points, probe=None) -> "ASTPolygon":
+		'''
+		Build an :class:`ASTPolygon` from ``points`` with its winding fixed so it
+		contains the same points this region does (§4.3 step 6 / §4.6).
+
+		On the sphere a polygon's winding IS its inside/outside, so a boundary
+		traced from a NEGATED region gives the un-negated shape unless the
+		orientation is corrected. The correction reverses the vertex order — it
+		does not call ``negate()``: reversal is what the ``_fromParsedWCS``
+		machinery already relies on, and negation would double-count with the
+		source region's own ``Negated`` state.
+
+		:param points: boundary vertices, in the units :class:`ASTPolygon`
+			accepts (degrees on a sky frame)
+		:param probe: an interior point of ``self`` in FRAME units; obtained
+			from :meth:`_interiorProbePoint` when not supplied
+		'''
+		from .polygon import ASTPolygon # avoid circular import
+
+		if probe is None:
+			probe = self._interiorProbePoint()
+		polygon = ASTPolygon(frame=self, points=points)
+		if not polygon.astObject.pointinregion(probe):
+			polygon = ASTPolygon(frame=self, points=points[::-1])
+		polygon.wcs = self.wcs # single-parent operation (§2.3)
+		return polygon
+
+	def _interiorProbePoint(self) -> np.ndarray:
+		'''
+		One interior point of this region, from the negation-aware SURFACE mesh,
+		in FRAME units — and the emptiness check that comes with obtaining it.
+
+		A geometrically empty region is an ordinary occurrence (``a & b`` for
+		disjoint operands, ``a - a``, ``a ^ a``), and AST's conduct splits into
+		two classes: the disjoint-AND class returns a BAD bounding disc, but the
+		self-difference class returns a finite disc and a full, ordinary-looking
+		boundary mesh — indistinguishable from a legitimate region until the
+		SURFACE mesh raises ``Ast.NPTIN`` ("Number of points (0)").
+
+		:raises ValueError: this region is empty (or its mesh is unobtainable),
+			with the AST error chained
+		'''
+		try:
+			probe = self.astObject.getregionmesh(MeshType.SURFACE)[:, 0]
+		except Ast.AstError as e:
+			raise ValueError(
+				"This region has no interior points: it is empty (e.g. an intersection of "
+				"disjoint regions, or a region differenced with itself) or its mesh could "
+				"not be generated.") from e
+		if self.astObject.pointinregion(probe):
+			return probe
+
+		# The mesh point is not a member. Two things produce that, and they must
+		# not be conflated:
+		#
+		#  (a) getregionmesh(SURFACE) is NEGATION-BLIND for Ast.Box — and, as far
+		#      as testing shows, ONLY for Box: a negated box's interior mesh is
+		#      the un-negated box's, 0 of 195 points of which are members, while
+		#      Circle, Polygon and CmpRegion all honour the negation
+		#      (verified 2026-09-03; not in SPEC-03A's X-table, which asserts the
+		#      mesh machinery respects negation generally).
+		#  (b) the region really is degenerate.
+		#
+		# Distinguish them by looking where a negated region's members actually
+		# are — outside its (negation-blind) bounding disc. A corroborated member
+		# there settles case (a); finding none leaves case (b), loudly.
+		centre, radius = self.astObject.getregiondisc()
+		if not _degenerate_disc(centre, radius):
+			candidates, offset = _disc_escape_points(self.astObject, centre, radius)
+			for candidate in candidates:
+				if _corroborated_member(self.astObject, candidate, offset):
+					return candidate
+		raise ValueError(
+			"This region is degenerate: the interior point AST generated for it does not "
+			"test as a member of the region, and no member could be found outside its "
+			"bounding disc either.")
 
 	def overlapType(self, region:Union[ASTRegion, starlink.Ast.Region]) -> OverlapType:
 		'''
@@ -989,8 +1267,17 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 
 		The default value of 'npoints' is 200 for 2D regions and 2000 for three or more dimensions.
 
+		NOTE for compound regions: ``MeshSize`` applies PER COMPONENT, so the
+		realized mesh is roughly ``leaf count x npoints`` minus the points trimmed
+		inside other components — a 50-leaf union at ``npoints=200`` returns about
+		10 000 points. Setting it on a compound also propagates into the
+		compound's internal children (they are live), which is why this method
+		saves and restores the value.
+
 		:param npoints: the approximate number of points to generate in the mesh
 		:returns: list of points in degrees
+		:raises ValueError: no mesh could be generated (an empty region, or a
+			mapping with no bounding box)
 		'''
 		# The starlink.AST object uses the attribute "MeshSize" to determine the number of points to
 		# use. This should be specified when building the mesh - the attribute doesn't seem to be used
@@ -1015,6 +1302,13 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			# from_frame_units norms again, which is a harmless idempotent call (M14).
 		except Ast.MBBNF as e:
 			raise ValueError("A mesh could not be generated: no bounding box could be found for this region's mapping.") from e
+		except Ast.AstError as e:
+			# empty compounds raise Ast.BADIN or Ast.NPTIN here; a raw pyast
+			# internal error must never leak out of a public method (§4.4)
+			raise ValueError(
+				"A boundary mesh could not be generated for this region; it is most likely "
+				"empty (e.g. an intersection of disjoint regions, or a region differenced "
+				"with itself).") from e
 		finally:
 			if npoints is not None:
 				# restore original value even when the mesh generation fails
@@ -1049,6 +1343,12 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 			mesh = self.astObject.getregionmesh(MeshType.SURFACE) # AST's "surface" mesh is the interior
 			# As of starlink-pyast v.3.15.4, getregionmesh returns normalized points;
 			# from_frame_units norms again, which is a harmless idempotent call (M14).
+		except Ast.AstError as e:
+			# empty compounds raise Ast.BADIN or Ast.NPTIN here (§4.4)
+			raise ValueError(
+				"An interior mesh could not be generated for this region; it is most likely "
+				"empty (e.g. an intersection of disjoint regions, or a region differenced "
+				"with itself).") from e
 		finally:
 			if npoints is not None:
 				# restore original value even when the mesh generation fails

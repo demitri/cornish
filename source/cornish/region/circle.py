@@ -283,19 +283,34 @@ class ASTCircle(ASTRegion):
 		default number of points is 200, typically a much smaller number (e.g. 20) is
 		sufficient.
 
+		A NEGATED circle polygonizes to the complement — the same boundary curve,
+		wound the other way. That correction is what this method used to lack
+		entirely: it had no orientation logic at all, so ``(~circle).toPolygon()``
+		silently returned the UN-negated circle's polygon (§4.6).
+
 		:param npoints: number of points to sample from the circle for the resulting polygon
-		:param maxerr:
+		:param maxerr: accepted and ignored — the vertices lie exactly on the
+			circle, so ``npoints`` alone governs fidelity
 		'''
 		points = self.boundaryPointMesh(npoints=npoints)
-
-		polygon = ASTPolygon(frame=self, points=points) # can get the frame from the astObject
-		polygon.wcs = self.wcs # propagate the originating WCS, when known (SPEC-04 §2)
-		return polygon
+		return self._orientedPolygon(points)
 
 	def boundingCircle(self) -> ASTCircle:
 		'''
-		This method returns itself; a circle region is its own bounding circle.
+		This circle, which is its own bounding circle.
+
+		A NEGATED circle is the one case this shortcut cannot serve: it is the
+		complement of the circle, which no circle bounds. Returning ``self``
+		there would hand back a "bound" that excludes everything the region
+		contains — and would bypass the base class's verification entirely, so
+		the check lives here rather than being inherited (§4.4).
+
+		:raises ValueError: this circle is negated
 		'''
+		if self.isNegated:
+			from .region import _NEGATION_BLIND_MSG
+			raise ValueError(f"boundingCircle: {_NEGATION_BLIND_MSG} (This circle is negated, so "
+			                 f"it covers everything OUTSIDE its own circumference.)")
 		return self
 
 	@property

@@ -784,23 +784,28 @@ def test_readHeader_unrecognized_list_raises():
 		ASTFITSChannel(header=[42, 43])
 
 
-def test_compound_toPolygon_raises():
+def test_compound_toPolygon_built_by_spec03():
 	'''
 	opus/codex rounds: fixing toPolygon's bound-method bug exposed that its
 	algorithm was wrong by design (a "bounding box" from the components'
-	DEFINING points — a degenerate sliver for circles). It raises loudly
-	until SPEC-03 rebuilds it; toMoc() is the working alternative.
+	DEFINING points — a degenerate sliver for circles), so it raised loudly
+	until SPEC-03 rebuilt it. SPEC-03A §4.3 is that rebuild: a connected
+	compound polygonizes, a DISJOINT one still refuses rather than inventing a
+	shape, and the abstract (npoints, maxerr) signature still holds.
 	'''
+	from cornish.exc import RegionNotConnected
 	c1 = ASTCircle(center=[30.0, 45.0], radius=1.0)
 	c2 = ASTCircle(center=[35.0, 45.0], radius=1.0)
-	compound = ASTCompoundRegion(regions=[c1, c2], operation=Ast.OR)
-	with pytest.raises(NotImplementedError):
-		compound.toPolygon()
-	# the abstract toPolygon(npoints, maxerr) contract holds polymorphically:
-	# parameters are accepted (and moot), never a TypeError
-	with pytest.raises(NotImplementedError):
-		compound.toPolygon(npoints=50, maxerr=1 * u.arcsec)
-	# the recommended route works
-	moc = compound.toMoc(max_order=8)
-	assert moc.astObject.pointinregion(np.deg2rad([30.0, 45.0]))
-	assert moc.astObject.pointinregion(np.deg2rad([35.0, 45.0]))
+	disjoint = ASTCompoundRegion(regions=[c1, c2], operation=Ast.OR)
+	with pytest.raises(RegionNotConnected):
+		disjoint.toPolygon()
+
+	overlapping = ASTCompoundRegion(regions=[c1, ASTCircle(center=[31.0, 45.0], radius=1.0)],
+	                                operation=Ast.OR)
+	polygon = overlapping.toPolygon(npoints=200, maxerr=1 * u.arcsec)
+	assert polygon.pointInRegion([30.5, 45.0]) is True
+	assert polygon.pointInRegion([35.0, 45.0]) is False
+	# the route toPolygon recommends for disjoint coverage still works
+	moc = disjoint.toMoc(max_order=8)
+	assert moc.pointInRegion([30.0, 45.0])
+	assert moc.pointInRegion([35.0, 45.0])

@@ -984,3 +984,326 @@ def test_T12_wcs_carried_by_both_methods(c1):
 	assert (c1 + 0.1).wcs is W
 	assert (c1 * 1.1).wcs is W
 	assert (c1 / 1.1).wcs is W
+
+
+# ===========================================================================
+# T7 — introspection (§4.1, §4.2, §4.5)
+# ===========================================================================
+
+def test_T7_operation_reads_the_dumped_operator(c1, c2):
+	''' T7: AND and OR through the dump-value route '''
+	assert (c1 & c2).operation is RegionOperation.AND
+	assert (c1 | c2).operation is RegionOperation.OR
+
+
+def test_T7_operator_weld_to_ast_constants():
+	''' T7: the three-value weld — cornish's enum IS AST's numbering '''
+	assert (int(RegionOperation.AND), int(RegionOperation.OR), int(RegionOperation.XOR)) == (1, 2, 3)
+	assert (Ast.AND, Ast.OR, Ast.XOR) == (1, 2, 3)
+
+
+def test_T7_components_of_a_nested_tree(c1, c2, far):
+	''' T7: the children of an n-ary union are themselves compounds '''
+	union = c1.union(c2, far, ASTCircle(center=[41, 20], radius=1.0))
+	left, right = union.components
+	assert isinstance(left, ASTCompoundRegion) and isinstance(right, ASTCompoundRegion)
+	assert len(union.components) == 2
+
+
+def test_T7_flattened_left_to_right_order():
+	''' T7: 64 leaves, in written order '''
+	circles = [ASTCircle(center=[10 + 3.0 * i, 20], radius=1.0) for i in range(64)]
+	union = circles[0].union(*circles[1:])
+	leaves = union.flattened()
+	assert len(leaves) == 64
+	centres = [leaf.centre[0] for leaf in leaves]
+	assert centres == sorted(centres) # left-to-right
+
+
+def test_T7_flattened_survives_a_deep_foreign_left_fold(c1):
+	''' T7: a 1000-deep foreign left fold must not hit the recursion limit '''
+	node = c1.astObject
+	for i in range(1000):
+		node = Ast.CmpRegion(node, ASTCircle(center=[10, 20 + 0.0], radius=1.0).astObject,
+		                     int(RegionOperation.OR))
+	compound = ASTCompoundRegion(ast_object=node)
+	assert len(compound.flattened()) == 1001
+
+
+def test_T7_leaf_decompose_weld(c1):
+	'''
+	T7/X21: flattened()'s class-free leaf test rests on two AST facts — a leaf's
+	decompose() second element is None, and its first is a LIVE pointer to the
+	region itself. Pin both so a pyast change is noticed.
+	'''
+	# every one of these contains (10, 20) in its INTERIOR — a boundary point
+	# stays a member under negation (Closed), so it would not show the flip
+	for region in (c1,
+	               ASTBox.fromCentreAndCorner(frame=ASTICRSFrame(), centre=[10, 20], corner=[11, 21]),
+	               c1.toPolygon(npoints=20), c1.toMoc(max_order=6)):
+		first, second, *_ = region.astObject.decompose()
+		assert second is None, region.astObject.Class
+		before = region.pointInRegion([10, 20])
+		first.negate()
+		assert region.pointInRegion([10, 20]) != before # live, not a copy
+		first.negate()
+
+
+def test_T7_xor_components_are_the_internal_composition(c1, c2):
+	''' T7/§2.7: a symmetric difference decomposes to (a & ~b) and (~a & b) '''
+	left, right = (c1 ^ c2).components
+	assert isinstance(left, ASTCompoundRegion) and isinstance(right, ASTCompoundRegion)
+	assert left.operation is RegionOperation.AND and right.operation is RegionOperation.AND
+	# ...and identically so for a foreign native-XOR compound
+	native = ASTCompoundRegion(ast_object=Ast.CmpRegion(c1.astObject, c2.astObject,
+	                                                    int(RegionOperation.XOR)))
+	assert [type(child) for child in native.components] == [ASTCompoundRegion, ASTCompoundRegion]
+
+
+def test_T7_simplified_collapses_classes(c1):
+	''' T7/§4.5: a union of a circle with itself simplifies back to a Circle '''
+	W = object()
+	c1.wcs = W
+	union = c1 | c1.copy()
+	union.wcs = W
+	simplified = union.simplified()
+	assert type(simplified) is ASTCircle
+	assert simplified.wcs is W
+	assert type(union) is ASTCompoundRegion # self untouched
+
+
+def test_T7_simplified_preserves_negation_honestly(c1):
+	''' T7/X29: AST's simplify() is NOT in the negation-blind family '''
+	simplified = (~c1).simplified()
+	assert simplified.isNegated is True
+	assert simplified.pointInRegion([10, 20]) is False
+	assert simplified.pointInRegion([40, 40]) is True
+
+
+# ===========================================================================
+# T9 — toPolygon, bounds, and the negation/emptiness guards (§4.3, §4.4, §4.6)
+# ===========================================================================
+
+def _agreement(region, polygon, ra_range, dec_range, n:int = 40) -> float:
+	agree = total = 0
+	for ra in np.linspace(*ra_range, n):
+		for dec in np.linspace(*dec_range, n):
+			point = [float(ra), float(dec)]
+			total += 1
+			agree += (region.pointInRegion(point) == polygon.pointInRegion(point))
+	return agree / total
+
+
+def test_T9_two_circle_union_polygonizes(c1, c2):
+	''' T9: the basic case, at high membership agreement over a dense grid '''
+	polygon = (c1 | c2).toPolygon(npoints=200)
+	assert isinstance(polygon, ASTPolygon)
+	assert _agreement(c1 | c2, polygon, (7, 15), (17, 23)) >= 0.999
+
+
+@pytest.mark.parametrize("count", [3, 5], ids=["3-circle", "5-circle"])
+def test_T9_multi_seam_chain_polygonizes(count):
+	''' T9: the multi-arc chaining regime the two-operand cases never reach '''
+	circles = [ASTCircle(center=[10 + i, 20], radius=1.0) for i in range(count)]
+	chain = circles[0].union(*circles[1:])
+	polygon = chain.toPolygon(npoints=200)
+	assert _agreement(chain, polygon, (6, 10 + count + 2), (15, 25)) >= 0.999
+
+
+def test_T9_lens_polygonizes(c1, c2):
+	''' T9: an intersection is a single loop too '''
+	lens = c1 & c2
+	assert _agreement(lens, lens.toPolygon(npoints=200), (7, 15), (17, 23)) >= 0.999
+
+
+def test_T9_size_heterogeneous_union_does_not_false_trip():
+	''' T9: two legitimate spacing regimes — the LOCAL median rule '''
+	big = ASTCircle(center=[10, 20], radius=2.0)
+	small = ASTCircle(center=[11.5, 20], radius=0.1)
+	union = big | small
+	assert _agreement(union, union.toPolygon(npoints=200), (6, 16), (14, 26)) >= 0.999
+
+
+def test_T9_polar_component_has_no_spurious_seams():
+	'''
+	T9/X23: a polar circle's mesh longitudes span the full 0..360 deg range, so a
+	planar gap metric would shred its arc into spurious seams. The geodesic
+	metric must not.
+	'''
+	polar = ASTCircle(center=[0, 89.5], radius=0.5) | ASTCircle(center=[90, 89.6], radius=0.5)
+	polygon = polar.toPolygon(npoints=200)
+	assert polygon.pointInRegion([0, 89.5]) is True
+	assert polygon.pointInRegion([0, 80.0]) is False
+
+
+@pytest.mark.parametrize("build,description", [
+	(lambda a, b, far: a | far, "disjoint union"),
+	(lambda a, b, far: a - ASTCircle(center=[10.2, 20], radius=0.3), "difference leaving a hole"),
+	(lambda a, b, far: a ^ b, "symmetric difference (pinched lunes)"),
+	(lambda a, b, far: a | ASTCircle(center=[12.001, 20], radius=1.0), "near-tangent disjoint pair"),
+], ids=["disjoint", "hole", "symmetric-difference", "near-tangent"])
+def test_T9_unrepresentable_boundaries_raise(c1, c2, far, build, description):
+	''' T9: a polygon cannot represent these, and none is silently invented '''
+	with pytest.raises(RegionNotConnected):
+		build(c1, c2, far).toPolygon(npoints=200)
+
+
+def test_T9_coarse_sampling_raises_rather_than_cutting(c1, c2):
+	''' T9: too few points is a loud ValueError, never a silent waist cut '''
+	union = c1 | c2
+	for npoints in (8, 12, 20):
+		with pytest.raises(ValueError) as excinfo:
+			union.toPolygon(npoints=npoints)
+		assert not isinstance(excinfo.value, RegionNotConnected)
+		assert "npoints" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("build", [
+	lambda a, b, far: a & far,          # disjoint AND — the disc-BAD class
+	lambda a, b, far: a - far.copy() - a.copy(),
+	lambda a, b, far: a - a.copy(),     # the finite-disc class
+	lambda a, b, far: a ^ a.copy(),     # ...and its twin
+], ids=["disjoint-and", "covering-difference", "a-minus-a", "a-xor-a"])
+def test_T9_empty_compounds_raise_not_polygonize(c1, c2, far, build):
+	'''
+	T9: BOTH empty conduct classes. The finite-disc class is the dangerous one —
+	it reports a plausible bounding disc and a full boundary mesh, and would
+	otherwise polygonize into a circle with wrong membership everywhere.
+	'''
+	empty = build(c1, c2, far)
+	with pytest.raises(ValueError) as excinfo:
+		empty.toPolygon(npoints=200)
+	assert not isinstance(excinfo.value, Ast.AstError)
+	assert "empty" in str(excinfo.value)
+
+
+def test_T9_empty_compound_meshes_raise_valueerror(c1, far):
+	''' T9/§4.4: a raw Ast.BADIN/Ast.NPTIN never leaks from the mesh methods '''
+	empty = c1 & far
+	with pytest.raises(ValueError):
+		empty.interiorPointMesh()
+	finite_disc_empty = c1 ^ c1.copy()
+	with pytest.raises(ValueError):
+		finite_disc_empty.interiorPointMesh()
+
+
+def test_T9_degenerate_disc_predicate():
+	''' T9: the factored predicate, incl. the zero-radius arm that has no natural trigger '''
+	from cornish.region.region import _degenerate_disc
+	assert _degenerate_disc([0.1, 0.2], Ast.BAD) is True
+	assert _degenerate_disc([Ast.BAD, 0.2], 0.5) is True
+	assert _degenerate_disc([0.1, 0.2], float("nan")) is True
+	assert _degenerate_disc([0.1, float("inf")], 0.5) is True
+	assert _degenerate_disc([0.1, 0.2], 0.0) is True   # defence in depth
+	assert _degenerate_disc([0.1, 0.2], 0.5) is False
+
+
+@pytest.mark.parametrize("accessor", ["bounds", "boundingBox", "boundingCircle"])
+def test_T9_negated_compound_bounds_raise(c1, c2, accessor):
+	'''
+	T9/X25: getregiondisc and getregionbounds ignore Negated entirely, so all
+	three accessors would otherwise return the UN-negated region's bounds while
+	the region covers the rest of the sky.
+	'''
+	negated = ~(c1 | c2)
+	with pytest.raises(ValueError):
+		getattr(negated, accessor)() if accessor != "bounds" else negated.bounds
+
+
+@pytest.mark.parametrize("accessor", ["bounds", "boundingBox", "boundingCircle"])
+def test_T9_negated_leaf_bounds_raise(c1, accessor):
+	''' T9: including a negated leaf, where boundingCircle dispatches to ASTCircle's OVERRIDE '''
+	negated = ~c1
+	with pytest.raises(ValueError):
+		getattr(negated, accessor)() if accessor != "bounds" else negated.bounds
+
+
+def test_T9_empty_compound_bounding_circle_raises(c1):
+	''' T9/X24: the finite-disc empty class returns a plausible bogus circle from AST '''
+	with pytest.raises(ValueError):
+		(c1 ^ c1.copy()).boundingCircle()
+
+
+@pytest.mark.parametrize("build", [
+	lambda: ASTCircle(center=[10, 20], radius=1.0),
+	lambda: ASTCircle(center=[10, 20], radius=1.0) | ASTCircle(center=[11, 20], radius=1.0),
+	lambda: ASTBox.fromCorners(frame=ASTICRSFrame(), corners=([10, 20], [11, 21])),
+	lambda: ASTCircle(center=[10, 20], radius=1.0).toPolygon(npoints=60),
+], ids=["circle", "union", "box", "polygon"])
+def test_T9_honest_regions_are_not_false_positives(build):
+	''' T9: the verification is loud on a hit, never loud on an honest region '''
+	region = build()
+	assert region.bounds is not None
+	assert region.boundingBox() is not None
+	assert region.boundingCircle() is not None
+
+
+@pytest.mark.parametrize("build,inside,outside", [
+	(lambda: ASTCircle(center=[10, 20], radius=1.0), [40, 40], [10, 20]),
+	(lambda: ASTBox.fromCentreAndCorner(frame=ASTICRSFrame(), centre=[10, 20], corner=[11, 21]),
+	 [40, 40], [10, 20]),
+], ids=["circle", "box"])
+def test_T9_negated_leaf_toPolygon(build, inside, outside):
+	'''
+	T9/§4.6/X28: on master BOTH leaf classes silently returned the UN-negated
+	shape's polygon — ASTCircle had no orientation logic at all, and ASTBox's
+	containsPoint guard tested the fresh polygon against the box's own centre,
+	which is trivially always True.
+	'''
+	negated = ~build()
+	polygon = negated.toPolygon(npoints=200)
+	assert polygon.pointInRegion(inside) is True
+	assert polygon.pointInRegion(outside) is False
+
+
+def test_T9_negated_compound_toPolygon(c1, c2):
+	''' T9: ~(a | b) is a legitimate non-empty compound; its polygon is the complement '''
+	polygon = (~(c1 | c2)).toPolygon(npoints=200)
+	assert polygon.pointInRegion([10, 20]) is False
+	assert polygon.pointInRegion([40, 40]) is True
+
+
+def test_T9_toPolygon_propagates_wcs(c1, c2):
+	''' T9/§2.3: a single-parent operation preserves provenance '''
+	W = object()
+	union = c1 | c2
+	union.wcs = W
+	assert union.toPolygon(npoints=200).wcs is W
+
+
+# ===========================================================================
+# T13 — MeshSize semantics on compounds (§4.4)
+# ===========================================================================
+
+def test_T13_meshSize_round_trips_on_a_compound(c1, c2):
+	''' T13/X3: set/get is faithful at sane values '''
+	compound = c1 | c2
+	compound.meshSize = 333
+	assert compound.meshSize == 333
+
+
+def test_T13_realized_mesh_differs_from_meshSize(c1, far):
+	''' T13/X20: MeshSize applies PER COMPONENT, so the realized count is not it '''
+	disjoint = c1 | far
+	assert len(disjoint.boundaryPointMesh(npoints=200)) == pytest.approx(400, abs=20)
+	ten = ASTCircle(center=[10, 20], radius=0.4)
+	union = ten.union(*[ASTCircle(center=[10 + 3.0 * i, 20], radius=0.4) for i in range(1, 10)])
+	assert len(union.boundaryPointMesh(npoints=200)) == pytest.approx(2000, abs=100)
+
+
+def test_T13_parent_meshSize_propagates_into_children(c1, c2):
+	''' T13/X3: the liveness pin — decomposed children see the parent's value '''
+	compound = c1 | c2
+	compound.meshSize = 321
+	child, *_ = compound.astObject.decompose()
+	assert int(child.MeshSize) == 321
+
+
+def test_T13_boundaryPointMesh_restores_children(c1, c2):
+	''' T13: the save/restore pattern is safe through that same liveness '''
+	compound = c1 | c2
+	compound.meshSize = 250
+	compound.boundaryPointMesh(npoints=40)
+	assert compound.meshSize == 250
+	child, *_ = compound.astObject.decompose()
+	assert int(child.MeshSize) == 250
