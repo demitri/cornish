@@ -642,8 +642,9 @@ class ASTCompoundRegion(ASTRegion):
 		— the same resolution limit ``npoints`` sets everywhere in this method,
 		not an additional one. And the two halves are not equally powerful: on a
 		basic frame the complement cannot be meshed, so the exterior sample falls
-		back to the eight-point escape ring, which makes the exterior half of the
-		majority test a 5-of-8 statistic where the interior half is 100-of-200.
+		back to the eight-point escape ring, so the exterior half of the majority
+		test is a bare majority of eight points where the interior half is a bare
+		majority of a two-hundred-point mesh.
 
 		:raises ValueError: the polygon and the compound disagree
 		'''
@@ -719,8 +720,18 @@ class ASTCompoundRegion(ASTRegion):
 		# about the exterior sample pools to just under half and would slip past a
 		# combined threshold; each side has to be meaningful on its own, or
 		# "verified" is the silent-skip this check exists to prevent.
-		# no emptiness guard is needed on either side: an empty sample forces its
-		# excused count to zero, and 0 > 0 is false
+		# An EMPTY sample is unverifiable, not verified. It cannot reach the
+		# dominance tests below and be caught there — an empty side forces its
+		# excused count to zero, so `0 > 0` resolves in the permissive direction
+		# and the method would return having checked nothing. (Latent today:
+		# interiorPointMesh raises on an empty compound, and the disc-escape
+		# fallback always yields at least eight points.)
+		if not len(interior) or not len(exterior):
+			raise ValueError(
+				f"the polygon built from this compound region's boundary could not be verified: "
+				f"the agreement sample is empty ({len(interior)} interior, {len(exterior)} "
+				f"exterior points), so nothing was actually checked")
+
 		unverified = []
 		if missed_excused * 2 > len(interior):
 			unverified.append(f"{missed_excused} of {len(interior)} interior")

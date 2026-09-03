@@ -1478,3 +1478,26 @@ def test_audit_verification_refuses_when_the_boundary_band_dominates(c1, c2, mon
 	# ...and it names WHICH side was unverifiable — the per-side reporting is the
 	# substance of the fix, not just the raise
 	assert "interior" in message
+
+
+def test_audit_verification_refuses_an_empty_sample(c1, c2, monkeypatch):
+	'''
+	An empty agreement sample is UNVERIFIABLE, not verified. The per-side
+	dominance tests cannot catch it — an empty side forces its excused count to
+	zero, so `0 > 0` resolves permissively and the method would return having
+	checked nothing.
+
+	Latent in practice (interiorPointMesh raises on an empty compound, and the
+	disc-escape fallback always yields at least eight points), so forced here.
+	'''
+	union = c1 | c2
+	polygon = union.toPolygon(npoints=200)
+	boundary = np.asarray(union.boundaryPointMesh(npoints=200), dtype=float)
+	boundary_frame = np.asarray(bridge.to_frame_units(boundary, union.astObject), dtype=float).T
+
+	monkeypatch.setattr(ASTCompoundRegion, "interiorPointMesh",
+	                    lambda self, npoints=None: np.empty((0, 2)))
+	with pytest.raises(ValueError) as excinfo:
+		union._verifyPolygonAgrees(polygon, 200, boundary_frame, True)
+	assert "sample is empty" in str(excinfo.value)
+	assert "nothing was actually checked" in str(excinfo.value)
