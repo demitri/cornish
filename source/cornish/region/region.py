@@ -3,6 +3,7 @@ from __future__ import annotations # remove in Python 3.10
 # Needed for forward references, see:
 # https://stackoverflow.com/a/33533514/2712652
 
+import itertools
 import logging
 import re
 import warnings
@@ -199,6 +200,12 @@ _ESCAPE_RING_FACTOR = 1.05
 _ESCAPE_RING_PAD_DEG = 1.0
 _ESCAPE_RING_MAX_DEG = 179.0
 
+#: Corner probes are 2**naxes of them, so they are only added while that stays
+#: small. Face probes alone still cover the defended class at any dimension: a
+#: negation-blind bound leaves the escaped membership filling the frame, which a
+#: face probe on every axis meets.
+_MAX_CORNER_PROBE_AXES = 4
+
 #: Each escape probe must agree with four neighbours this far away (as a
 #: fraction of the probe ring) before it counts. AST's spherical-polygon
 #: containment has isolated, measure-zero True answers at points that are
@@ -294,23 +301,25 @@ def _box_escape_points(ast_region: Ast.Region, lower, upper) -> Tuple[list, floa
 	upper = np.asarray(upper, dtype=float)
 	centre = 0.5 * (lower + upper)
 	half = 0.5 * (upper - lower)
+	naxes = len(centre)
 	# a pad that is meaningful whether the box is tiny or huge
 	pad = np.maximum(_ESCAPE_RING_FACTOR * half, np.abs(half) + 1e-6) - half
+	reach = half + pad
+
 	points = []
-	for axis in range(len(centre)):
+	for axis in range(naxes):                       # one past each face, any naxes
 		for sign in (-1.0, +1.0):
 			point = centre.copy()
-			point[axis] = centre[axis] + sign * (half[axis] + pad[axis])
+			point[axis] = centre[axis] + sign * reach[axis]
 			points.append(point)
-	for sign_0 in (-1.0, +1.0):
-		for sign_1 in (-1.0, +1.0):
-			points.append(np.array([centre[0] + sign_0 * (half[0] + pad[0]),
-			                        centre[1] + sign_1 * (half[1] + pad[1])]))
+	if naxes <= _MAX_CORNER_PROBE_AXES:             # one past each corner, while 2**naxes is small
+		for signs in itertools.product((-1.0, +1.0), repeat=naxes):
+			points.append(centre + np.asarray(signs, dtype=float) * reach)
 	frame = bridge.current_frame_of(ast_region)
-	if bridge.is_sky(ast_region):
+	if bridge.is_sky(ast_region):                   # sky frames are 2D by construction
 		points.append(np.array([centre[0] + math.pi, -centre[1]]))
 	normed = [np.asarray(frame.norm(list(point)), dtype=float) for point in points]
-	return normed, _corroboration_offset(ast_region, float(np.max(half + pad)))
+	return normed, _corroboration_offset(ast_region, float(np.max(reach)))
 
 
 def _corroborated_member(ast_region: Ast.Region, point, offset:float) -> bool:
@@ -325,11 +334,19 @@ def _corroborated_member(ast_region: Ast.Region, point, offset:float) -> bool:
 	if not ast_region.pointinregion(point):
 		return False
 	frame = bridge.current_frame_of(ast_region)
-	for quadrant in range(4):
-		neighbour = np.asarray(frame.offset2(point, math.pi * quadrant / 2, offset)[1], dtype=float)
-		if not ast_region.pointinregion(neighbour):
-			return False
-	return True
+	if len(point) == 2:
+		# offset2 walks a geodesic, which is what "a small step away" means on a
+		# sky frame; it is defined for two axes only
+		neighbours = [np.asarray(frame.offset2(point, math.pi * quadrant / 2, offset)[1], dtype=float)
+		              for quadrant in range(4)]
+	else:
+		neighbours = []
+		for axis in range(len(point)):
+			for sign in (-1.0, +1.0):
+				neighbour = np.asarray(point, dtype=float).copy()
+				neighbour[axis] += sign * offset
+				neighbours.append(np.asarray(frame.norm(list(neighbour)), dtype=float))
+	return all(ast_region.pointinregion(neighbour) for neighbour in neighbours)
 
 
 def _verify_encloses(ast_region: Ast.Region, probe_points, offset:float, what:str) -> None:
@@ -1002,16 +1019,8 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		# e.g. for a 2D image,
 		# [-10,5], [10,20] <- (ra, dec) or pixel bounds
 
-		if len(lower_bounds) == 2:
-			# the escape-probe geometry (offset2, antipode) is 2D; higher
-			# dimensions are out of the verified class rather than silently
-			# unverified — say so, loudly, at the one place it matters
-			probe_points, offset = _box_escape_points(self.astObject, lower_bounds, upper_bounds)
-			_verify_encloses(self.astObject, probe_points, offset, "bounds")
-		else:
-			logger.warning("bounds: the negation-blindness verification (§4.4) is only "
-			               "defined for 2D regions; this %dD region's bounds are unverified.",
-			               len(lower_bounds))
+		probe_points, offset = _box_escape_points(self.astObject, lower_bounds, upper_bounds)
+		_verify_encloses(self.astObject, probe_points, offset, "bounds")
 
 		lower_bounds = bridge.from_frame_units(lower_bounds, self.astObject)
 		upper_bounds = bridge.from_frame_units(upper_bounds, self.astObject)

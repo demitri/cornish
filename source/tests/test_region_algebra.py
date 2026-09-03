@@ -1408,3 +1408,39 @@ def test_T10_pickle_round_trip(c1, c2):
 	restored_foreign = pickle.loads(pickle.dumps(foreign))
 	assert restored_foreign.overlapType(foreign) == OverlapType.IDENTICAL
 	assert restored_foreign.operation is RegionOperation.XOR
+
+
+# ===========================================================================
+# silent-skip audit regressions (2026-09-03)
+# ===========================================================================
+
+def test_audit_bounds_verification_covers_every_dimension():
+	'''
+	The §4.4 verification must not be dimension-limited: a warning saying "this
+	3D region's bounds are unverified" is silent-skip-equivalent, and
+	getregionbounds is negation-blind at any number of axes.
+	'''
+	region = ASTCircle(frame=CornishFrame(naxes=3), center=[1, 1, 1], radius=1.0)
+	assert region.bounds is not None
+	with pytest.raises(ValueError):
+		(~region).bounds
+
+
+def test_audit_complement_mesh_fallback_is_narrow(c1, c2, monkeypatch):
+	'''
+	toPolygon's post-condition falls back to escape probes when AST cannot mesh
+	an unbounded complement. That fallback must be reachable ONLY from AST's own
+	"no mesh" answer — a ValueError from anywhere else is a real failure and has
+	to propagate, not be absorbed into a weaker check.
+	'''
+	union = c1 | c2
+	original = ASTCompoundRegion.interiorPointMesh
+
+	def raise_unrelated(self, npoints=None):
+		if self.isNegated:
+			raise ValueError("something else went wrong entirely")
+		return original(self, npoints=npoints)
+
+	monkeypatch.setattr(ASTCompoundRegion, "interiorPointMesh", raise_unrelated)
+	with pytest.raises(ValueError, match="something else went wrong entirely"):
+		union.toPolygon(npoints=200)

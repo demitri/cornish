@@ -663,33 +663,40 @@ class ASTCompoundRegion(ASTRegion):
 				f"npoints={npoints} the boundary is sampled no more finely than the region's own "
 				f"size, so the result cannot be verified — increase npoints")
 
-		def disagreements(points, expected_inside: bool) -> int:
-			count = 0
+		def disagreements(points, expected_inside: bool) -> tuple:
+			''' (real disagreements, disagreements excused as boundary-band) '''
+			real = excused = 0
 			for point in points:
 				if polygon.pointInRegion(list(point)) is expected_inside:
 					continue
 				frame_point = np.asarray(bridge.to_frame_units(point, self.astObject, squeeze=True),
 				                         dtype=float)
 				if _min_separation(frame_point, boundary, is_sky) <= near_boundary:
-					continue # on the boundary at this resolution; says nothing
-				count += 1
-			return count
+					excused += 1 # on the boundary at this resolution; says nothing
+				else:
+					real += 1
+			return real, excused
 
 		interior = np.asarray(self.interiorPointMesh(npoints=npoints), dtype=float)
-		missed = disagreements(interior, True)
+		missed, missed_excused = disagreements(interior, True)
 
 		complement = ~self
 		try:
 			exterior = np.asarray(complement.interiorPointMesh(npoints=npoints), dtype=float)
-		except ValueError:
-			# an unbounded complement (a compound on a basic frame) has no interior
-			# mesh; the escape ring outside the compound's own bounding disc is
-			# always available and serves the same purpose
+		except ValueError as e:
+			if not isinstance(e.__cause__, Ast.AstError):
+				# only AST's own "no mesh here" answer is expected and handled;
+				# anything else (a bad npoints, a non-finite coordinate) is a real
+				# failure and must not be absorbed by the fallback below
+				raise
+			# AST cannot mesh an unbounded complement (a compound on a basic
+			# frame): the ring of points outside the compound's own bounding disc
+			# is always available and probes the same thing
 			centre, radius = self.astObject.getregiondisc()
 			frame_points, _ = _disc_escape_points(self.astObject, centre, radius)
 			exterior = np.asarray(bridge.from_frame_units(np.asarray(frame_points).T, self.astObject),
 			                      dtype=float)
-		included = disagreements(exterior, False)
+		included, included_excused = disagreements(exterior, False)
 
 		if missed or included:
 			raise ValueError(
@@ -697,3 +704,14 @@ class ASTCompoundRegion(ASTRegion):
 				f"the region ({missed} of {len(interior)} interior points fall outside it, "
 				f"{included} of {len(exterior)} exterior points fall inside it); the boundary "
 				f"sampling is too coarse to polygonize this compound — increase npoints")
+
+		# The boundary band above EXCUSES disagreements, so it must not be where
+		# most of the sample lands: if it is, nothing was verified and saying
+		# "verified" would be the silent-skip this check exists to prevent.
+		excused = missed_excused + included_excused
+		sampled = len(interior) + len(exterior)
+		if sampled and excused * 2 > sampled:
+			raise ValueError(
+				f"the polygon built from this compound region's boundary could not be verified: "
+				f"{excused} of {sampled} probe points disagree with the region but lie within one "
+				f"seam-width of the boundary, where the sampling cannot decide — increase npoints")
