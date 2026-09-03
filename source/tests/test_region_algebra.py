@@ -1307,3 +1307,104 @@ def test_T13_boundaryPointMesh_restores_children(c1, c2):
 	assert compound.meshSize == 250
 	child, *_ = compound.astObject.decompose()
 	assert int(child.MeshSize) == 250
+
+
+# ===========================================================================
+# T10 — STC-S serialization and the Difference conformance guards (§2.7)
+# ===========================================================================
+
+@pytest.mark.parametrize("build,keyword", [
+	(lambda a, b: a | b, "Union"),
+	(lambda a, b: a & b, "Intersection"),
+	(lambda a, b: a - b, "Intersection"),   # a & ~b -> Intersection ( A Not ( B ) )
+], ids=["union", "intersection", "difference"])
+def test_T10_round_trip(c1, c2, build, keyword):
+	''' T10: write -> read -> IDENTICAL, and the conformant element name '''
+	region = build(c1, c2)
+	stcs = region.toSTCS()
+	assert keyword in stcs
+	assert "Difference" not in stcs
+	assert region.overlapType(ASTRegion.fromSTCS(stcs)) == OverlapType.IDENTICAL
+
+
+def test_T10_nary_union_flattens(c1, c2, far):
+	''' T10: AST flattens nested same-operator unions into one n-ary Union list '''
+	union = c1.union(c2, far)
+	stcs = union.toSTCS()
+	assert stcs.count("Union") == 1
+	assert union.overlapType(ASTRegion.fromSTCS(stcs)) == OverlapType.IDENTICAL
+
+
+def test_T10_symmetric_difference_refuses_to_serialize(c1, c2):
+	'''
+	T10/§2.7 as CORRECTED: SPEC-03A froze `a ^ b` as the explicit composition on
+	the premise that cornish would thereby never build a native Ast.XOR and its
+	output would always be conformant STC-S. Verified false — AST's CmpRegion
+	constructor recognizes the composition and stores it AS a native XOR, which
+	emits `Difference`. So the guard fires for cornish-built symmetric
+	differences too, which is the honest outcome: no conformant STC-S for a
+	symmetric difference exists.
+	'''
+	with pytest.raises(SerializationNotPossible) as excinfo:
+		(c1 ^ c2).toSTCS()
+	assert "IVOA STC 1.33" in str(excinfo.value)
+	# the suggested route does work
+	assert "Difference" not in (c1 - c2).toSTCS()
+	assert "Difference" not in (c2 - c1).toSTCS()
+
+
+def test_T10_foreign_native_xor_refuses_to_serialize(c1, c2):
+	''' T10: a wrapped foreign native-XOR compound is refused the same way '''
+	foreign = ASTCompoundRegion(ast_object=Ast.CmpRegion(c1.astObject, c2.astObject,
+	                                                     int(RegionOperation.XOR)))
+	with pytest.raises(SerializationNotPossible):
+		foreign.toSTCS()
+
+
+def test_T10_nested_xor_is_caught_structurally(c1, c2, far):
+	'''
+	T10: the guard is structural, not a check of the emitted text. An XOR NESTED
+	inside another compound emits no `Difference` token at all — AST writes
+	`(a ^ b) | c` as `Union ( a b c )`, a different region entirely (verified
+	2026-09-03; membership at the a-and-b overlap differs). A text-only guard
+	passes that silently.
+	'''
+	nested = ASTCompoundRegion(ast_object=Ast.CmpRegion(
+		Ast.CmpRegion(c1.astObject, c2.astObject, int(RegionOperation.XOR)),
+		far.astObject, int(RegionOperation.OR)))
+	with pytest.raises(SerializationNotPossible):
+		nested.toSTCS()
+
+
+@pytest.mark.parametrize("spelling", ["Difference", "difference", "DIFFERENCE", "DiFfErEnCe"],
+                         ids=["title", "lower", "upper", "mixed"])
+def test_T10_fromSTCS_warns_on_difference(spelling):
+	''' T10/X33: AST's reader is case-insensitive, so the guard must be too '''
+	from cornish.exc import STCSDifferenceWarning
+	stcs = f"{spelling} ICRS ( Circle 10 20 1 Circle 11 20 1 )"
+	with pytest.warns(STCSDifferenceWarning):
+		region = ASTRegion.fromSTCS(stcs)
+	assert isinstance(region, ASTCompoundRegion) # still parses
+
+
+def test_T10_fromSTCS_does_not_warn_otherwise():
+	''' T10: no warning for ordinary input '''
+	import warnings as _warnings
+	with _warnings.catch_warnings():
+		_warnings.simplefilter("error")
+		ASTRegion.fromSTCS("Union ICRS ( Circle 10 20 1 Circle 11 20 1 )")
+
+
+def test_T10_pickle_round_trip(c1, c2):
+	''' T10: cornish compounds and foreign native-XOR compounds both pickle '''
+	import pickle
+	union = c1 | c2
+	restored = pickle.loads(pickle.dumps(union))
+	assert restored.overlapType(union) == OverlapType.IDENTICAL
+	assert restored.operation is RegionOperation.OR
+
+	foreign = ASTCompoundRegion(ast_object=Ast.CmpRegion(c1.astObject, c2.astObject,
+	                                                     int(RegionOperation.XOR)))
+	restored_foreign = pickle.loads(pickle.dumps(foreign))
+	assert restored_foreign.overlapType(foreign) == OverlapType.IDENTICAL
+	assert restored_foreign.operation is RegionOperation.XOR

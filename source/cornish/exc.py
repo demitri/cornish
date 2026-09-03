@@ -12,7 +12,8 @@ more specific :class:`CornishError` subclass.
 
 __all__ = ['CornishError', 'FrameNotFoundException', 'NotA2DRegion', 'NotASkyRegion',
            'CoordinateSystemsCouldNotBeMapped', 'NoWCSFound', 'IncompleteHeader',
-           'UnsupportedASTClass', 'SerializationNotPossible', 'RegionNotConnected']
+           'UnsupportedASTClass', 'SerializationNotPossible', 'RegionNotConnected',
+           'STCSDifferenceWarning']
 
 class CornishError(Exception):
 	''' Root of the cornish exception hierarchy. '''
@@ -53,5 +54,24 @@ class SerializationNotPossible(CornishError):
 class RegionNotConnected(CornishError):
 	''' Raised when an operation requires a simply-connected region but the region has multiple patches. '''
 	pass
+
+class STCSDifferenceWarning(UserWarning):
+	'''
+	Emitted when STC-S input contains a ``Difference`` element.
+
+	AST reads (and writes) STC-S ``Difference`` as the SYMMETRIC difference —
+	XOR — while IVOA STC 1.33, the semantic authority behind STC-S, defines it
+	as asymmetric: "R1 - R2 = R1 AND (NOT R2)", "Difference is not a symmetrical
+	operation". A conformant producer's ``Difference`` is therefore misread by
+	AST, and AST's is misread by conformant consumers.
+
+	This is a warning rather than an error because the parse is not wrong for
+	AST-produced input (a round trip through cornish is exactly that) — but it
+	is never silent. It is deliberately NOT rooted in
+	:class:`CornishError`: it flags a possible producer-intent mismatch on an
+	operation that succeeds.
+	'''
+	pass
+
 
 NoWCSFoumd = NoWCSFound # deprecated alias (original misspelling), kept for compatibility

@@ -4,6 +4,8 @@ from __future__ import annotations # remove in Python 3.10
 # https://stackoverflow.com/a/33533514/2712652
 
 import logging
+import re
+import warnings
 from abc import ABCMeta, abstractproperty, abstractmethod
 from enum import Enum
 from typing import Union, Iterable, Optional, Tuple
@@ -174,6 +176,17 @@ def _collect_wcs(operands):
 			distinct.append(wcs)
 	return distinct[0] if len(distinct) == 1 else None
 
+
+#: A native XOR node anywhere in a region's dump. AST labels a CmpRegion's
+#: operator ``Operator`` (1 = AND, 2 = OR, 3 = XOR) and always writes it, so this
+#: is a structural test of the whole tree, not a text heuristic over the output.
+_XOR_OPERATOR_LINE = re.compile(r"^\s*#?\s*Operator\s*=\s*3\b", re.MULTILINE)
+
+#: The STC-S ``Difference`` element as AST EMITS it (title case only).
+_STCS_DIFFERENCE_EMITTED = re.compile(r"(?<![A-Za-z])Difference(?![A-Za-z])")
+
+#: The same element as AST READS it — case-insensitively (verified).
+_STCS_DIFFERENCE_INPUT = re.compile(r"(?<![A-Za-z])difference(?![A-Za-z])", re.IGNORECASE)
 
 #: Escape-probe geometry for the §4.4 bound verification. AST's
 #: ``getregiondisc``/``getregionbounds`` are NEGATION-BLIND — they answer about
@@ -659,6 +672,17 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		if not isinstance(stcs, str):
 			raise TypeError(f"ASTRegion.fromSTCS expects a string (got '{type(stcs).__name__}').")
 
+		# AST reads `Difference` as the SYMMETRIC difference (XOR), contrary to
+		# IVOA STC 1.33's asymmetric definition. Matched case-insensitively
+		# because AST's reader is: `difference`/`DIFFERENCE`/mixed case all parse
+		# identically, so an exact-case guard would silently miss valid input.
+		if _STCS_DIFFERENCE_INPUT.search(stcs):
+			from ..exc import STCSDifferenceWarning
+			warnings.warn(
+				"AST reads STC-S 'Difference' as the SYMMETRIC difference (XOR), contrary to "
+				"IVOA STC 1.33 (asymmetric, R1 AND NOT R2). If the producer meant R1 - R2, "
+				"rebuild as `a - b`.", STCSDifferenceWarning, stacklevel=2)
+
 		stcs_channel = Ast.StcsChan(ListSource(stcs), None)
 		try:
 			ast_object = stcs_channel.read()
@@ -706,6 +730,25 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		:raises cornish.exc.SerializationNotPossible: if AST cannot represent this region in STC-S
 		'''
 		from ..channel.channel_io import ListSink # avoid circular import
+		from ..exc import SerializationNotPossible
+
+		# AST writes a native XOR node to STC-S as `Difference`, which IVOA STC
+		# 1.33 defines as the ASYMMETRIC difference — so the emitted string means
+		# something else to every conformant consumer. Worse, an XOR node NESTED
+		# inside another compound is written as a plain `Union` of its two
+		# operands, losing the XOR entirely (verified 2026-09-03: `(a ^ b) | c`
+		# emits `Union ( a b c )`, whose membership differs from the region's).
+		# The guard is therefore STRUCTURAL — the whole tree is inspected for XOR
+		# nodes before anything is written — rather than a check of the emitted
+		# text, which the nested case would pass.
+		if _XOR_OPERATOR_LINE.search(str(self.astObject)):
+			raise SerializationNotPossible(
+				"This region contains a symmetric difference (an AST XOR node), which cannot be "
+				"written to conformant STC-S: AST emits XOR as 'Difference', but IVOA STC 1.33 "
+				"defines Difference as the ASYMMETRIC difference (R1 AND NOT R2), and an XOR "
+				"nested inside another compound is emitted as a plain Union of its operands. "
+				"Serialize the two halves separately (a - b and b - a, each of which emits "
+				"conformant STC-S), or use toMoc() for a coverage serialization.")
 
 		digits = as_integer(digits, "digits")
 		if not (1 <= digits <= 17):
@@ -719,9 +762,21 @@ class ASTRegion(ASTFrame, metaclass=ABCMeta):
 		stcs_channel = Ast.StcsChan(None, sink)
 		n_written = stcs_channel.write(formatted_copy)
 		if n_written == 0 or len(sink.lines) == 0:
-			from ..exc import SerializationNotPossible
 			raise SerializationNotPossible(f"This region ({self.__class__.__name__}) could not be serialized to STC-S.")
-		return " ".join(line.strip() for line in sink.lines).strip()
+		stcs = " ".join(line.strip() for line in sink.lines).strip()
+
+		# Backstop for the structural guard above: AST emits `Difference` ONLY
+		# for XOR nodes today (every other operator emits Union/Intersection/Not,
+		# and coordinate tokens are numeric), so this should be unreachable.
+		# Stated blind spot: it is a text heuristic, so a future AST with a
+		# user-settable free-text field could false-positive here — loudly, which
+		# is the acceptable direction.
+		if _STCS_DIFFERENCE_EMITTED.search(stcs):
+			raise SerializationNotPossible(
+				f"AST emitted an STC-S 'Difference' element for this region, which IVOA STC 1.33 "
+				f"defines as the ASYMMETRIC difference while AST means the symmetric one; the "
+				f"string would be misread by conformant consumers: '{stcs}'")
+		return stcs
 
 	@property
 	def points(self) -> np.ndarray:
