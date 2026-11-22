@@ -1,6 +1,6 @@
 #/usr/bin/env python
 
-from ..ast_object import ASTObject
+from ...ast_object import ASTObject
 
 class SpecFrame(ASTObject):
 	'''
